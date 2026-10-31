@@ -1,0 +1,504 @@
+# Radiology indexing personality. Changes take effect on Reindex.
+# Root settings use single-line strings, integers and string arrays.
+schema_version = 1
+id = "sel4"
+name = "seL4"
+summary = "Index kernel and user APIs across architectures and configurations."
+engine = "sel4"
+indexers = ["scip-sel4"]
+project_limit = 1
+clang_jobs = 1
+bootstrap_python = ["python3.11", "python3.12", "python3.13", "python3.14", "python3"]
+
+[runtime]
+python_candidates = ["~/Library/Caches/Radiology/sel4-builds/venv/bin/python3", "python3"]
+clang_candidates = ["/opt/homebrew/opt/llvm/bin/clang", "clang"]
+required_clang_targets = ["aarch64", "arm", "riscv32", "riscv64", "x86", "x86-64"]
+python_packages = ["ply==3.11", "PyYAML==6.0.3", "Jinja2==3.1.6", "lxml==6.1.3", "typing_extensions==4.16.0", "pyfdt==0.3", "six==1.17.0"]
+python_imports = ["ply", "yaml", "jinja2", "lxml", "typing_extensions", "pyfdt", "six"]
+cmake = "cmake"
+ninja = "ninja"
+dtc = "dtc"
+
+[sel4]
+required_files = ["CMakeLists.txt", "llvm.cmake", "tools/cpp_gen.sh", "libsel4/CMakeLists.txt"]
+toolchain = "llvm.cmake"
+build_targets = ["kernel_headers", "kernel_all_c_wrapper", "sel4_generated"]
+build_jobs = 4
+api_standard = "gnu99"
+api_headers = ["sel4/sel4.h", "sel4/functions.h", "sel4/arch/mapping.h", "sel4/sel4_arch/mapping.h"]
+unity_source = "kernel_all.c"
+library_source = "libsel4/src/sel4_bootinfo.c"
+# Original source bytes are indexed through includes in the upstream unity order.
+# Only header generation's required bitfield/prune preprocessing is performed.
+# Run configurations separately: one combined scip-clang run loses alternatives.
+
+[[sel4.profiles]]
+name = "AARCH64_MCS_verified"
+group = "verified"
+preset = "configs/AARCH64_MCS_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_bcm2711_verified"
+group = "verified"
+preset = "configs/AARCH64_bcm2711_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_bcm2712_verified"
+group = "verified"
+preset = "configs/AARCH64_bcm2712_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_imx8mm_verified"
+group = "verified"
+preset = "configs/AARCH64_imx8mm_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_imx8mq_verified"
+group = "verified"
+preset = "configs/AARCH64_imx8mq_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_imx93_verified"
+group = "verified"
+preset = "configs/AARCH64_imx93_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_maaxboard_verified"
+group = "verified"
+preset = "configs/AARCH64_maaxboard_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_odroidc2_verified"
+group = "verified"
+preset = "configs/AARCH64_odroidc2_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_odroidc4_verified"
+group = "verified"
+preset = "configs/AARCH64_odroidc4_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_rockpro64_verified"
+group = "verified"
+preset = "configs/AARCH64_rockpro64_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_stm32mp2_verified"
+group = "verified"
+preset = "configs/AARCH64_stm32mp2_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_tqma_verified"
+group = "verified"
+preset = "configs/AARCH64_tqma_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_tx1_verified"
+group = "verified"
+preset = "configs/AARCH64_tx1_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_ultra96v2_verified"
+group = "verified"
+preset = "configs/AARCH64_ultra96v2_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_verified"
+group = "verified"
+preset = "configs/AARCH64_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "AARCH64_zynqmp_verified"
+group = "verified"
+preset = "configs/AARCH64_zynqmp_verified.cmake"
+triple = "aarch64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_HYP_exynos5410_verified"
+group = "verified"
+preset = "configs/ARM_HYP_exynos5410_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_HYP_exynos5_verified"
+group = "verified"
+preset = "configs/ARM_HYP_exynos5_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_HYP_verified"
+group = "verified"
+preset = "configs/ARM_HYP_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_MCS_verified"
+group = "verified"
+preset = "configs/ARM_MCS_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_am335x_verified"
+group = "verified"
+preset = "configs/ARM_am335x_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_bcm2837_verified"
+group = "verified"
+preset = "configs/ARM_bcm2837_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_exynos5410_verified"
+group = "verified"
+preset = "configs/ARM_exynos5410_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_exynos5422_verified"
+group = "verified"
+preset = "configs/ARM_exynos5422_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_imx8mm_verified"
+group = "verified"
+preset = "configs/ARM_imx8mm_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_omap3_verified"
+group = "verified"
+preset = "configs/ARM_omap3_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_tk1_verified"
+group = "verified"
+preset = "configs/ARM_tk1_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_verified"
+group = "verified"
+preset = "configs/ARM_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_zynq7000_verified"
+group = "verified"
+preset = "configs/ARM_zynq7000_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "ARM_zynqmp_verified"
+group = "verified"
+preset = "configs/ARM_zynqmp_verified.cmake"
+triple = "arm-none-eabi"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_MCS_verified"
+group = "verified"
+preset = "configs/RISCV64_MCS_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_ariane_verified"
+group = "verified"
+preset = "configs/RISCV64_ariane_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_bananapi-f3_verified"
+group = "verified"
+preset = "configs/RISCV64_bananapi-f3_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_cheshire_verified"
+group = "verified"
+preset = "configs/RISCV64_cheshire_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_hifive-p550_verified"
+group = "verified"
+preset = "configs/RISCV64_hifive-p550_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_polarfire_verified"
+group = "verified"
+preset = "configs/RISCV64_polarfire_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_rocketchip-zcu102_verified"
+group = "verified"
+preset = "configs/RISCV64_rocketchip-zcu102_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_rocketchip_verified"
+group = "verified"
+preset = "configs/RISCV64_rocketchip_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_star64_verified"
+group = "verified"
+preset = "configs/RISCV64_star64_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "RISCV64_verified"
+group = "verified"
+preset = "configs/RISCV64_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "X64_verified"
+group = "verified"
+preset = "configs/X64_verified.cmake"
+triple = "x86_64-none-elf"
+defines = []
+
+[[sel4.profiles]]
+name = "ia32"
+group = "extended"
+preset = "configs/X64_verified.cmake"
+triple = "i386-none-elf"
+defines = ["KernelSel4Arch=ia32"]
+
+[[sel4.profiles]]
+name = "riscv32"
+group = "extended"
+preset = "configs/RISCV64_verified.cmake"
+triple = "riscv32-unknown-elf"
+defines = ["KernelPlatform=spike", "KernelSel4Arch=riscv32", "KernelPTLevels=2"]
+
+[[sel4.profiles]]
+name = "arm-allwinnerA20"
+group = "extended"
+preset = "configs/ARM_verified.cmake"
+triple = "arm-none-eabi"
+defines = ["KernelPlatform=allwinnerA20"]
+
+[[sel4.profiles]]
+name = "arm-tk1-smmu"
+group = "extended"
+preset = "configs/ARM_HYP_verified.cmake"
+triple = "arm-none-eabi"
+defines = ["KernelTk1SMMU=ON"]
+
+[[sel4.profiles]]
+name = "aarch64-tx2-smmu"
+group = "extended"
+preset = "configs/AARCH64_verified.cmake"
+triple = "aarch64-none-elf"
+defines = ["KernelArmSMMU=ON"]
+
+[[sel4.profiles]]
+name = "x64-sysenter"
+group = "extended"
+preset = "configs/X64_verified.cmake"
+triple = "x86_64-none-elf"
+defines = ["KernelSyscall=sysenter"]
+
+[[sel4.profiles]]
+name = "x64-debug-smp"
+group = "extended"
+preset = "configs/X64_verified.cmake"
+triple = "x86_64-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelDebugBuild=ON", "KernelPrinting=ON", "KernelNumDomains=1", "KernelMaxNumNodes=4", "HardwareDebugAPI=ON", "KernelIsMCS=OFF", "KernelVTX=ON", "KernelIOMMU=ON"]
+
+[[sel4.profiles]]
+name = "x64-debug-smp-mcs"
+group = "extended"
+preset = "configs/X64_verified.cmake"
+triple = "x86_64-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelDebugBuild=ON", "KernelPrinting=ON", "KernelNumDomains=1", "KernelMaxNumNodes=4", "HardwareDebugAPI=ON", "KernelIsMCS=ON", "KernelVTX=ON", "KernelIOMMU=ON"]
+
+[[sel4.profiles]]
+name = "x64-track_utilisation"
+group = "extended"
+preset = "configs/X64_verified.cmake"
+triple = "x86_64-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=track_utilisation"]
+
+[[sel4.profiles]]
+name = "ia32-tracepoints"
+group = "extended"
+preset = "configs/X64_verified.cmake"
+triple = "i386-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=tracepoints", "KernelSel4Arch=ia32"]
+
+[[sel4.profiles]]
+name = "ia32-track_kernel_entries"
+group = "extended"
+preset = "configs/X64_verified.cmake"
+triple = "i386-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=track_kernel_entries", "KernelSel4Arch=ia32"]
+
+[[sel4.profiles]]
+name = "arm-debug-smp"
+group = "extended"
+preset = "configs/ARM_verified.cmake"
+triple = "arm-none-eabi"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelDebugBuild=ON", "KernelPrinting=ON", "KernelNumDomains=1", "KernelMaxNumNodes=4", "HardwareDebugAPI=ON", "KernelIsMCS=OFF"]
+
+[[sel4.profiles]]
+name = "arm-debug-smp-mcs"
+group = "extended"
+preset = "configs/ARM_verified.cmake"
+triple = "arm-none-eabi"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelDebugBuild=ON", "KernelPrinting=ON", "KernelNumDomains=1", "KernelMaxNumNodes=4", "HardwareDebugAPI=ON", "KernelIsMCS=ON"]
+
+[[sel4.profiles]]
+name = "arm-track_utilisation"
+group = "extended"
+preset = "configs/ARM_verified.cmake"
+triple = "arm-none-eabi"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=track_utilisation"]
+
+[[sel4.profiles]]
+name = "arm-tracepoints"
+group = "extended"
+preset = "configs/ARM_verified.cmake"
+triple = "arm-none-eabi"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=tracepoints"]
+
+[[sel4.profiles]]
+name = "arm-track_kernel_entries"
+group = "extended"
+preset = "configs/ARM_verified.cmake"
+triple = "arm-none-eabi"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=track_kernel_entries"]
+
+[[sel4.profiles]]
+name = "aarch64-debug-smp"
+group = "extended"
+preset = "configs/AARCH64_verified.cmake"
+triple = "aarch64-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelDebugBuild=ON", "KernelPrinting=ON", "KernelNumDomains=1", "KernelMaxNumNodes=4", "HardwareDebugAPI=ON", "KernelIsMCS=OFF"]
+
+[[sel4.profiles]]
+name = "aarch64-debug-smp-mcs"
+group = "extended"
+preset = "configs/AARCH64_verified.cmake"
+triple = "aarch64-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelDebugBuild=ON", "KernelPrinting=ON", "KernelNumDomains=1", "KernelMaxNumNodes=4", "HardwareDebugAPI=ON", "KernelIsMCS=ON"]
+
+[[sel4.profiles]]
+name = "aarch64-track_utilisation"
+group = "extended"
+preset = "configs/AARCH64_verified.cmake"
+triple = "aarch64-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=track_utilisation"]
+
+[[sel4.profiles]]
+name = "aarch64-tracepoints"
+group = "extended"
+preset = "configs/AARCH64_verified.cmake"
+triple = "aarch64-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=tracepoints"]
+
+[[sel4.profiles]]
+name = "aarch64-track_kernel_entries"
+group = "extended"
+preset = "configs/AARCH64_verified.cmake"
+triple = "aarch64-none-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=track_kernel_entries"]
+
+[[sel4.profiles]]
+name = "riscv64-debug-smp"
+group = "extended"
+preset = "configs/RISCV64_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelDebugBuild=ON", "KernelPrinting=ON", "KernelNumDomains=1", "KernelMaxNumNodes=4", "HardwareDebugAPI=ON", "KernelIsMCS=OFF"]
+
+[[sel4.profiles]]
+name = "riscv64-debug-smp-mcs"
+group = "extended"
+preset = "configs/RISCV64_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelDebugBuild=ON", "KernelPrinting=ON", "KernelNumDomains=1", "KernelMaxNumNodes=4", "HardwareDebugAPI=ON", "KernelIsMCS=ON"]
+
+[[sel4.profiles]]
+name = "riscv64-track_utilisation"
+group = "extended"
+preset = "configs/RISCV64_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=track_utilisation"]
+
+[[sel4.profiles]]
+name = "riscv64-tracepoints"
+group = "extended"
+preset = "configs/RISCV64_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=tracepoints"]
+
+[[sel4.profiles]]
+name = "riscv64-track_kernel_entries"
+group = "extended"
+preset = "configs/RISCV64_verified.cmake"
+triple = "riscv64-unknown-elf"
+defines = ["KernelVerificationBuild=OFF", "KernelBinaryVerificationBuild=OFF", "KernelBenchmarks=track_kernel_entries"]
+

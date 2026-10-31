@@ -1,5 +1,7 @@
 import Foundation
 import SwiftTreeSitter
+import TreeSitterC
+import TreeSitterCPP
 import TreeSitterGo
 import TreeSitterJavaScript
 import TreeSitterKotlin
@@ -68,6 +70,13 @@ enum SourceLanguageRegistry {
                        grammar: { tree_sitter_tsx() }),
         SourceLanguage(id: "kotlin", displayName: "Kotlin", extensions: ["kt", "kts"],
                        grammar: { tree_sitter_kotlin() }),
+        SourceLanguage(id: "c", displayName: "C", extensions: ["c"],
+                       grammar: { tree_sitter_c() }),
+        // Plain .h headers can contain either language; C++ accepts common C
+        // declarations too and retains C++ class/template structure.
+        SourceLanguage(id: "cpp", displayName: "C++", extensions: ["cpp", "cc", "cxx", "c++", "h", "hpp", "hh", "hxx", "h++", "ipp", "inl", "tpp", "tcc"],
+                       queryDirectories: ["c", "cpp"],
+                       grammar: { tree_sitter_cpp() }),
     ]
 
     private static let byExtension: [String: SourceLanguage] = all.reduce(into: [:]) { table, language in
@@ -75,7 +84,10 @@ enum SourceLanguageRegistry {
     }
 
     static func language(for path: String) -> SourceLanguage? {
-        byExtension[URL(filePath: path).pathExtension.lowercased()]
+        let ext = URL(filePath: path).pathExtension
+        // Unix convention: .C is C++, while .c is C.
+        if ext == "C" { return language(id: "cpp") }
+        return byExtension[ext.lowercased()]
     }
 
     static func language(id: String) -> SourceLanguage? {

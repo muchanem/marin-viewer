@@ -80,6 +80,24 @@ struct IndexingTests {
         await #expect(throws: BrowserError.self) { try await missing.run() }
     }
 
+    @Test @MainActor func queuedCompilerProgressCannotReplaceFinishedStatus() async throws {
+        let root = try Self.temporaryRepository()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fake = FakeIndexer(id: "fake", displayName: "Noisy compiler",
+            script: "i=0; while [ $i -lt 2000 ]; do echo progress-$i; i=$((i + 1)); done; cp '\(Self.fixtureIndex.path)' \"$1\"",
+            marker: "Cargo.toml", installable: true)
+        let service = SemanticIndexService(indexers: [fake], cache: IndexCache(root: root.appending(path: "cache")))
+        let sink = PublicationSink()
+        await service.open(Self.snapshot(root)) { await sink.receive($0) }
+        try await Self.waitUntil { sink.publications.contains { $0.status == .current } }
+        // Drain tasks queued by the process's final output after it exited.
+        try await Task.sleep(for: .milliseconds(200))
+        let completed = try #require(sink.publications.firstIndex { $0.status == .current })
+        #expect(sink.publications[completed...].allSatisfy { !$0.status.isIndexing })
+        #expect(sink.latest?.outcomes.first?.result == .generated)
+        await service.close()
+    }
+
     @Test func cancellationTerminatesTheWholeProcessGroup() async throws {
         let marker = "radiology-group-\(UUID().uuidString)"
         let process = IndexerProcess(executable: URL(filePath: "/bin/sh"), arguments: ["-c", "sleep 300 & sleep 300; echo \(marker)"], directory: URL(filePath: "/tmp"), environment: ["RADIOLOGY_MARKER": marker])

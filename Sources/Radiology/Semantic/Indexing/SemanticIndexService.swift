@@ -7,6 +7,9 @@ actor SemanticIndexService {
     typealias Publish = @Sendable (SemanticPublication) async -> Void
 
     private let indexers: [any SemanticIndexer]
+    private var activeIndexers: [any SemanticIndexer]
+    private let personalityStore: IndexingPersonalityStore
+    private var personalitySettings: IndexingPersonalitySettings?
     private let defaultCache: IndexCache
     /// The cache for the current open: the default, or a revision's flat cache.
     private var cache: IndexCache
@@ -27,9 +30,13 @@ actor SemanticIndexService {
     private var publishedIndexIsDirty = false
     private var outcomes: [StrategyOutcome] = []
     private var metadata: IndexMetadata?
+    private let traitIndexer = TraitImplementationIndexer()
 
-    init(indexers: [any SemanticIndexer] = SemanticIndexerRegistry.all, cache: IndexCache = .default, tools: ToolDirectory = .default) {
+    init(indexers: [any SemanticIndexer] = SemanticIndexerRegistry.all, cache: IndexCache = .default, tools: ToolDirectory = .default,
+         personalityStore: IndexingPersonalityStore = .shared) {
         self.indexers = indexers
+        activeIndexers = indexers
+        self.personalityStore = personalityStore
         defaultCache = cache
         self.cache = cache
         provisioner = ToolProvisioner(tools: tools)
@@ -46,7 +53,8 @@ actor SemanticIndexService {
         let generation = UUID()
         self.generation = generation
         self.options = options
-        cache = options.cache ?? defaultCache
+        cache = (options.cache ?? defaultCache).selecting(options.personality)
+        personalitySettings = nil
         var inspected = RepositoryInspection(root: snapshot.root, paths: snapshot.files.map(\.path), isGit: snapshot.isGit)
         inspected.blobIDs = options.blobIDs
         inspection = inspected
@@ -102,7 +110,7 @@ actor SemanticIndexService {
 
     /// Installs a missing indexer, then regenerates.
     func install(indexerID: String) {
-        guard let indexer = indexers.first(where: { $0.id == indexerID }), inspection != nil else { return }
+        guard let indexer = activeIndexers.first(where: { $0.id == indexerID }), inspection != nil else { return }
         cancelCurrent()
         let generation = UUID()
         self.generation = generation
@@ -137,11 +145,51 @@ actor SemanticIndexService {
         body(&outcomes[position])
     }
 
+    /// Process output is delivered by unstructured tasks. A queued line must
+    /// not replace a completed outcome's final status with "Indexing".
+    private func emitProcessProgress(_ progress: IndexingProgress, position: Int, generation: UUID) async {
+        guard generation == self.generation, outcomes.indices.contains(position),
+              outcomes[position].result == .pending else { return }
+        await emit(status: .indexing(progress), generation: generation)
+    }
+
     // MARK: - The run
 
     private func run(generation: UUID, force: Bool) async {
-        guard let inspection else { return }
-        let plan = SemanticIndexerRegistry.strategies(for: inspection, indexers: indexers)
+        guard let originalInspection = inspection else { return }
+        let settings: IndexingPersonalitySettings?
+        do {
+            if let personality = options.personality { settings = try await personalityStore.load(personality) }
+            else { settings = nil }
+            guard !Task.isCancelled, generation == self.generation else { return }
+            if let settings, settings.engine == "automatic" {
+                let unknown = Set(settings.indexerIDs).subtracting(indexers.map(\.id))
+                guard unknown.isEmpty else { throw BrowserError.message("Unknown personality indexers: \(unknown.sorted().joined(separator: ", ")).") }
+            }
+            personalitySettings = settings
+        } catch {
+            guard generation == self.generation else { return }
+            let failure = IndexingFailure(kind: .processFailed, indexerID: "personality", indexerName: "Indexing personality",
+                indexerVersion: nil, strategy: nil, commandLine: nil, exitStatus: nil, signal: nil,
+                stdout: "", stderr: "", message: error.localizedDescription)
+            await emit(status: .failed(failure), generation: generation)
+            return
+        }
+        let indexers: [any SemanticIndexer]
+        if let settings, settings.engine == "sel4" {
+            indexers = [self.indexers.first { $0.id == "scip-sel4" } ?? ScipSel4Indexer(settings: settings)]
+        } else if let settings {
+            indexers = self.indexers.filter { settings.indexerIDs.isEmpty || settings.indexerIDs.contains($0.id) }.map {
+                $0 is ScipClangIndexer ? ScipClangIndexer(jobs: settings.clangJobs) : $0
+            }
+        } else { indexers = self.indexers }
+        activeIndexers = indexers
+        let inspection = CompilationDatabaseDiscovery.addingDatabases(to: originalInspection)
+        var plan = SemanticIndexerRegistry.strategies(for: inspection, indexers: indexers, limit: settings?.projectLimit ?? 32)
+        if let settings {
+            plan.selected = plan.selected.map { var strategy = $0; strategy.personalityDigest = settings.digest; return strategy }
+            plan.skipped = plan.skipped.map { var strategy = $0; strategy.personalityDigest = settings.digest; return strategy }
+        }
         selected = plan.selected
         skipped = plan.skipped
         unsupported = Self.unsupportedLanguages(in: inspection, covered: selected)
@@ -151,7 +199,7 @@ actor SemanticIndexService {
             publishedIndexIsDirty = false
             outcomes = []
             let languages = unsupported.isEmpty ? "" : " Files here are \(unsupported.formatted(.list(type: .and)))."
-            await emit(status: .noIndex(reason: "No supported build files were found.\(languages)"), generation: generation)
+            await emit(status: .noIndex(reason: "No supported build files were found.\(languages)" + Self.clangBuildHint(in: inspection, covered: selected)), generation: generation)
             return
         }
         await emit(status: .indexing(IndexingProgress(phase: .inspecting, strategy: nil, step: 0, total: selected.count, message: "Checking the repository…")), generation: generation)
@@ -316,7 +364,17 @@ actor SemanticIndexService {
                 continue
             }
             let output = FileManager.default.temporaryDirectory.appending(path: "radiology-\(UUID().uuidString).scip")
-            defer { try? FileManager.default.removeItem(at: output) }
+            defer {
+                try? FileManager.default.removeItem(at: output)
+                try? FileManager.default.removeItem(at: ScipSel4Indexer.configuration(for: output))
+                try? FileManager.default.removeItem(at: ScipSel4Indexer.artifacts(for: output))
+                try? FileManager.default.removeItem(at: output.deletingPathExtension().appendingPathExtension("provenance.json"))
+                if strategy.indexerID == "scip-sel4" { try? FileManager.default.removeItem(at: output.appendingPathExtension("tmp")) }
+                if strategy.indexerID == "scip-clang" {
+                    try? FileManager.default.removeItem(atPath: output.path + ".logs")
+                    try? FileManager.default.removeItem(at: ClangFallbackDatabase.databaseURL(for: output))
+                }
+            }
             let workspace: IndexingWorkspace?
             do {
                 if indexer.requiresIsolatedWorkspace, let buildInputError { throw BrowserError.message(buildInputError) }
@@ -336,7 +394,29 @@ actor SemanticIndexService {
                 continue
             }
             defer { workspace?.remove() }
-            let command = indexer.command(for: strategy, inspection: workspace?.inspection(from: inspection) ?? inspection,
+            let commandInspection = workspace?.inspection(from: inspection) ?? inspection
+            do {
+                if strategy.indexerID == "scip-sel4", let settings {
+                    try settings.data.write(to: ScipSel4Indexer.configuration(for: output), options: .atomic)
+                }
+                if strategy.indexerID == "scip-clang", ClangFallbackDatabase.isFallback(strategy) {
+                    await emit(status: .indexing(progress("Preparing best-effort C/C++ inputs…")), generation: generation)
+                    try await ClangFallbackDatabase.prepare(inspection: commandInspection, output: output)
+                    try Task.checkCancellation()
+                    guard generation == self.generation else { return }
+                }
+            } catch is CancellationError {
+                update(position, generation: generation) { $0.result = .cancelled }
+                return
+            } catch {
+                let failure = IndexingFailure(kind: .processFailed, indexerID: indexer.id, indexerName: indexer.displayName,
+                                              indexerVersion: version, strategy: strategy, commandLine: nil, exitStatus: nil, signal: nil,
+                                              stdout: "", stderr: "", message: error.localizedDescription)
+                update(position, generation: generation) { $0.result = .failed(failure) }
+                firstFailure = firstFailure ?? failure
+                continue
+            }
+            let command = indexer.command(for: strategy, inspection: commandInspection,
                                           executable: executable, output: output, tools: provisioner.tools)
             update(position, generation: generation) { $0.indexerVersion = version; $0.commandLine = command.commandLine }
             await emit(status: .indexing(progress("Running \(indexer.displayName)…")), generation: generation)
@@ -346,7 +426,7 @@ actor SemanticIndexService {
                 result = try await process.run { [weak self] line in
                     guard let self else { return }
                     if strategy.indexerID == "scip-kotlin", line.hasPrefix("methodDisambiguator:") { return }
-                    Task { await self.emit(status: .indexing(progress(line)), generation: generation) }
+                    Task { await self.emitProcessProgress(progress(line), position: position, generation: generation) }
                 }
             } catch is CancellationError {
                 update(position, generation: generation) { $0.result = .cancelled }
@@ -374,6 +454,10 @@ actor SemanticIndexService {
             var decoded: SCIPIndex
             do {
                 try workspace?.verifyInputs()
+                if strategy.indexerID == "scip-sel4",
+                   ContentDigest.workingTreeBlobIDs(root: inspection.root, paths: buildInputPaths) != (inspection.blobIDs ?? workingTreeBlobIDs) {
+                    throw BrowserError.message("seL4 source inputs changed during indexing. Reindex the current files.")
+                }
                 decoded = try SCIPDecoder.decode(try Data(contentsOf: output))
                 decoded = Self.snapshotDocuments(decoded, strategy: strategy, inspection: inspection)
             } catch {
@@ -395,7 +479,11 @@ actor SemanticIndexService {
             let kotlinPartial = strategy.indexerID == "scip-kotlin"
                 && (result.stderrTail.contains("RADIOLOGY_KOTLIN_PARTIAL_BUILD")
                     || !Self.missingFiles(for: strategy, inspection: inspection, index: decoded).isEmpty)
-            let capability: SemanticCoverageCapability = degraded ? .sourceOnlyNoDeps : (kotlinPartial ? .partialBuild : .fullWorkspace)
+            let clangPartial = ["scip-clang", "scip-sel4"].contains(strategy.indexerID)
+                && (!Self.missingFiles(for: strategy, inspection: inspection, index: decoded).isEmpty
+                    || Self.clangReportedErrors(result.stdoutTail + "\n" + result.stderrHead + "\n" + result.stderrTail))
+            let clangFallback = strategy.indexerID == "scip-clang" && ClangFallbackDatabase.isFallback(strategy)
+            let capability: SemanticCoverageCapability = clangFallback ? .bestEffort : (degraded ? .sourceOnlyNoDeps : (kotlinPartial || clangPartial ? .partialBuild : .fullWorkspace))
             let cargoError = degraded ? Self.firstCargoError(in: result.stderrHead + "\n" + result.stderrTail) : nil
             guard !decoded.documents.isEmpty else {
                 let failure = IndexingFailure(kind: .invalidOutput, indexerID: indexer.id, indexerName: indexer.displayName, indexerVersion: version,
@@ -480,11 +568,29 @@ actor SemanticIndexService {
     private func emit(status: SemanticIndexStatus, generation: UUID) async {
         guard generation == self.generation, let publish, let inspection else { return }
         if publishedIndexIsDirty {
-            publishedIndex = loaded.isEmpty ? .empty : SemanticIndex(inputs: selected.compactMap { loaded[$0.id] })
+            let base = loaded.isEmpty ? SemanticIndex.empty : SemanticIndex(inputs: selected.compactMap { loaded[$0.id] })
+            // Cached stale coordinates must not create fresh-looking impl edges.
+            var excluded: Set<String> = []
+            for outcome in outcomes {
+                let trusted: Bool
+                switch outcome.result {
+                case .generated, .reused, .cached(stale: false): trusted = true
+                default: trusted = false
+                }
+                if !trusted, let input = loaded[outcome.id] {
+                    excluded.formUnion(input.index.documents.map { input.pathPrefix + $0.relativePath })
+                }
+            }
+            let catalog = try? await traitIndexer.build(index: base, root: inspection.root,
+                cacheDirectory: cache.directory(for: inspection.root), repositoryPaths: inspection.paths,
+                excludedPaths: excluded, expectedBlobs: inspection.blobIDs)
+            guard !Task.isCancelled, generation == self.generation else { return }
+            publishedIndex = catalog.map { SemanticIndex(base: base, traitImplementations: $0) } ?? base
             publishedIndexIsDirty = false
         }
         await publish(SemanticPublication(repositoryRoot: inspection.root, index: publishedIndex, status: status, outcomes: outcomes, skipped: skipped,
-                                          unsupportedLanguages: unsupported, metadata: metadata, cacheDirectory: cache.directory(for: inspection.root)))
+                                          unsupportedLanguages: unsupported, metadata: metadata, cacheDirectory: cache.directory(for: inspection.root),
+                                          personalitySettings: personalitySettings))
     }
 
     /// A strategy file from another cache whose recorded digest equals
@@ -498,10 +604,11 @@ actor SemanticIndexService {
 
     private func reuse(_ strategy: IndexingStrategy, digest: String, inspection: RepositoryInspection) -> ReusedStrategy? {
         for source in options.reuseSources {
-            guard source.cache != cache || source.root != inspection.root,
-                  let metadata = source.cache.loadMetadata(for: source.root),
-                  let record = metadata.strategies.first(where: { $0.strategy.id == strategy.id && $0.contentDigest == digest }) else { continue }
-            let origin = source.cache.directory(for: source.root).appending(path: record.fileName)
+            let sourceCache = options.personality.map { source.cache.selecting($0) } ?? source.cache
+            guard sourceCache != cache || source.root != inspection.root,
+                  let metadata = sourceCache.loadMetadata(for: source.root),
+                  let record = metadata.strategies.first(where: { $0.strategy == strategy && $0.contentDigest == digest }) else { continue }
+            let origin = sourceCache.directory(for: source.root).appending(path: record.fileName)
             guard let data = try? Data(contentsOf: origin), let raw = try? SCIPDecoder.decode(data) else { continue }
             let decoded = Self.snapshotDocuments(raw, strategy: strategy, inspection: inspection)
             guard !decoded.documents.isEmpty else { continue }
@@ -586,7 +693,7 @@ actor SemanticIndexService {
     /// cannot be opened in the pinned source snapshot and must not become
     /// navigable definitions. Apply the same boundary on generation/cache/reuse.
     private static func snapshotDocuments(_ index: SCIPIndex, strategy: IndexingStrategy, inspection: RepositoryInspection) -> SCIPIndex {
-        guard strategy.indexerID == "scip-kotlin" else { return index }
+        guard ["scip-kotlin", "scip-sel4"].contains(strategy.indexerID) else { return index }
         let paths = Set(inspection.paths)
         let prefix = strategy.projectDirectory.isEmpty ? "" : strategy.projectDirectory + "/"
         var result = index
@@ -604,6 +711,19 @@ actor SemanticIndexService {
         }
         return present.subtracting(coveredNames).subtracting(["Markdown", "JSON", "YAML", "TOML", "HTML", "CSS", "Shell", "SQL"]).sorted()
     }
+
+    static func clangBuildHint(in inspection: RepositoryInspection, covered: [IndexingStrategy]) -> String {
+        guard !covered.contains(where: { $0.indexerID == "scip-clang" }),
+              inspection.paths.contains(where: { ["c", "cpp"].contains(SourceLanguageRegistry.language(for: $0)?.id ?? "") }) else { return "" }
+        return " " + ScipClangIndexer.buildRequirement
+    }
+
+    static func clangReportedErrors(_ output: String) -> Bool {
+        if output.contains("error:") { return true }
+        return output.components(separatedBy: "num errored TUs: ").dropFirst().contains { suffix in
+            (Int(suffix.prefix(while: { $0.isNumber })) ?? 0) > 0
+        }
+    }
 }
 
 extension SemanticIndexerRegistry {
@@ -619,7 +739,7 @@ extension SemanticIndexerRegistry {
             case "Kotlin": extensions.insert("kt")
             case "Java": extensions.insert("java")
             case "C": extensions.formUnion(["c", "h"])
-            case "C++": extensions.formUnion(["cpp", "cc", "cxx", "hpp", "hh", "hxx"])
+            case "C++": extensions.formUnion(["cpp", "cc", "cxx", "c++", "h", "hpp", "hh", "hxx", "h++", "ipp", "inl", "tpp", "tcc"])
             default: break
             }
         }

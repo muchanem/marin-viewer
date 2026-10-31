@@ -21,7 +21,7 @@ struct WelcomeView: View {
                     }
                 }.frame(maxWidth: 500).padding(Theme.inset)
             }
-            Text("⌘P  Go to file     ⇧⌘F  Search     ⌘[  Go back")
+            Text("⌘K  Go to file     ⇧⌘F  Search     ⌘[  Go back")
                 .font(Theme.Fonts.meta).foregroundStyle(.secondary)
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }

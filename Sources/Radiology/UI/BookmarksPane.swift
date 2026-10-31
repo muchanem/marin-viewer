@@ -14,6 +14,10 @@ struct BookmarksPane: View {
                     .buttonStyle(.borderless)
                     .disabled(!model.canBookmarkCurrentLocation)
                     .help(model.isCurrentLocationBookmarked ? "Remove this bookmark (⌘D)" : "Bookmark the current caret location (⌘D)")
+                Menu("Bookmark Pane Actions", systemImage: "ellipsis") {
+                    Button("Hide Bookmarks") { model.inspectorPanes.bookmarks = false }
+                }
+                .labelStyle(.iconOnly).menuStyle(.borderlessButton).fixedSize()
             }
             if let error = bookmarks.navigationError {
                 ContextStatusLine(text: "Bookmark unavailable", detail: error, systemImage: "exclamationmark.triangle")

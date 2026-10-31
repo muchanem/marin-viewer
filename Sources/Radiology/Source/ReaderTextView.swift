@@ -34,6 +34,9 @@ final class ReaderTextView: NSTextView {
     var onGoToDefinition: ((Int) -> Void)?
     /// Return/Enter on a semantic symbol: (target byte, exact departure caret byte).
     var onKeyboardGoToDefinition: ((Int, Int) -> Void)?
+    /// Plain x toggles the function owning this canonical caret byte.
+    /// False means there is no foldable function and native handling continues.
+    var onToggleEnclosingFunction: ((Int) -> Bool)?
     var onFindReferences: ((Int) -> Void)?
     var criticalityMenu: ((Int) -> CriticalityMenu?)?
     /// Critical-mode hover: the pointer rests on a byte (nil when it left the
@@ -598,20 +601,38 @@ final class ReaderTextView: NSTextView {
     static let returnKeyCode: UInt16 = 36
     static let keypadEnterKeyCode: UInt16 = 76
 
+    /// Plain x toggles the named function at the selection's caret byte.
     /// Plain Return or keypad Enter follows the semantic symbol under the
     /// caret or the native selection to its in-repository definition, like
     /// ⌘-click. Anything else — modified keys, no SCIP target, a target with
     /// no in-repository definition (external, or the caret already on the
     /// definition), or a selection that is not inside one occurrence — falls
-    /// through to the text view unchanged.
+    /// through to the text view unchanged. Commands stay local to this reader.
     override func keyDown(with event: NSEvent) {
         if hoverPresentation != nil { onHoverDismiss?() }
+        if let byte = keyboardFunctionFoldByte(for: event), let toggle = onToggleEnclosingFunction {
+            // Holding the key must not repeatedly flip the same fold.
+            if event.isARepeat { return }
+            if toggle(byte) {
+                clearHover()
+                return
+            }
+        }
         if let route = keyboardDefinitionRoute(for: event) {
             clearHover()
             onKeyboardGoToDefinition?(route.target, route.departure)
             return
         }
         super.keyDown(with: event)
+    }
+
+    func keyboardFunctionFoldByte(for event: NSEvent) -> Int? {
+        guard !isEditable, event.type == .keyDown, event.characters?.lowercased() == "x",
+              event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
+              !hasMarkedText(), let byteForUTF16 else { return nil }
+        let selection = selectedRange()
+        guard selection.location != NSNotFound else { return nil }
+        return byteForUTF16(selection.location)
     }
 
     /// The (target, departure) bytes a Return/Enter event would follow, or nil.

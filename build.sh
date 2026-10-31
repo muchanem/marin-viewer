@@ -86,7 +86,7 @@ if [ ! -d "$QUERY_ROOT" ]; then
 	echo "✗ Tree-sitter query resources missing from $APP" >&2
 	exit 1
 fi
-for dir in swift rust go python ecmascript javascript jsx typescript kotlin; do
+for dir in swift rust go python ecmascript javascript jsx typescript kotlin c cpp; do
 	if [ ! -f "$QUERY_ROOT/$dir/highlights.scm" ]; then
 		echo "✗ missing query resource: Queries/$dir/highlights.scm" >&2
 		exit 1

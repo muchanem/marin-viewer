@@ -27,6 +27,7 @@ enum Theme {
     static let inspectorReferencesMinHeight: Double = 150
     static let inspectorDefinitionMinHeight: Double = 100
     static let inspectorBookmarksMinHeight: Double = 100
+    static let inspectorImplementationRowHeight: CGFloat = 22
     static let contextHeaderHeight: CGFloat = 28
     /// Leading lane for row disclosure triangles in the Context inspector.
     static let disclosureWidth: CGFloat = 14

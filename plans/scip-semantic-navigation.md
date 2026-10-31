@@ -6,6 +6,14 @@ References, ⌘T symbol search, and a ⌘-hover affordance. There is no language
 server. Tree-sitter structure and ripgrep search keep working while an index is
 missing, building, stale, or failed.
 
+Rust trait implementations are derived before semantic publication and cached
+per exact source/occurrence digest. The immutable index gains a trait-to-block
+lookup using Tree-sitter impl headers resolved to SCIP identities; rust-analyzer
+emits no explicit implementation relationships. Stale contributions are excluded
+and source blobs are verified before activation. See
+[rust-trait-implementations.md](rust-trait-implementations.md) for cache,
+coverage, inspector behavior and measured performance.
+
 This document records the architecture, the decisions behind it, what is
 supported, and what is not. `plans/scip-ui-handoff.md` is the native UI test
 handoff; `PROGRESS.md` carries validation evidence.
@@ -166,7 +174,7 @@ anchors are preserved.
 | scip-go | `go.mod` + `.go` | `scip-go 0.2.7` (`go install github.com/scip-code/scip-go/cmd/scip-go@v0.2.7`, verified in a scratch GOBIN) | `go install` into tools/go/bin | Adapter and provisioning implemented; no Go fixture indexed end to end yet |
 | scip-typescript | `tsconfig.json`, else `package.json` + scripts | `@sourcegraph/scip-typescript 0.4.0` (verified `--version` and `index --help` under Node 21.6.2; upstream states Node 22/24 support) | `npm install --prefix tools/npm/scip-typescript` | Adapter and provisioning implemented; `--infer-tsconfig` for JS; not run end to end yet |
 | scip-python | `pyproject.toml`/`setup.py`/`setup.cfg`/`requirements.txt` + `.py` | `@sourcegraph/scip-python 0.6.6` (verified `--version`, `index --help`); requires Python 3.10+, this machine has 3.9.1 | `npm install --prefix tools/npm/scip-python` | Adapter and provisioning implemented; expected to fail here with an inspectable diagnostic |
-| scip-clang | `compile_commands.json` | `scip-clang 0.4.0` (arm64 release binary; `--compdb-path`, `--index-output-path` verified) | Manual: no checksum is published for the release asset, so Radiology does not download it | Detect-and-run if installed; diagnostics otherwise |
+| scip-clang (updated 2026-10-13) | C/C++ sources; real `compile_commands.json` takes priority, including hidden build directories | `scip-clang 0.4.0` arm64 macOS release, actual compiler fixture/service checked | Managed tools/bin binary with pinned upstream release SHA-256; manual discovery on Intel | Automatic source-only defaults without a database, always Best effort/Partial. Definitions/references/Back, overload/UTF-8 identity and cache/config transitions tested; extern-C gaps remain. See clang-best-effort.md and c-cpp-support.md |
 | Kotlin/Java Gradle (added 2026-10-07) | Gradle settings/build files + `.kt`/`.java` | scip-java compiler source `9f288dd339c7`, built as `0.13.1-radiology-9f288dd339c7` | `tools/kotlin-scip/distribution`, managed source build with JDK17+ | Kotlin2.4.20/AGP9.4.1/Gradle9.7.1 actual PR758 compilation and JVM fixture pass; caret/references/definitions/Back tested in PR After. Build failures retain Partial. See kotlin-semantic-indexing.md; physical UI unverified |
 | Swift | — | — | — | No SCIP indexer exists; reported as unsupported |
 

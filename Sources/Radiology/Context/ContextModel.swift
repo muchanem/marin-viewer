@@ -14,6 +14,7 @@ import Observation
 /// every async result is checked against the identity that requested it.
 @Observable @MainActor
 final class ContextModel {
+    let implementations = TraitImplementationsModel()
     enum DeclarationAbsence: Sendable, Equatable {
         /// No source, or the caret is outside every declaration.
         case noDeclaration
@@ -184,6 +185,7 @@ final class ContextModel {
         }
         updateDeclaration(inputs)
         updateUnderCaret(inputs)
+        implementations.update(inputs)
         for id in expandedReferenceIDs where referenceCallTrees[id] == nil {
             loadCallTree(id: id)
         }
@@ -191,6 +193,7 @@ final class ContextModel {
 
     /// Clears everything for a new repository (or none).
     func reset() {
+        implementations.reset()
         referencesTask?.cancel()
         previewTask?.cancel()
         clearCallTrees()

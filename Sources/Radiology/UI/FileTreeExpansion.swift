@@ -14,6 +14,12 @@ final class FileTreeExpansion {
         if expanded { expandedPaths.insert(path) } else { expandedPaths.remove(path) }
     }
 
+    func reveal(_ path: String) {
+        let parts = path.split(separator: "/")
+        guard parts.count > 1 else { return }
+        expandedPaths.formUnion((1..<parts.count).map { parts.prefix($0).joined(separator: "/") })
+    }
+
     func binding(for path: String) -> Binding<Bool> {
         Binding { [unowned self] in isExpanded(path) } set: { [unowned self] in setExpanded($0, path: path) }
     }

@@ -18,6 +18,7 @@ struct FileTreeRow: View {
             }
         } else {
             FileTreeLabel(title: node.name, path: node.path, isDirectory: false, root: root)
+                .id(node.path)
         }
     }
 }

@@ -4,6 +4,7 @@ dist/
 *.xcodeproj/
 .DS_Store
 .agents/
+__pycache__/
 
 # Inherited, inactive starter copy; the root Swift package is the project.
 /repo/

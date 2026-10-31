@@ -51,6 +51,17 @@ final class AppModel {
     let semantics: SemanticModel
     let context: ContextModel
     let bookmarks: BookmarkModel
+    let codePaths: CodePathModel
+    var inspectorRevealRevision = 0
+    var sidebarRevealRevision = 0
+    @ObservationIgnored let codePathResolver = CodePathResolver()
+    @ObservationIgnored var codePathNavigationTask: Task<Void, Never>?
+    var inspectorPanes: InspectorPanes {
+        didSet {
+            guard inspectorPanes != oldValue else { return }
+            inspectorPanes.save(to: preferences)
+        }
+    }
     @ObservationIgnored let bookmarkResolver = BookmarkResolver()
     @ObservationIgnored var bookmarkNavigationTask: Task<Void, Never>?
     let criticalLens: CriticalLensModel
@@ -117,8 +128,11 @@ final class AppModel {
         self.preferences = preferences
         sessionStore = ReaderSessionStore(preferences: preferences)
         self.semantics = semantics
+        semantics.usePersonalityPreferences(preferences)
         self.context = context
         bookmarks = BookmarkModel(preferences: preferences)
+        codePaths = CodePathModel(preferences: preferences)
+        inspectorPanes = InspectorPanes(preferences: preferences)
         self.criticalLens = criticalLens
         self.criticalSummaries = criticalSummaries
         self.pullRequests = pullRequests
@@ -202,6 +216,8 @@ final class AppModel {
         context.reset()
         bookmarkNavigationTask?.cancel()
         bookmarks.activate(nil)
+        codePathNavigationTask?.cancel()
+        codePaths.activate(nil)
         if review == nil {
             criticalLens.repositoryClosed()
             pullRequests.repositoryClosed()
@@ -215,7 +231,7 @@ final class AppModel {
                 repository = snapshot
                 refreshFileTree()
                 if let review {
-                    semantics.repositoryOpened(snapshot, options: review.indexOptions)
+                    semantics.repositoryOpened(snapshot, options: review.indexOptions, selectionRoot: attachedRoot)
                     if let attachedRoot {
                         sessionStore.save(ReaderSession(repositoryPath: attachedRoot.path, pullRequest: review.number))
                     }
@@ -234,6 +250,7 @@ final class AppModel {
                 }
                 if let attachedRoot {
                     bookmarks.activate(BookmarkScope(root: attachedRoot, pullRequest: review?.number))
+                    codePaths.activate(attachedRoot)
                 }
             } catch {
                 guard generation == repositoryGeneration, !Task.isCancelled else { return }
@@ -285,7 +302,7 @@ final class AppModel {
         if let viewport = refreshedViewport { positions[viewport.positionKey] = viewport }
         if source == nil && restoration.notice != nil { mode = .changes }
         refreshFileTree()
-        semantics.repositoryOpened(snapshot, options: review.indexOptions)
+        semantics.repositoryOpened(snapshot, options: review.indexOptions, selectionRoot: attachedRoot)
         if let buffer = source {
             currentLine = buffer.line(atByte: restoration.caret?.byteOffset ?? 0)
             semantics.bufferChanged(buffer.revision == .before ? nil : buffer)

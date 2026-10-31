@@ -12,6 +12,7 @@ struct RepositorySidebar: View {
                     ReviewChangesView()
                 case .files:
                     RepositoryFilesView(repository: repository)
+                case .codePaths: CodePathsSidebar()
                 case .search: RepositorySearchView()
                 }
                 Divider()
@@ -34,6 +35,10 @@ struct RepositorySidebar: View {
 
     /// Visible count, named filter state, and any hidden-open-file notice.
     private func footer(_ repository: RepositorySnapshot) -> String {
+        if model.mode == .codePaths {
+            let count = model.codePaths.paths.count
+            return "\(count) \(count == 1 ? "code path" : "code paths")"
+        }
         let filters = [model.sourceFilters.sourceFilesOnly ? "Source only" : nil,
                        model.sourceFilters.hidesTests ? "Tests hidden" : nil].compactMap { $0 }
         if model.mode == .changes, let review = model.review {
@@ -44,11 +49,16 @@ struct RepositorySidebar: View {
             }
             return text
         }
+        let presentation = model.mode == .files ? model.filesSidebarPresentation : nil
+        let total = repository.files.count + (presentation?.currentFileOutsideSnapshot == true ? 1 : 0)
+        let visible = model.visibleFileCount + (presentation?.addsTreeException == true ? 1 : 0)
         var text = model.sourceFilters.isActive
-            ? "\(model.visibleFileCount) of \(repository.files.count) files"
-            : "\(repository.files.count) files"
+            ? "\(visible) of \(total) files"
+            : "\(total) files"
         if !filters.isEmpty { text += " · \(filters.joined(separator: " · "))" }
-        if model.mode == .files, model.isOpenFileFilteredOut { text += " · open file hidden by filters" }
+        if presentation?.addsTreeException == true || (!model.fileQuery.isEmpty && presentation?.addsFilterException == true) {
+            text += " · current file revealed"
+        }
         return text
     }
 }

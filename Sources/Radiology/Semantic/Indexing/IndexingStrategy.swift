@@ -57,6 +57,8 @@ struct IndexingStrategy: Sendable, Hashable, Identifiable, Codable {
     /// Source files of those languages under the project directory, so the
     /// status can say how many of them the indexer actually covered.
     var sourceFileCount = 0
+    /// Settings and bundled pipeline bytes are part of cache/reuse identity.
+    var personalityDigest: String? = nil
 
     var id: String { projectDirectory.isEmpty ? indexerID : "\(indexerID)@\(projectDirectory)" }
     /// Safe for use as a cache file name.

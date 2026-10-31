@@ -4,6 +4,142 @@ Radiology is a native, read-only macOS repository browser. The active implementa
 
 ## Current accepted state
 
+**Publication batch (2026-10-31):** the user requested bundling all local changes
+and pushing directly to GitHub `main`. The starting local branch, local `main`
+and fetched `origin/main` all pointed to `6d446b9`, allowing one new commit and a
+normal fast-forward push without a PR merge. This batch includes all reader,
+Code Paths, C/C++, seL4, indexing-personality, trait and inspector work described
+below. [Publication scope and validation](plans/github-publication.md); newest
+PROGRESS.md records this batch's checks. Earlier local/uncommitted descriptions
+are historical.
+
+**Code Paths in the left sidebar (2026-10-31):** Files / Code Paths / Search,
+plus Changes during PR review. Import selects/reveals Code Paths; View > Show
+Code Paths (⌃⌘P) restores a hidden navigation sidebar. Bookmarks retains its
+independent right-pane visibility. Existing traces need no reimport; the earlier
+inspector placement and competing-pane switch actions below are superseded.
+[Current contract](plans/code-paths.md). **333 tests /77 suites**, signed build,
+resource verification and live sidebar/import/navigation/recovery checks pass.
+Relaunch the built app; newest PROGRESS.md records exact evidence and limits.
+
+**Function visits expand bodies (2026-10-31):** committed reader jumps, including
+Code Paths and Back, open the destination function and folded ancestors. Late
+syntax and font updates preserve the caret; manual collapse survives ordinary
+refreshes, and unrelated functions stay folded. [Behavior](plans/code-paths.md).
+See newest PROGRESS.md for validation.
+
+**seL4 Code Paths repair (2026-10-31):** exact supplied **91-step ARM trace**
+resolves and navigates through the actual reader model on d419a119a. BEGIN_FUNC
+assembly, preprocessor-damaged C body parsing and conditional source variants
+are repaired. Imports hide Bookmarks; direct Show Bookmarks Instead / Show Code
+Paths Instead and Hide actions persist pane choice. Native clicks, variant
+selection, exact Back and pane switch/relaunch pass. **332 tests /76 suites**
+pass excluding the known Files scroll assertion; signed build/resources and
+light/dark renders pass. **Relaunch the built app; no trace reimport needed.**
+[Updated contract](plans/code-paths.md); newest PROGRESS.md has exact evidence.
+
+**Code Paths and keyboard help (2026-10-30):** persistent repository-associated
+`file:function:description` traces with symbol-based navigation, paste/text-file
+import and an optional right inspector pane. No line numbers are stored; native
+acceptance followed the same function from line3 to line5 after source changes.
+[Feature contract](plans/code-paths.md),
+[generator skill prompt](plans/code-path-generator-prompt.md),
+[complete keyboard reference](Sources/Radiology/Help/KeyboardShortcuts.md), also
+in Help > Keyboard Shortcuts (⌘/). **16 focused tests /5 suites**, **326 tests /
+75 suites excluding the known Files scroll assertion**, light/dark native
+renders, live import/relaunch/navigation/Help, signed build and resources pass.
+Relaunch the built app. See the newest PROGRESS.md entry for exact limits.
+
+**Indexing personalities (2026-10-30):** Semantic Index now has native
+**Default / seL4** selection and **Show Settings File**. Readable TOML drives
+adapter limits/workers and the complete **67-configuration** seL4 recipe;
+selection persists per attached checkout, including PRs. Reindex runs the
+selected pipeline, with isolated inputs, exact settings provenance, separate
+caches and configuration-aware reuse. Real generation, explicit Reindex and
+warm reload preserve **598 documents /24,934 symbols /131,126 occurrences**.
+seL4 is selected for the user's checkout; its new namespace is primed.
+**313 tests /71 suites pass excluding one known Files scroll failure**;
+final **9 targeted tests /3 suites**, light/dark native renders and signed
+build/resource gates pass. Relaunch for the new picker.
+[Current workflow and schema](plans/indexing-personalities.md).
+
+**Original seL4 indexing job (2026-10-30, superseded above):** normal app cache primed with a compiler union
+of **67 configurations /134 translation units**: **598 documents,24,934
+symbols,131,126 occurrences**, all original-coordinate checks pass. All
+**177 build-backed physical C files** are covered; 25 source/header paths
+remain honestly Partial. Only upstream header generation requires preprocessing;
+the index reads original sources through unity include wrappers. Separate
+configuration runs retain conditional definitions lost by a combined run.
+Reproduction/import recipe and Reindex limitation:
+[seL4 indexing](plans/sel4-indexing.md). Five union tests and real cold/warm
+acceptance pass; **306 app tests pass with one existing Files scroll test
+excluded**. Compile/build/sign/resources pass; app session preserved.
+
+**C/C++ best effort (2026-10-13):** no compilation database required.
+Source-only GNU C11/C++20 defaults and inferred include paths produce actual
+compiler identities, always marked Best effort/Partial including cache hits.
+Real build databases retain priority; preparation is cancellable and memoized.
+Actual tkfiasco: **15,669 indexed documents /523,683 symbols**, normal app
+cache primed; cold 321.438 s/warm 18.144 s. **305 tests /67 suites** and
+compile/build/strict signing/resources pass, signed 17:56:17 CDT. Relaunch the
+upgraded app. [Contract and current evidence](plans/clang-best-effort.md);
+newest PROGRESS.md records full validation and limits.
+
+**C/C++ support (2026-10-13):** official C 0.24.2/C++ 0.23.4 grammars and
+five query roles, recursive declaration names and mixed headers. scip-clang
+0.4.0 gains checksum-verified managed Apple Silicon installation, build
+database discovery, temporary logs and persisted Partial compiler coverage.
+tkfiasco can use best-effort defaults; real build inputs improve coverage;
+Fiasco source directives and upstream extern-C gaps remain explicit.
+**301 tests /66 suites**, check/build/strict signing and all ten packaged
+grammars pass. [Contract and validation](plans/c-cpp-support.md); newest
+PROGRESS.md has gates. Relaunch the built app for the registry.
+
+**Dense Trait Implementations (2026-10-11):** one caption/count and a flat
+22-point list of type/file:line Buttons. Single click opens an impl with exact
+Back; separate trait/file headings, disclosures, preview views/state/tasks and
+routine footer removed. Full source context/coverage remains in help with a
+gap indicator. **291 tests /63 suites pass sequentially**; native row-count/
+height, primary action/Back and six width/appearance renders verified;
+check/build/sign/resources pass, signed **17:14:26 CDT**.
+[Current contract](plans/rust-trait-implementations.md).
+
+**Inspector pane controls (2026-10-11):** persistent Panes menu and View >
+Context Panes checked choices for References, Definition/Outline,
+Implementations and Bookmarks. Active regions reclaim height; all-off recovery,
+contextual detail fallback and enabling-from-View inspector recovery retain
+reader and model state. All 16 combinations/native dividers and light/dark
+renders verified. **291 tests /63 suites pass with --no-parallel**; parallel
+runs hit the Files manual-scroll timing assertion, which passes alone and with
+the pane suite. Check/build/sign/resources pass; signed **16:39:26 CDT**.
+[Contract and evidence](plans/inspector-pane-controls.md).
+
+**Rust trait implementations (2026-10-11):** contextual middle inspector pane,
+precomputed during semantic publication and persisted by exact source/semantic
+digests. Exact identities cover aliases, qualified paths, blanket and negative
+impls; changed destinations are rejected and exact Back is preserved. Native
+dividers and light/dark rows verified; **288 tests /62 suites** pass. Read-only
+348-file probe: 585 blocks/78 traits, cold 2.639 s, warm 0.413 s with no reparsing.
+Macros/configuration gaps remain explicit. [Contract and evidence](plans/rust-trait-implementations.md).
+
+**Files follows navigation (2026-10-11):** Files expands parents, highlights and
+centers the current document after bookmarks/search/other jumps and returning
+to Files. Exact caret/history/revision survive; passive caret movement preserves
+manual list browsing. Current-file filter exceptions and Before-only paths keep
+settings unchanged. Actual native List selection/scroll tests pass. **277 tests /
+59 suites**, check/build/strict signing/resources; signed **15:37:26 CDT**. Local
+with x-key work on codex/toggle-current-function.
+[Contract and evidence](plans/files-sidebar-navigation.md).
+
+**Current-function fold key (2026-10-11):** plain x in the source reader toggles
+the innermost named function's own body fold, using existing state. Expanding a
+hidden function also opens folded ancestors; siblings, source bytes, selection
+and navigation remain unchanged. Outside/unfoldable functions are unchanged;
+modified keys and other input fields retain native handling, hold-repeat is
+suppressed. **273 tests /58 suites**, check/build/strict signing/resources pass;
+signed **15:08:18 CDT**. Local branch
+`codex/toggle-current-function`; [contract and evidence](plans/function-fold-key.md).
+
 **Published to GitHub main (2026-10-11):** all accumulated work merged through
 [PR #1](https://github.com/tqbf/radiology/pull/1), explicitly authorized by the
 user after initially requesting a push. Feature commit `3b8f7f5`, merge `dfc877a`
@@ -164,7 +300,7 @@ The caret-driven **Context inspector** is implemented by Opus 5.5 and replaces t
 
 The app icon now uses the supplied root `RADIO.png`; Make regenerates all macOS sizes when that image or the icon script changes. The icon-stage signed bundle was rebuilt at **16:42:51** (preserved in the subsequent call-focused build) and registered with LaunchServices. Compile, 161 tests/32 suites, signing, packaged resources, and decoded icon variants pass; application source and the final Critical Lens UI acceptance status are unchanged. See [the build guide](plans/build-system.md) and the newest PROGRESS.md entry.
 
-Delivered behavior includes repository opening/recent/drop/CLI launch, Git-aware discovery, read-only TextKit source, ripgrep search, exact history, Tree-sitter structure for eight grammars, structural navigation and folding, fuzzy file lookup, and app-owned SCIP generation/navigation. The current fold gutter is 104 points wide with separate 28-point disclosure, exact hidden-line count, and canonical line-number lanes; the earlier 68-point/faint 2-point meter was superseded. Large-fold membership is binary-searched and glyph/layout invalidation is limited to changed ranges. Ordinary and locked occurrence highlighting coexist with native selection; a function-local Tree-sitter fallback covers parsed occurrences absent from SCIP without becoming a semantic guess.
+Delivered behavior includes repository opening/recent/drop/CLI launch, Git-aware discovery, read-only TextKit source, ripgrep search, exact history, Tree-sitter structure for ten grammars, structural navigation and folding, fuzzy file lookup, and app-owned SCIP generation/navigation. The current fold gutter is 104 points wide with separate 28-point disclosure, exact hidden-line count, and canonical line-number lanes; the earlier 68-point/faint 2-point meter was superseded. Large-fold membership is binary-searched and glyph/layout invalidation is limited to changed ranges. Ordinary and locked occurrence highlighting coexist with native selection; a function-local Tree-sitter fallback covers parsed occurrences absent from SCIP without becoming a semantic guess.
 
 The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3) passed `make check`, 97 tests in 16 suites, a signed build, strict code-sign verification, and packaged verification of eight grammars/31 query files. Bundled builds now explicitly select SwiftPM's `swiftbuild` backend, matching the successful Swift 6.4 build on ELSTON; see [the build guide](plans/build-system.md). The user’s earlier acceptance is separate evidence that the reported fold interaction is fixed. See PROGRESS.md and the development history for the exact boundary.
 
@@ -178,6 +314,12 @@ The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3
 
 ## Subsystem documentation
 
+- [plans/indexing-personalities.md](plans/indexing-personalities.md) — Default/seL4 UI, persistent repository choice, editable TOML, packaged pipeline, isolated execution, cache/reuse identity and validation.
+- [plans/sel4-indexing.md](plans/sel4-indexing.md) — prepared seL4 configuration matrix, original-source unity wrappers, compiler union/local identities, verified app cache, reproduction and refresh limitations.
+- [plans/clang-best-effort.md](plans/clang-best-effort.md) — automatic C/C++ semantic indexing without build information, inferred input policy, persistent coverage labels, cancellation, cache transitions and real validation.
+- [plans/c-cpp-support.md](plans/c-cpp-support.md) — C/C++ grammars and query roles, recursive declarators, header routing, managed scip-clang installation, compilation database discovery, coverage, tkfiasco limits and validation.
+- [plans/inspector-pane-controls.md](plans/inspector-pane-controls.md) — persistent checked pane menus, contextual detail fallback, all-off recovery, dynamic native splits and retained reader/pane state.
+- [plans/rust-trait-implementations.md](plans/rust-trait-implementations.md) — contextual pane, advance indexing and persistent cache, identity/freshness/navigation contracts, coverage, measured performance and validation.
 - [plans/source-breadcrumbs.md](plans/source-breadcrumbs.md) — adaptive path/declaration retention, fixed revision area, type hierarchy, and visual acceptance.
 - [plans/session-restoration.md](plans/session-restoration.md) — last repository/PR persistence, startup precedence, failure recovery, and real relaunch acceptance.
 - [plans/source-gutter.md](plans/source-gutter.md) — compact gutter, fifth-line/caret numbering, count fitting, typography and native draw verification.

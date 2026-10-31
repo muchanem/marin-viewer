@@ -1,5 +1,10 @@
 # Structural navigation
 
+**Current-function keyboard fold, 2026-10-11:** plain x in the focused source
+reader toggles its innermost named function's existing body fold. Folded ancestors
+open when needed to reveal an expansion; unrelated fold state and the exact caret
+remain. See [function-fold-key.md](function-fold-key.md).
+
 Radiology's Tree-sitter structure is a coordinated reading surface. All
 locations remain canonical UTF-8 byte offsets; TextKit conversion still occurs
 only through `SourceBuffer`.

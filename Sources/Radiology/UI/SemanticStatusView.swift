@@ -67,6 +67,8 @@ struct SemanticStatusPopover: View {
                 Spacer()
                 Text(model.semantics.status.label).font(Theme.Fonts.meta).foregroundStyle(.secondary)
             }
+            IndexingPersonalityPicker()
+            Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.spacing) {
                     statusDetail
@@ -83,6 +85,10 @@ struct SemanticStatusPopover: View {
                     if !model.semantics.unsupportedLanguages.isEmpty {
                         Text("No indexer here for \(model.semantics.unsupportedLanguages.formatted(.list(type: .and))).")
                             .font(Theme.Fonts.meta).foregroundStyle(.secondary)
+                        if needsClangBuildInstructions {
+                            Text(ScipClangIndexer.buildRequirement)
+                                .font(Theme.Fonts.meta).foregroundStyle(.secondary)
+                        }
                     }
                     if let metadata = model.semantics.metadata {
                         Divider()
@@ -115,6 +121,12 @@ struct SemanticStatusPopover: View {
         }
         .padding(Theme.inset * 1.5)
         .frame(width: 440)
+    }
+
+    private var needsClangBuildInstructions: Bool {
+        guard model.semantics.unsupportedLanguages.contains("C") || model.semantics.unsupportedLanguages.contains("C++") else { return false }
+        if case .noIndex(let reason) = model.semantics.status, reason.contains(ScipClangIndexer.buildRequirement) { return false }
+        return true
     }
 
     @ViewBuilder private var statusDetail: some View {
@@ -160,6 +172,9 @@ struct StrategyOutcomeRow: View {
             } else if outcome.capability == .partialBuild {
                 Text("Partial: some sources or build variants were not indexed. Compiler-resolved definitions and references in covered files remain available.")
                     .font(Theme.Fonts.meta).foregroundStyle(.secondary)
+            } else if outcome.capability == .bestEffort {
+                Text(ClangFallbackDatabase.explanation)
+                    .font(Theme.Fonts.meta).foregroundStyle(.secondary)
             }
             if !outcome.missingFiles.isEmpty {
                 DisclosureGroup("\(outcome.missingFiles.count) source files not covered") {
@@ -193,15 +208,15 @@ struct StrategyOutcomeRow: View {
         switch outcome.result {
         case .pending: return "Pending"
         case .cached(let stale):
-            let label = outcome.capability == .fullWorkspace ? "Cached" : "Partial, cached"
+            let label = outcome.capability == .bestEffort ? "Best effort, cached" : (outcome.capability == .fullWorkspace ? "Cached" : "Partial, cached")
             return (stale ? "\(label), stale" : label) + " · \(outcome.documentCount) files"
         case .generated:
-            let prefix = outcome.capability == .fullWorkspace ? "Generated" : "Partial"
+            let prefix = outcome.capability == .bestEffort ? "Best effort" : (outcome.capability == .fullWorkspace ? "Generated" : "Partial")
             return outcome.strategy.sourceFileCount > 0
                 ? "\(prefix) · \(outcome.documentCount) of \(outcome.strategy.sourceFileCount) files"
                 : "\(prefix) · \(outcome.documentCount) files"
         case .reused(let from):
-            let prefix = outcome.capability == .fullWorkspace ? "Reused" : "Partial, reused"
+            let prefix = outcome.capability == .bestEffort ? "Best effort, reused" : (outcome.capability == .fullWorkspace ? "Reused" : "Partial, reused")
             return "\(prefix) from \(from) (identical bytes) · \(outcome.documentCount) files"
         case .failed: return "Failed"
         case .cancelled: return "Cancelled"

@@ -3,6 +3,15 @@ import Foundation
 /// Hide Tests and Source Files Only: the filtered Files tree and the inline
 /// test-code projection. See plans/source-filters.md.
 extension AppModel {
+    var filesSidebarPresentation: FilesSidebarPresentation? {
+        guard let repository else { return nil }
+        let path = selectedPath ?? source?.path
+        let before = path.flatMap { review?.change(path: $0, in: .before) }?.existsBefore == true
+            && (source?.revision == .before || navigationTarget?.revision == .before)
+        return FilesSidebarPresentation(repository: repository, tree: fileTree, files: filteredFiles,
+                                        filters: sourceFilters, path: path, loadedPath: source?.path, isBeforePath: before)
+    }
+
     /// Rebuilds the Files tree and the filter-field list from the browsed
     /// repository. The repository model itself is never filtered.
     func refreshFileTree() {

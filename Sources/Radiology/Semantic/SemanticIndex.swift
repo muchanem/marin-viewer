@@ -53,6 +53,7 @@ final class SemanticIndex: Sendable {
     let sources: [SemanticIndexSource]
     /// Repository symbols with at least one in-repository definition, for ⌘T.
     let searchEntries: [SymbolSearchEntry]
+    let traitImplementations: TraitImplementationIndex
 
     var documentCount: Int { documents.count }
     var symbolCount: Int { symbols.count }
@@ -157,6 +158,19 @@ final class SemanticIndex: Sendable {
             guard !name.isEmpty else { return nil }
             return SymbolSearchEntry(id: id, name: name, kind: symbol.kind, position: first, definitionCount: positions.count)
         }.sorted { ($0.name, $0.position.path, $0.position.range.startLine) < ($1.name, $1.position.path, $1.position.range.startLine) }
+        traitImplementations = .unavailable
+    }
+
+    /// Shares immutable semantic maps while attaching precomputed source impls.
+    init(base: SemanticIndex, traitImplementations: TraitImplementationIndex) {
+        documents = base.documents
+        symbols = base.symbols
+        definitions = base.definitions
+        references = base.references
+        definitionExtents = base.definitionExtents
+        sources = base.sources
+        searchEntries = base.searchEntries
+        self.traitImplementations = traitImplementations
     }
 
     // MARK: - Queries

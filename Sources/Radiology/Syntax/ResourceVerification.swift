@@ -28,12 +28,22 @@ enum ResourceVerification {
                 lines.append("FAIL \(language.id): \(error.localizedDescription)")
             }
         }
-        for name in ["kotlin-index.sh", "kotlin-index.gradle", "install-kotlin-indexer.sh"] {
+        for name in ["kotlin-index.sh", "kotlin-index.gradle", "install-kotlin-indexer.sh", "install-clang-indexer.sh"] + IndexingPersonalityStore.scripts {
             if FileManager.default.isReadableFile(atPath: ScipKotlinIndexer.script(name).path) {
                 lines.append("ok   indexing script: \(name)")
             } else {
                 isComplete = false
                 lines.append("FAIL indexing script: \(name)")
+            }
+        }
+        for personality in IndexingPersonality.allCases {
+            do {
+                let url = try IndexingPersonalityStore.template(personality)
+                _ = try IndexingPersonalitySettings(personality: personality, url: url, data: Data(contentsOf: url))
+                lines.append("ok   indexing personality: \(personality.rawValue).toml")
+            } catch {
+                isComplete = false
+                lines.append("FAIL indexing personality: \(error.localizedDescription)")
             }
         }
         lines.append(isComplete

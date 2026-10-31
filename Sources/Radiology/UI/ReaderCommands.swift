@@ -5,6 +5,10 @@ struct ReaderCommands: Commands {
     @FocusedBinding(\.isContextPresented) private var isContextPresented: Bool?
     var body: some Commands {
         BookmarkCommands(model: model)
+        CommandGroup(replacing: .help) {
+            Button("Keyboard Shortcuts…") { model.sheet = .keyboardHelp }
+                .keyboardShortcut("/", modifiers: .command)
+        }
         CommandGroup(replacing: .newItem) {
             Button("Open Repository…", action: model.chooseRepository).keyboardShortcut("o")
             Menu("Open Recent") {
@@ -58,6 +62,10 @@ struct ReaderCommands: Commands {
                 .disabled(model.revisionControl.map { !$0.available.contains($0.current.other) } ?? true)
         }
         CommandMenu("Repository") {
+            Button("Import Code Path…", action: model.showCodePathImport)
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .disabled(!model.canImportCodePath)
+            Divider()
             Button("Reindex", action: model.reindexRepository)
                 .keyboardShortcut("i", modifiers: [.command, .control])
                 .disabled(!model.semantics.isRepositoryOpen || model.semantics.status.isIndexing)
@@ -65,9 +73,14 @@ struct ReaderCommands: Commands {
                 .disabled(!model.semantics.status.isIndexing)
         }
         CommandGroup(after: .toolbar) {
+            Button("Show Code Paths", action: model.showCodePaths)
+                .keyboardShortcut("p", modifiers: [.command, .control])
+                .disabled(model.repository == nil)
             Button(isContextPresented == true ? "Hide Context Inspector" : "Show Context Inspector",
                    action: toggleContext)
                 .keyboardShortcut("i", modifiers: [.command, .option])
+                .disabled(isContextPresented == nil)
+            Menu("Context Panes") { InspectorPaneMenuContent(model: model) }
                 .disabled(isContextPresented == nil)
             Divider()
             Button("Normal Source") { model.sourceMode = .normal }

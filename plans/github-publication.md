@@ -1,5 +1,29 @@
 # GitHub publication of the accumulated reader work
 
+## 2026-10-31 — All local changes for direct publication to main
+
+The user explicitly requested: "bundle up all the local changes and push them
+to main on github". The starting `codex/toggle-current-function`, local `main`
+and freshly fetched `origin/main` all pointed to `6d446b9`. This batch can be
+committed directly on `main` and published through a normal fast-forward push;
+no PR merge or force push is needed. The AGENTS.md prohibition on agent PR
+merges remains in effect.
+
+The snapshot includes current-function folding, Files navigation/reveal,
+configurable inspector panes, Rust trait implementations, C/C++ syntax and
+compiler indexing with best-effort fallback, seL4 configuration-union indexing,
+TOML indexing personalities, persistent Code Paths in the left sidebar,
+automatic destination expansion, keyboard help, test fixtures and all related
+documentation. All nonignored local changes are included. Generated build
+outputs, caches and the inactive nested `repo/` retain their ignore rules.
+
+The newest PROGRESS.md entry records publication-time verification and its
+known test exclusion. Earlier feature entries retain their detailed native UI
+and real-data evidence; no implementation changes are made by this publication
+round. The October 11 publication below is historical.
+
+## 2026-10-11 — Previous publication through PR #1
+
 User authorized publishing all current workspace changes on 2026-10-11.
 Repository: [tqbf/radiology](https://github.com/tqbf/radiology), private.
 Branch: `codex/reader-review-and-bookmarks`; base: `main` at `2e02ae3`.

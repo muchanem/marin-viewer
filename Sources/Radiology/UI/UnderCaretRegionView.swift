@@ -13,7 +13,7 @@ struct UnderCaretRegionView: View {
             if let underCaret = model.context.underCaret {
                 ScrollView {
                     UnderCaretDetailView(context: underCaret,
-                                         repeatsHeading: underCaret.symbol == (model.context.explicitReferences?.symbol ?? model.context.declaration?.identity.symbol))
+                                         repeatsHeading: model.inspectorPanes.references && underCaret.symbol == (model.context.explicitReferences?.symbol ?? model.context.declaration?.identity.symbol))
                 }
             } else {
                 DocumentOutlineView()

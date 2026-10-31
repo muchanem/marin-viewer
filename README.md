@@ -47,6 +47,7 @@ The primary workflows are:
 | ⇧⌘F | Search repository |
 | ⌃⌘J | Go to definition at caret |
 | Arrow keys (in source) | Move a thin, steady caret (shown only in the focused reader with nothing selected) and update the Context inspector, without navigating |
+| x (in source) | Expand/collapse the innermost function at the caret; no action outside a foldable function |
 | Return / Enter (in source) | Go to the definition of the symbol at the caret or the selected word. ⌘[ returns to the exact caret |
 | ⌃⌘R | Find references at caret (pins them in the Context inspector) |
 | ⌃⌘I | Reindex repository |
@@ -59,26 +60,38 @@ The primary workflows are:
 | ⌘+ / ⌘− | Increase / decrease source text size |
 | ⌘D | Add/remove bookmark at the source caret |
 | ⌘0…⌘9 | Open the first ten bookmarks, in their current order |
+| ⇧⌘P | Import a code path from pasted text or a text file |
+| ⌃⌘P | Show Code Paths in the left sidebar |
 | ⌥⌘1 / ⌥⌘2 | Source mode: Normal / Critical Lens (toolbar dropdown) |
 | ⌥⌘B | Toggle Before/After for the open file of a pull request |
 | ⌥⌘↓ / ⌥⌘↑ | Next / previous changed block in the current file/revision (skip current block; no wrap) |
+
+The complete [keyboard reference](Sources/Radiology/Help/KeyboardShortcuts.md) is also available in **Help > Keyboard Shortcuts…** (⌘/). It includes all menu shortcuts, reader keys, focus-specific sidebar controls, sheets, and native macOS bindings.
 
 The source breadcrumb keeps nearby directories and enclosing declarations visible
 as space allows, shortening distant path entries first. File/final declaration
 get priority at tight widths; **…** shows the full path and all declaration jumps.
 Changed-block and collapse controls stay on the right; Before/After is beside the source-mode dropdown in the main toolbar.
 
-The right-hand **Context** inspector follows the caret and is concise by default: one line per item. Dragging its divider far enough to the right collapses it. Restore it with **View > Show Context Inspector**, **⌥⌘I**, or the toolbar's **Show Context Inspector** button (`sidebar.right`). These controls also work without an open source file.
+The right-hand **Context** inspector follows the caret and is concise by default: one line per item. Use its **Panes** menu or **View > Context Panes** to enable or disable References, Definition / Outline, Implementations and Bookmarks. Choices persist across relaunches; **Show All Panes** restores them, including when every pane is disabled. Implementations remains contextual; disabling it reveals Definition / Outline when enabled. Remaining panes share the available height. Dragging the outer divider far enough to the right collapses the whole inspector. Restore it with **View > Show Context Inspector**, **⌥⌘I**, or the toolbar's **Show Context Inspector** button (`sidebar.right`). Enabling a pane from View also reopens the inspector. These controls work without an open source file.
 - **Symbol and References:** a prominent enclosing-declaration name with kind/file:line, followed by compact references. ↑/↓ selects a reference. → (or its triangle) shows source context and the containing function's caller tree. Each caller is a clickable pill with a stable color from its method name and file. Pills open their call sites; recursive branches stop before repeating a function, and unknown boundaries are marked. Large trees offer **Trace more callers**. Return or double-click opens the reference, and ⌘[ returns to the exact caret.
 - **Definition:** sits below References, with location/Here; a matching symbol name is omitted, while a different caret target remains named. Its triangle reveals signature, docs, and a source preview. Go there with the link, Tab then Return, ⌃⌘J, ⌘-click, or Return in source. Whitespace/keywords show the outline. Moving the caret never moves source. ⌃⌘R pins references until **Follow Caret**.
+- **Trait Implementations:** a dense flat list of explicit indexed impls while reading a trait, its members, its name in a reference, or its impl blocks. Click a type row to open the impl; ⌘[ returns to the exact caret. ↑/↓ selects and Return opens. Compact file:line metadata shares each row; help retains full paths/signatures, and negative impls are marked. Results are precomputed/cached; a coverage icon explains gaps. Macro-generated and inactive impls may be absent.
 - **Bookmarks:** a third pane saves locations separately for the attached repository's checkout and each PR. ⌘D or the bookmark button toggles the caret location. The first ten rows use ⌘0…⌘9; drag to reorder, or use Move Up/Down/Move to Shortcut in the context menu. Click any row to open it, preserving its Before/After revision; ⌘[ returns to the exact departure caret. Order persists across relaunch.
 
-Drag the horizontal dividers to resize References, Definition/Outline and Bookmarks;
+**Code Paths** lives in the left sidebar alongside Files, Changes (during PR review), and Search. It holds agent-generated traces such as an OS boot sequence. Choose **Repository > Import Code Path…** (⇧⌘P), paste a blob or choose a UTF-8 text file, and import. The first line is a title; each later line is `file:function:description`, with repository-relative paths and actual declaration names. Functions are resolved in the current source, so inserting lines above them does not break the trace. Qualify ambiguous methods (e.g. `Kernel.boot`), or use an exact declaration header to distinguish overloads. Escape colons in function names as `\:` (e.g. `Kernel\:\:boot`); descriptions can contain colons. Multiple traces persist per attached repository, shared with its PRs. Select a trace, then click a step or press Return to jump; ⌘[ returns to the departure caret. PR steps open After. Import selects Code Paths and reveals the left sidebar. **View > Show Code Paths** (⌃⌘P) does the same without importing. Bookmarks remains independently controlled in the right inspector. Its actions menu also copies or deletes a trace. Conditional source alternatives open the first definition and offer a menu for the others. [Reusable generator skill prompt](plans/code-path-generator-prompt.md).
+
+Drag the horizontal dividers to resize References, Definition/Outline/Implementations and Bookmarks;
 each pane scrolls independently. Smaller
 headings and primary monospace snippets distinguish labels from code; faint
 blue/teal/purple/neutral backgrounds mark sections in light and dark appearances.
 
-The sidebar uses **Changes / Files / Search** tabs (Changes during PR review). Changed-file rows keep two lines: a primary filename and quieter path, with right-aligned tabular counts. **M** means modified; circled plus means added. The selected row has a subtle accent marker. Footer counts name active filters, for example **18 of 30 files · Source only · Tests hidden**. The PR head is available in the Git icon’s tooltip.
+The sidebar uses **Changes / Files / Code Paths / Search** tabs (Changes during PR review). Full titles give way to labeled SF Symbols when the sidebar is narrow; arrow keys and accessibility labels work in either layout. Changed-file rows keep two lines: a primary filename and quieter path, with right-aligned tabular counts. **M** means modified; circled plus means added. The selected row has a subtle accent marker. Footer counts name active filters, for example **18 of 30 files · Source only · Tests hidden**. The PR head is available in the Git icon’s tooltip.
+
+Files follows source navigation: parent folders expand, the current file is
+highlighted and scrolled toward the center, including when returning from Search
+or following bookmarks. The current file stays visible through filters; Before-only
+PR files carry a Before label. Filter settings and the exact source caret remain.
 
 ### Critical Lens
 
@@ -141,10 +154,21 @@ Tree-sitter highlighting, declarations/scopes, outline, breadcrumbs, and folding
 | TypeScript | `.ts`, `.mts`, `.cts` |
 | TSX | `.tsx` |
 | Kotlin | `.kt`, `.kts` |
+| C | `.c` |
+| C++ | `.C`, `.cc`, `.cpp`, `.cxx`, `.c++`, `.h`, `.hh`, `.hpp`, `.hxx`, `.h++`, `.ipp`, `.inl`, `.tpp`, `.tcc` |
 
-These are eight grammar registrations backed by 31 Radiology query resources. Unsupported extensions remain readable as plain UTF-8 text. Files over 16 MiB are rejected. Source locations are canonical UTF-8 byte offsets; conversion to UTF-16 happens only at TextKit and semantic-index boundaries.
+These are ten grammar registrations backed by 47 Radiology query resources. Ambiguous `.h` headers use the C++ grammar, which also handles common C declarations. Unsupported extensions remain readable as plain UTF-8 text. Files over 16 MiB are rejected. Source locations are canonical UTF-8 byte offsets; conversion to UTF-16 happens only at TextKit and semantic-index boundaries.
 
 ## Semantic indexing
+
+The Semantic Index popover includes a **Personality** menu, remembered per
+repository. **Default** detects projects normally. **seL4** generates real
+headers and indexes a TOML-defined configuration matrix as separate compiler
+runs, retaining conditional definitions in a union on every Reindex. **Show
+Settings File** reveals the editable TOML under
+`~/Library/Application Support/Radiology/IndexingPersonalities/`. Settings
+changes take effect on Reindex; each personality has its own cache. See
+[indexing personalities](plans/indexing-personalities.md).
 
 Radiology detects projects, runs batch SCIP generators outside the UI process, caches successful data, and reports **No Index**, **Indexing**, **Current**, **Possibly Stale**, **Failed**, or **Partial**. A stale cached index remains usable while refresh runs. Indexing failures do not block browsing.
 
@@ -154,7 +178,7 @@ Radiology detects projects, runs batch SCIP generators outside the UI process, c
 | `go.mod` | `scip-go` 0.2.7 | Radiology can install with Go into its private tools directory |
 | `tsconfig.json` / JS/TS `package.json` | `scip-typescript` 0.4.0 | Radiology can install with Node/npm; project dependencies are still needed |
 | Python project markers | `scip-python` 0.6.6 | Radiology can install with Node/npm; Python 3.10+ is required |
-| `compile_commands.json` | `scip-clang` 0.4.0 | Manual binary installation only |
+| C/C++ sources or `compile_commands.json` | `scip-clang` 0.4.0 | Automatic best-effort defaults without a database; managed Apple Silicon binary with pinned checksum; manual discovery on Intel |
 | Gradle settings/build files + `.kt` / `.java` | Kotlin SCIP (`scip-java`, pinned compiler plugin) | Requires JDK 17+; managed tool build in Application Support. Supports AGP 9 built-in Kotlin; compiles an isolated copy of the real build |
 
 Kotlin compiler indexing provides caret symbol state, definition jumps, references, and symbol search, including PR **After**. PR **Before** stays syntax-only. Validated on tkos's Kotlin 2.4.20 / AGP 9.4.1 / Gradle 9.7.1 build. Compilation can take a few minutes initially. Failed modules preserve real compiler data from successful modules as **Partial**, including after cache reload/reuse. Generated build files outside the source snapshot never become navigable destinations. Gradle uses the project's actual build steps and dependencies; project outputs go into a disposable copy and tracked inputs are checked before and after compilation. Kotlin scripts, non-JVM targets, and other compiler versions have no new compatibility claim. See [the Kotlin support contract](plans/kotlin-semantic-indexing.md).
@@ -185,7 +209,7 @@ For problems:
 - Open the index-status popover for indexer name/version, command, exit status, bounded diagnostic head/tail, missing-file reports, Reindex, Cancel, and Install actions.
 - If repository search is unavailable, install `rg`; Finder launches also check the build-recorded path and standard Homebrew/PATH locations.
 - If an index is Possibly Stale, use Reindex. Partial may still provide useful intra-crate navigation.
-- Python indexing needs Python 3.10+ even if its npm package installs. C/C++ needs both `compile_commands.json` and a manually installed `scip-clang`.
+- Python indexing needs Python 3.10+ even if its npm package installs. C/C++ automatically indexes with best-effort GNU C/C++ defaults and inferred include paths when no compilation database exists. A real `compile_commands.json` improves coverage and takes priority, including common build directories hidden from Files. Missing defines/headers, custom source preprocessors and upstream `extern "C"` gaps remain visible limitations; see [best-effort indexing](plans/clang-best-effort.md).
 - Tree-sitter failures degrade to plain text or partial structure. Unsupported languages never gain semantic behavior by textual guessing.
 - The local bundle is ad-hoc signed and intentionally not App Sandbox enabled because it launches Git, ripgrep, and indexers.
 

@@ -15,4 +15,15 @@ extension SyntaxSnapshot {
         }
         return best
     }
+
+    /// Match this declaration's own body, rather than a closure/default
+    /// argument or nested function that also happens to lie inside it.
+    func enclosingFunctionFold(at byte: Int) -> (function: DocumentSymbol, fold: SourceFold)? {
+        guard let function = innermostFunction(at: byte),
+              let fold = folds.filter({
+                  $0.kind == "function" && $0.byteRange.lowerBound >= function.selectionByteRange.upperBound
+                      && $0.byteRange.upperBound == function.byteRange.upperBound
+              }).min(by: { $0.byteRange.lowerBound < $1.byteRange.lowerBound }) else { return nil }
+        return (function, fold)
+    }
 }

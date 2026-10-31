@@ -26,6 +26,10 @@ struct SyntaxSnapshot: Equatable, Sendable {
     /// The whole file compiles only for tests (Rust `#![cfg(test)]`).
     var isTestOnlyDocument = false
     var foldHeaderOwnership: [FoldHeaderOwnership] = []
+    var rustTraitImpls: [RustTraitImplSyntax] = []
+    /// Declaration heads recovered from a damaged C parse. These have no
+    /// reliable body extent and are used only for named source navigation.
+    var recoveredFunctionDeclarations: [DocumentSymbol] = []
 }
 
 /// One syntactic call: the whole site and, when the grammar names it, the

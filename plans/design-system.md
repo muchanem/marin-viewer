@@ -4,12 +4,35 @@ The first version follows the macos-design, typography-designer, and swiftui-pro
 
 ## Layout
 
+A caption semibold **Context** header keeps a labeled native **Panes** menu
+available above the right inspector. Checked Toggles also live in View >
+Context Panes; all-off presentation retains a headline empty-state title,
+callout secondary explanation and native small Show All Panes button. Active
+regions reclaim height through zero, one or two native dividers. Symbol titles
+are retained when their former duplicate heading is hidden. See
+[inspector-pane-controls.md](inspector-pane-controls.md).
+
+Files follows explicit navigation and remount through native disclosure/List
+selection/center scrolling. Passive caret/list browsing does not recenter. A
+current Before-only path can be temporarily shown with caption regular/secondary
+revision text; filter exceptions are named in the footer. See
+[files-sidebar-navigation.md](files-sidebar-navigation.md).
+
 **Current Context layout, 2026-10-11:** three independently scrolling panes:
-References, Definition/Outline and Bookmarks. Two nested native VSplitViews make
+References, Definition/Outline/Implementations and Bookmarks. Two nested native VSplitViews make
 both horizontal dividers movable, with150/100/100-point minimum panes. Bookmarks
 use a faint system-orange section tint, caption semibold header/PR scope, body
 medium names, caption regular path/revision, and tabular ⌘0…⌘9 hints. Saved ordering
 assigns the numbered shortcuts; source modes use ⌥⌘1/⌥⌘2. See [bookmarks.md](bookmarks.md).
+
+Rust trait contexts use the middle pane for **Trait Implementations**. A caption
+semibold header and compact count lead flat 22-point rows. Implementing types
+are primary callout monospace semibold, with caption regular/tabular file:line
+metadata inline. Full signatures/paths remain in help. Each full row is a native
+plain Button; no trait subheading, file sections or disclosures add height.
+Primary/secondary system text preserves hierarchy at widths from 220 to 420 points. A faint dynamic indigo
+section tint uses the existing appearance-aware opacity. See
+[rust-trait-implementations.md](rust-trait-implementations.md).
 
 A native NavigationSplitView contains a resizable repository sidebar, the source surface, and the right-hand **Context inspector**. Two nested native VSplitViews separate symbol/References, Definition or Outline, and Bookmarks; all scroll independently, with draggable horizontal dividers. Expanded references include their containing callable's incoming caller tree. Exact symbol identity removes repeated Definition names. Faint system blue/teal/purple/neutral/orange backgrounds, headings and dividers distinguish sections. Caller names use semantic callout monospace semibold, with caption regular metadata and tabular line numbers; deep levels receive explicit markers when indentation is capped. See [bookmarks.md](bookmarks.md) for the current layout, [reference-call-trees.md](reference-call-trees.md) for caller behavior, and [inspector-refinement.md](inspector-refinement.md) for the retained hierarchy/contrast design. Use system window chrome, traffic lights, toolbar, lists, split views, open panel, and sheets. No simulated chrome, editor tabs, large dashboard cards, or decorative gradients.
 

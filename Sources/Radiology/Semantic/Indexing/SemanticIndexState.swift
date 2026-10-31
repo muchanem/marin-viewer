@@ -5,6 +5,7 @@ enum SemanticCoverageCapability: String, Sendable, Equatable, Codable {
     case sourceOnlyNoDeps
     case sysrootOnly
     case partialBuild
+    case bestEffort
 }
 
 struct MissingSourceFile: Sendable, Equatable, Codable, Identifiable {
@@ -113,4 +114,5 @@ struct SemanticPublication: Sendable {
     let unsupportedLanguages: [String]
     let metadata: IndexMetadata?
     let cacheDirectory: URL
+    var personalitySettings: IndexingPersonalitySettings? = nil
 }

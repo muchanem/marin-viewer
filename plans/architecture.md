@@ -27,9 +27,11 @@ paths and source byte positions are never persisted across launches. See
 
 Git discovery uses `rev-parse --show-toplevel` and NUL-delimited `ls-files --cached --others --exclude-standard`. NUL delimiters preserve spaces and embedded newlines. Files are deduplicated, filtered for generated directories, and transformed into an explicit `FileNode` tree. Non-Git folders use relative filesystem enumeration; this avoids macOS /var versus /private/var aliases changing path slicing. Symlink directories are not traversed in the fallback. SourceStore rejects links escaping the selected root.
 
-The sidebar's Files tree is a filtered view (`AppModel.fileTree`) of the
-snapshot under `SourceFilters`; the snapshot itself, search, the quick file
-picker and indexing always see every file (plans/source-filters.md).
+AppModel.fileTree remains the filtered snapshot under SourceFilters. Files uses
+FilesSidebarPresentation to reveal the current document through those filters;
+native disclosures/ScrollViewReader expand/select/center it without reopening
+source. Snapshot/search/quick picker/indexing keep their full scope. See
+[files-sidebar-navigation.md](files-sidebar-navigation.md) and source-filters.md.
 
 ## Source and coordinates
 
@@ -74,6 +76,23 @@ scrolling References and Definition/Outline. See
 [reference-call-trees.md](reference-call-trees.md).
 
 `SemanticIndexService` owns SCIP generation per repository: it inspects build files, selects `IndexingStrategy` values from the adapter registry, loads the cached index and compares fingerprints, runs indexers through `IndexerProcess` (posix_spawn, own process group, file-backed stdout/stderr, bounded tails), decodes the protobuf with the in-tree `SCIPDecoder`, and publishes a `SemanticPublication` atomically under a generation guard. `SemanticModel` is the `@Observable @MainActor` owner of status, outcomes, the open file's `DocumentSemantics`, caret target, references, and ⌘T matches; `AppModel+Semantics` turns targets into exact-history navigation. SCIP line/column coordinates convert to canonical bytes only in `SourceBuffer` and `DocumentSemantics`, against the file as loaded, and never produce positions that do not fit the current bytes. Generated data lives in `~/Library/Caches/Radiology/repositories/<id>/`. See `plans/scip-semantic-navigation.md`.
+
+`TraitImplementationIndexer` enriches changed indexes before publication with
+exact-identity Rust impl blocks. A versioned per-file cache covers exact bytes
+and semantic occurrences; stale contributions are excluded. `ContextModel` owns
+`TraitImplementationsModel`; `ContextDetailPane` swaps the middle inspector's
+content for trait contexts while retaining both dividers. Navigation
+verify destination blobs through a separate actor and reject late results.
+Trait rows are now dense direct-navigation Buttons; implementation preview
+views/state/tasks have been removed.
+See [rust-trait-implementations.md](rust-trait-implementations.md).
+
+`AppModel.inspectorPanes` owns an Equatable app-wide display preference value,
+persisted with guarded didSet like source filters. The inspector and View menu
+share native checked controls; RootView reopens its own presentation binding on
+explicit enablement. `InspectorPaneStack` composes only active regions without
+resetting Context/Bookmark model state. See
+[inspector-pane-controls.md](inspector-pane-controls.md).
 
 The syntax subsystem is a small value-typed registry rather than one type per
 language: `SourceLanguage` pairs a grammar with an ordered list of query

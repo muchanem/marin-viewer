@@ -15,6 +15,8 @@ let package = Package(
         .package(url: "https://github.com/tree-sitter/tree-sitter-javascript", exact: "0.25.0"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-typescript", exact: "0.23.2"),
         .package(url: "https://github.com/fwcd/tree-sitter-kotlin", exact: "0.3.8"),
+        .package(url: "https://github.com/tree-sitter/tree-sitter-c", exact: "0.24.2"),
+        .package(url: "https://github.com/tree-sitter/tree-sitter-cpp", exact: "0.23.4"),
     ],
     targets: [
         // Upstream tree-sitter-javascript and tree-sitter-python publish SwiftPM
@@ -43,9 +45,11 @@ let package = Package(
                 .product(name: "TreeSitterJavaScript", package: "tree-sitter-javascript"),
                 .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
                 .product(name: "TreeSitterKotlin", package: "tree-sitter-kotlin"),
+                .product(name: "TreeSitterC", package: "tree-sitter-c"),
+                .product(name: "TreeSitterCPP", package: "tree-sitter-cpp"),
                 "GrammarScanners",
             ],
-            resources: [.copy("Queries"), .copy("IndexingScripts")],
+            resources: [.copy("Queries"), .copy("IndexingScripts"), .copy("IndexingPersonalities"), .copy("Help")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(name: "RadiologyTests", dependencies: ["Radiology"], resources: [.copy("Fixtures")]),

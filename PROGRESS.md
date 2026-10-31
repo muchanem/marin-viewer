@@ -1,5 +1,747 @@
 # Progress
 
+## 2026-10-31 — Bundle all local changes for GitHub main (Codex)
+
+The user explicitly requested bundling every local change and pushing to GitHub
+`main`. Fetched origin and confirmed the starting feature branch, local main and
+origin/main all shared `6d446b9`. This publication commits the accumulated work
+directly on main for a normal fast-forward push; no PR merge or force push is
+needed. AGENTS.md's prohibition on agent PR merges remains unchanged.
+
+All nonignored source, tests, resources, scripts and documentation are included:
+current-function folding and Files reveal, inspector controls, Rust trait
+implementations, C/C++ and best-effort indexing, seL4 union indexing and TOML
+personalities, Code Paths in the left sidebar, function-visit expansion and
+keyboard help. PLAN.md indexes the updated plans/github-publication.md;
+plans/agent-handoff.md points future agents to the current publication batch.
+Earlier local/uncommitted feature entries are historical. No product code was
+changed during this publication round.
+
+Fresh validation:
+- **333 Swift tests /77 suites pass (65.627 s)** with `swift test --no-parallel`,
+  excluding only the previously documented
+  `FilesSidebarRevealTests.nativeFilesListTracksBookmarksAndSearchAndPreservesTheirCaret`
+  manual-scroll test. Optional real-data probes retain their opt-in behavior.
+- **5 Python SCIP union tests pass** via unittest discovery in scripts/.
+- `make build`, strict deep codesign and packaged `--verify-resources` from
+  `/tmp` with an empty environment pass: all ten grammars, query resources,
+  indexing scripts and personalities load. Tracked `git diff --check` passes;
+  the complete staged whitespace check passes with blank-at-EOF warnings
+  disabled to preserve existing empty final lines in new query/settings/fixture
+  files. No product files were rewritten for whitespace during publication.
+- Logs: /tmp/radiology-publication-{tests,build,resources}.log.
+
+Generated bundles/caches and the inherited inactive repo/ remain ignored.
+The user's reader was not restarted; this round adds no fresh live UI or
+real-repository acceptance claims beyond the earlier feature evidence.
+
+## 2026-10-31 — Move Code Paths to the left navigation sidebar (Codex)
+
+Code Paths is now a BrowserMode beside Files and Search, plus Changes during PR
+review. The existing trace picker, step list, source jumps/automatic expansion,
+conditional definitions, import/copy/delete and persisted trace format remain.
+Import selects Code Paths and reveals a hidden left sidebar. View > Show Code
+Paths (⌃⌘P) provides the same selection/recovery without importing; repeated
+invocation works even when Code Paths is already selected. A separate reveal
+revision drives NavigationSplitView visibility without opening the inspector.
+
+Removed Code Paths from InspectorPane/InspectorPanes, right-pane layout and
+menus, along with the competing-pane switch actions. Bookmarks keeps its saved
+independent visibility and Hide action; View > Context Panes restores it. Legacy
+`contextPane.codePaths` is ignored; repositoryCodePathsV1 and trace IDs remain
+unchanged, so existing traces require no reimport. Files/Changes defaults on
+repository/PR opening remain; trace state survives tab switching.
+
+SidebarModeTabs uses ViewThatFits: full text labels when they fit, labeled SF
+Symbols at narrow widths. Extracted the native button/focus/arrow-key row into
+SidebarModeTabRow. Both retain selection traits, help and full accessibility
+labels. CodePathsSidebar uses the sidebar background and a trace-count footer.
+Applied swiftui-pro before decisions and after review; macos-design and
+typography-designer informed existing semantic Theme fonts, selected semibold
+emphasis and adaptive labels. README, bundled keyboard help, PLAN.md and the
+feature/inspector contracts now describe the new placement and shortcut.
+
+Validation: **333 tests /77 suites pass (70.667 s)**, excluding only the known
+preexisting Files manual-scroll assertion documented below. This includes all
+16 inspector preference combinations, retired-preference handling, independent
+bookmarks, import/sidebar selection and repeated reveal requests, preserved
+saved traces/navigation/PR behavior, automatic expansion and native light/dark
+renders at 220/280/420 points. Narrow/wide four-mode PR tab strips were visually
+reviewed. An initial standalone tab render needed a flexible-height test wrapper;
+the product tabs fit correctly and the final render assertions pass.
+The optional real-data probes again resolve/navigate **91/91** exact seL4 steps,
+conditional alternatives and exact Back across 22 files. Log:
+/tmp/radiology-code-path-sidebar-full-tests.log.
+
+Live native review used the isolated Radiology seL4 Review bundle and the copied
+22-file source checkout. Existing 91-step trace loaded in the left tab without
+reimport; clicking try_init_kernel opened boot.c:345 and Back returned to the
+exact departure at line 664. Collapsing the navigation sidebar and pressing
+⌃⌘P restored it with Code Paths selected. Right Panes contains only References,
+Definition/Outline, Implementations and Bookmarks; enabling Bookmarks displayed
+it while Code Paths remained selected on the left. A review-only smoke import
+from a hidden navigation sidebar selected/revealed the left trace tab and kept
+Bookmarks visible. The test app was quit; the user's running app and original
+seL4 checkout were untouched.
+
+`make build`, strict deep codesign, packaged resources (all ten grammars/queries,
+indexing scripts/personalities) and diff check pass. Logs:
+/tmp/radiology-code-path-sidebar-{build,resources}.log; reviewed native light/dark
+renders: /tmp/radiology-code-path-sidebar-renders. Rebuilt build/Radiology.app;
+relaunch to use the new placement. No commits, pushes or merges.
+
+## 2026-10-31 — Auto-expand visited functions (Codex)
+
+Committed source navigation now opens the destination function's own body as
+well as folded ancestors. Code Paths, definition/outline commits, bookmarks and
+Back/Forward share this reader behavior. Sibling/nested functions keep their
+fold state. Manual collapse survives ordinary refreshes and a later visit opens
+the destination again; preview does not force the destination body open.
+
+SourceViewer passes an explicit expansion option to the coordinator only on
+navigation or first syntax/default-fold arrival. Expansion uses the existing
+parsed declaration/body match, preserving default-argument closures and other
+folds. The native regression exposed a related late-syntax issue: replacing the
+attributed string resets TextKit's selection. The viewer now captures the
+selection before replacement, uses that byte to reveal late folds and restores
+the selection after applying the combined fold layout. Source replacement still
+avoids repeated fold invalidation before navigation, protecting large files.
+
+Applied swiftui-pro before decisions and after review, and macos-design
+interaction guidance. No layout or typography changes. Updated feature and
+bundled keyboard help; PLAN.md indexes the behavior.
+
+Validation: **42 tests /9 suites pass (10.384 s)**, covering the actual hosted
+ReaderDetail/SourceViewer with delayed syntax, visible destination-body caret
+geometry, unchanged destination selection, manual recollapse plus font refresh,
+same-file revisits, cross-file visits and Back. Existing source folding, review
+defaults, caret, definition and context navigation tests pass. The optional
+real-data probes again resolve and navigate **91/91** supplied seL4 steps across
+22 files, conditional alternatives and exact Back on the read-only checkout.
+Log: /tmp/radiology-function-visit-tests.log. The hosted regression passes again
+after adding an explicit initial-parser wait, avoiding a test timing assumption.
+`make build`, strict deep codesign, all ten packaged grammars and queries,
+indexing resource verification and `git diff --check` pass. Logs:
+/tmp/radiology-function-visit-{build,resources,final}.log. Rebuilt
+build/Radiology.app locally; relaunch it to use the change. Existing live reader
+session left running; no viewed repository changes, commits or pushes.
+
+## 2026-10-31 — seL4 trace navigation repair and saved-pane switching (Codex)
+
+Reproduced the user's exact saved ARM power-on trace against the actual read-only
+/Users/tqbf/codebase/3p/seL4 checkout: baseline **83/91** steps resolved. Failures
+were BEGIN_FUNC(_start) assembly declarations, two conditional AArch32 duplicate
+functions, and create_idle_thread's preprocessor-dependent unmatched body braces.
+Fixed these at original source coordinates; no preprocessing/index dependency.
+All **91/91** now resolve, and the actual AppModel navigates every step, each
+conditional variant and exact Back. Complete user blob retained as a test fixture
+in Tests/RadiologyTests/Fixtures/code-paths/sel4-arm-boot.txt. Real-data probes use
+RADIOLOGY_CODE_PATH_PROBE_ROOT; ordinary tests remain portable.
+
+Assembly recognizes standard function-entry macros (comments/strings/end macros
+excluded). C/C++ parse-error recovery retains function declarator heads directly
+followed by a body opener, used only for named navigation. Existing syntax body
+ranges, outline, folds and call ownership are unchanged. Mutually exclusive #if
+branches default to the first source definition with a visible variants menu;
+ordinary overloads remain ambiguous. Errors now show their reason directly in
+the pane, capped at five lines with full help/accessibility text. A render caught
+an unbounded error-label minimum; corrected it before shipping.
+
+Each saved-navigation pane has direct ellipsis-menu switch/hide actions; Panes
+and View > Context Panes also expose Show Bookmarks Instead / Show Code Paths
+Instead. Importing a trace hides Bookmarks. Switching persists preferences,
+reopens a collapsed inspector and preserves source/history, bookmarks and traces.
+Independent checked toggles remain for custom layouts. Help/README and the
+feature/generator docs are updated. Required SwiftUI/macOS/typography guidance
+applied before implementation and again during final review.
+
+Final validation:
+- **332 tests /76 suites pass (72.945 s)**, excluding only the preexisting
+  FilesSidebarRevealTests.nativeFilesListTracksBookmarksAndSearchAndPreservesTheirCaret
+  manual-scroll assertion already documented below. Both real-data probe tests
+  ran against **d419a119a**: **91/91** static destinations across **22 files**, and
+  **91/91 actual AppModel jumps**, alternate conditional definitions and exact Back.
+- Focused gate covers C syntax, symbol/assembly regressions, all 32 pane choices,
+  switch persistence, navigation/storage and native renders. The initial new
+  error-banner render exposed an unbounded minimum; removing fixedSize/capping
+  text repaired it, and the final full run includes the passing render test.
+- `make build`, strict codesign, all ten packaged grammars/queries/indexing
+  resources and git diff --check pass. App bundle rebuilt locally; relaunch it.
+- Light/dark narrow/wide rows, conditional menu and readable error banner rendered
+  under /tmp/radiology-sel4-trace-renders and visually reviewed.
+- Native separate app imported the exact 91-step blob against disposable copies
+  of the 22 original source files. Clicking step1 opened AArch64 BEGIN_FUNC(_start)
+  at line79. Additional acceptance rows opened AArch32 map_kernel_window at
+  line199; its variants menu selected the second definition at line301.
+  create_idle_thread opened at line468, and Cmd-[ returned to the chosen line301
+  variant. These paths use the final signed code without needing compiler data.
+- Both Show Bookmarks Instead and Show Code Paths Instead were exercised through
+  the visible pane menus. Full trace contents survived, Bookmarks reclaimed space,
+  Code Paths was restored, and quit/relaunch retained Code Paths with Bookmarks
+  hidden. Review app closed; actual user's reader session was preserved.
+- Original seL4 checkout was read only. The saved user trace remains valid without
+  reimport. Changes are local/uncommitted alongside the preexisting dirty work;
+  no push or merge was performed. macOS14 runtime was unavailable; macOS26.5 was
+  exercised while retaining the macOS14 deployment target.
+
+## 2026-10-30 — Code Paths and complete keyboard help (Codex)
+
+Implemented repository-associated persistent traces, paste/UTF-8 file import,
+multiple saved traces, optional right inspector pane, copy/delete, exact-caret
+Back and PR After navigation. The user corrected the format during implementation:
+**title, then `file:function:description`**, with **no source line number**.
+CodePathResolver reparses actual source and resolves unique declarations,
+qualified method/module names, exact declaration headers for overloads, and
+explicit assembly labels. No semantic index is required. Missing or ambiguous
+symbols fail visibly without changing the reader; inserting lines preserves
+destinations. The earlier line-based implementation and prompt are superseded.
+Trace data lives in app UserDefaults, keyed by canonical attached checkout;
+checkout and all its PRs share traces. Other checkouts have independent lists.
+
+Generator prompt: plans/code-path-generator-prompt.md. Contract/architecture:
+plans/code-paths.md. User additionally requested every key binding in a help
+document: Sources/Radiology/Help/KeyboardShortcuts.md is the bundled single
+source, available from **Help > Keyboard Shortcuts… (⌘/)**. README and PLAN
+link it. All command assignments, focus-specific onKeyPress handlers and native
+reader handling were audited. The reference covers native macOS defaults and
+explicitly distinguishes system/custom keymaps. Welcome's stale Go to File hint
+now says ⌘K. The Help sheet uses semantic headings, selectable text and native
+scrolling. ⌘/ avoids macOS Help search's reserved ⌘? chord and was verified live.
+
+Skills: swiftui-pro before/after implementation, typography-designer and
+macos-design from /Users/tqbf/.claude/skills; test-triage applied to native split
+assertions and the previously recorded test flakes. An experimental larger
+Code Paths minimum constrained native split resizing; reverted that speculative
+sizing change. The original nested arrangement with 100-point lower-pane minima
+passes all 32 display combinations and native divider checks. No debug prints
+remain. Description wrapping explicitly overrides List's one-line default.
+
+Validation:
+- Corrected-feature focused run: **16 tests /5 suites pass**, including
+  line-shift navigation, overload/prototype distinction, qualified methods,
+  Rust/Swift/Python/C++/assembly, no comment/string fallback, ambiguous/missing
+  symbols, persistent/corrupt storage, PR After/exact Back and all pane layouts.
+- Corrected full run: **326/327 passed**, sole issue is the already documented
+  FilesSidebarRevealTests.nativeFilesListTracksBookmarksAndSearchAndPreservesTheirCaret
+  manual-scroll assertion (bounds minY 1688.5 rather than <2). Final full run
+  excluding only that known failure: **326 tests /75 suites pass, 64.111 s**.
+  Earlier pre-correction full run hit the previously recorded PR-refresh timeout;
+  all seven PRRefreshTests passed on isolated retry and in the corrected full run.
+- Final focused run after the Help shortcut adjustment passes; signed `make build`,
+  strict codesign, all ten packaged grammars/queries and indexing resources pass.
+- Native light/dark renders at 220/280/420 points, import sheet, Help sheet and
+  four-pane composition generated under /tmp/radiology-codepaths-renders.
+- Separate native review app verified paste/file import, inline errors, step/Back,
+  real relaunch persistence, multiple traces and hidden-inspector recovery.
+  Corrected final build imported three-field Swift traces with no semantic index;
+  start_scheduler opened at line3, then at line5 after two comments were inserted
+  and the repo reloaded, using the exact same saved trace. ⌘/ opened the complete
+  bundled help document with correct headings and shortcut text; Escape closed it.
+  Review app closed. Actual user's original Radiology process/session preserved.
+- git diff --check passes. Tests/runtime exercised macOS26.5; macOS14 runtime
+  was not available, although the package keeps its macOS14 deployment target.
+
+Changes remain local on the existing dirty branch. No commit/push/merge was
+requested or performed. Relaunch build/Radiology.app to use the new feature.
+
+
+## 2026-10-30 — TOML-driven indexing personalities and reliable seL4 Reindex (Codex)
+
+User's Reindex used ordinary scip-clang on the combined database, bypassing
+the earlier separate-configuration union. Document coverage can remain
+598/623 while conditional definitions disappear. Added the requested native
+**Personality: Default / seL4** picker and **Show Settings File** to the
+Semantic Index popover. Selection persists per canonical attached checkout,
+including PR snapshots. Changing personality starts its index and preserves
+reader source, caret/history and viewing state. Existing Reindex/menu shortcut
+now runs that personality on every invocation.
+
+Readable editable settings install under
+`~/Library/Application Support/Radiology/IndexingPersonalities/{default,sel4}.toml`.
+Templates are bundled in Sources/Radiology/IndexingPersonalities. Default
+settings control adapter allowlist, project limit and Clang workers. seL4's
+file contains all 67 profiles' presets/triples/CMake definitions, required
+build targets, API headers/dialect, runtime tools/targets, exact dependency
+pins and interpreter candidates. The former matrix hardcoding was removed
+from the Python preparer; the legacy CLI scripts forward to the same packaged
+implementation. File edits are preserved and loaded on open/reload/selection/
+Reindex. Invalid settings fail visibly without falling back; file reveal stays
+available for recovery. Native typed root syntax and full nested tomllib
+syntax are documented in plans/indexing-personalities.md.
+
+seL4 uses its own scip-sel4 adapter and runs the complete header generation,
+per-configuration compiler passes and union on isolated real source inputs.
+Working trees and PR snapshots retain exact byte provenance; symlinks remain
+inside the disposable copy. Original bytes and copied inputs are checked
+before publication. Only original-inventory documents are published. Required
+bitfield/prune preprocessing remains; expanded kernel source is not indexed.
+Python candidates must match imports and exact package pins; otherwise a
+private venv is provisioned in Radiology/tools. No global Python writes.
+Clang installation uses the existing verified managed installer.
+
+Settings bytes are pinned for each run and, together with packaged pipeline
+bytes, participate in strategy/cache/reuse identity. Default keeps the old
+cache location; seL4 uses `personalities/sel4/` beneath checkout or PR revision
+caches. Reuse sources are resolved in the selected personality namespace;
+different settings cannot reuse each other's data. Cancellation terminates
+the process group and removes source copies, build/configuration/staging
+artifacts. Configure/compile errors retain bounded diagnostics. Native UI
+follows the existing Theme body/meta scale and semantic colors; SwiftUI-pro,
+macOS and typography guidance applied before and after implementation.
+
+Real acceptance through SemanticIndexService completed generation, an explicit
+forced Reindex, then fresh cached reload: **598 documents /24,934 symbols /
+131,126 occurrences**, every occurrence maps to original bytes and both
+non-MCS/MCS TCB definitions survive. Two full runs plus checks: **183.149 s**.
+Final implementation's cold/warm run inside the broader suite: **84.846 s**
+(pipeline/publication **84.138 s**), same counts. Cached status remains Partial
+for 25 un-emitted paths. The selected namespace is primed at
+`~/Library/Caches/Radiology/repositories/26bdbf971c10e23b/personalities/sel4/`.
+Index **8,379,418 bytes**, SHA-256
+`78d3d67b9f27b14ee6c445f722adb1d7bae4a7d76f5f564e112ddadc7bc20304`.
+Installed settings plus packaged runner bytes exactly match the cache's
+personality digest `8121d7bf004318ec94cfa61fbfe0ff815c9a4ba3fb196e5079c7f95debbd3233`.
+No isolated input directories remain. Set the actual app's remembered choice
+for this checkout to seL4; other repositories retain their own choice/Default.
+The current reader process/session was not restarted. Relaunch the built app
+to use the new controls.
+
+Validation: **313 tests /71 suites pass in 145.258 s**, including the final
+real seL4 pipeline and cache reload, excluding only the previously reproduced
+FilesSidebarRevealTests manual-scroll assertion. After the final namespace
+reuse adjustment, **9 targeted tests /3 suites pass (0.547 s)**, including
+reuse/invalidation/isolation, malformed-file recovery, cancellation and the
+native model path for selection/Reindex without reader movement. Rapid
+selection/open/close requests are generation-guarded before reaching the
+indexing actor. The last **9-test rerun passes in 0.580 s**. Five SCIP
+union tests pass. Light/dark production popover renders inspected at
+`/tmp/radiology-personalities-ui/{light,dark}.png` (native menu/padding/type
+and controls are clean). Physical pointer/menu clicking was not performed.
+Compile/signed build, strict deep codesign, diff/Python syntax and packaged
+verification pass: **10 grammars /47 queries /9 scripts /2 TOML templates**.
+Final signed bundle executable timestamp **13:10:02 CDT**; final strict signing
+and empty-environment resource verification pass for that build.
+
+The first live trial caught Python discovery selecting the old system Python;
+fixed with explicit versioned candidates and TOML-configurable bootstrap.
+The initial test waiting logic was also tightened to reject stale cache
+publications before accepting a fresh result. Existing uncommitted work and
+the attached seL4 source bytes are preserved; Git there still reports only
+the prior build/ artifact. No push or merge.
+
+Logs: `/tmp/radiology-personalities-{sel4,targeted,full,final-targeted,
+check-final,build-final,resources}.log`. Current contract:
+[plans/indexing-personalities.md](plans/indexing-personalities.md).
+The manual-import/Reindex caveat in the previous entry is superseded.
+
+## 2026-10-30 — seL4 compiler index prepared and verified (Codex)
+
+Indexed `/Users/tqbf/codebase/3p/seL4` (case alias `sel4`), commit
+`d419a119a61a9b42edf61fb79ad08de45248daa7`. Final normal app cache:
+`~/Library/Caches/Radiology/repositories/26bdbf971c10e23b/`.
+**598 documents /24,934 symbols /131,126 occurrences**, every occurrence
+maps to original source bytes. **177/177 build-backed physical C sources**
+are represented. Of 623 eligible C/header paths, 25 are un-emitted: eight
+symlink aliases, dormant legacy `src/machine/profiler.c` (not in upstream
+build lists), plus include-only/assembly/empty/inactive headers and uncovered
+platform/option headers. Coverage stays **Partial**, including a fresh normal
+ScipClangIndexer cache reload. No claim of exhaustive option combinations.
+
+Source-only baseline tried 180 C translation units: **379 documents /9,808
+symbols /41,843 occurrences /244 missing paths**. Missing generated autoconf,
+hardware and bitfield headers stopped many parses. The first cold probe saved
+its index but stayed at Indexing after queued progress; it was terminated.
+The indexing service now rejects process progress after the strategy stops
+being Pending. A noisy-output completion test passes. Baseline cached reload
+passes (0.254 s); its scratch index remains available under
+`/tmp/radiology-real-clang-fallback-cache/26bdbf971c10e23b`.
+
+Added repeatable tooling in `scripts/prepare-sel4-index.py`,
+`scripts/index-sel4.py`, `scripts/scip_union.py` and
+`scripts/test_scip_union.py`. Preparation uses all 41 upstream verified
+presets plus 26 targeted variants, **67 configurations /134 translation
+units**, covering all seven seL4 modes. Real CMake-generated headers/flags,
+MCS/non-MCS, SMP, debug, SMMUs, public API/mapping helpers, sysenter and
+benchmark variants are retained. The installed Homebrew LLVM 21.1.7 supplies
+RISC-V support absent from Apple Clang. Generator dependencies live in an
+isolated venv outside the checkout. No kernel executable was built.
+
+seL4 normally concatenates its C sources. Include wrappers preserve that
+exact source order while giving Clang physical original-file coordinates.
+The libsel4 wrapper also indexes public syscall and mapping headers, using
+GNU C99 for their GNU asm syntax. Full expanded-source indexing was
+unnecessary. Upstream header generation necessarily preprocesses bitfield
+specifications and a kernel prune input; no generated kernel_all.i/pp.c is
+used as an indexing input. Tracked source hashes match before/after.
+
+A single combined scip-clang run lost conditional definitions in shared
+files; the non-MCS invokeTCB_ThreadControl check exposed this. Separate
+configuration runs plus a protobuf union retain both MCS/non-MCS definitions.
+Union deduplicates actual records, preserves compiler global identities and
+separates/reconciles locals using their exact defining source coordinates.
+No declarations, references, source maps or target flags are invented.
+All 67 final compiler logs contain **zero errors**. Source configuration
+exploration caught stale CMake disabled-option caches, SMP's one-domain
+requirement, the wrong RISC-V32 platform, and unsupported x86-64 logging
+paths; final profiles use fresh configuration, Spike and IA32 logging.
+
+`Sel4IndexProbe` imports the verified union through the real app service,
+checks all physical C files and all occurrence coordinates, verifies
+cross-source schedule/doIPCTransfer/handleInterrupt and both TCB-control
+variants, checks SMMU/public API definitions and source preservation, then
+loads the same cache through the ordinary adapter without compiler execution.
+Final acceptance passes in **1.510 s** (import/publication **1.025 s**).
+Final index **8,382,025 bytes**; source and app-cache SHA-256 both
+`93696286c72e28cc1497656442b6c47bbc9da0eb0b5b5f8979b229731a205dcb`.
+Prepared artifacts, manifest, exact-byte provenance and missing-path report
+are in `~/Library/Caches/Radiology/sel4-builds/matrix/`.
+
+**Refresh caveat:** this is a prepared local index, not an automatic seL4
+adapter. Standard Reindex runs the combined database and loses some variants;
+use the documented preparation/index/import recipe for maximal coverage.
+The cache record truthfully shows the import copy command. Generated inputs
+outside the checkout are not independently watched. The only intentional
+untracked checkout artifact is `build/compile_commands.json`; Git diff is
+empty, sources are untouched, and no app session was restarted.
+
+Validation: five Python union tests pass; final real seL4 acceptance and
+ordinary-cache reload pass. The initial full **307-test** app run had two
+existing failures: FilesSidebarRevealTests' manual-scroll assertion and one
+PRRefreshTests timeout. All seven PRRefreshTests pass on isolated retry;
+the Files test still fails in its four-test suite. Final full run excluding
+only that known Files test: **306 tests /68 suites pass (60.694 s)**.
+Compile, signed app build, strict deep codesign, empty-environment packaged
+verification (**10 grammars /47 queries /4 scripts**), Python compilation,
+and diff checks pass. Bundle executable timestamp **12:27:29 CDT**.
+SwiftUI-pro before/after and macOS guidance reviewed; no UI or type changes.
+Existing uncommitted work preserved; no push or merge.
+
+Logs: `/tmp/radiology-sel4-{prepare,union,union-acceptance,tests,tests-final,
+pr-refresh-retest,files-retest,progress-test,check,build,resources}.log`.
+Contract/reproduction: [plans/sel4-indexing.md](plans/sel4-indexing.md).
+
+## 2026-10-13 — Automatic C/C++ best-effort indexing (Codex)
+
+User explicitly superseded the compilation-database prerequisite: implement
+best effort without it. scip-clang now selects a source-only strategy when C/C++
+inputs exist, generating a temporary GNU C11/C++20 database with inferred
+include directories. All translation units are attempted; header-only projects
+attempt headers. Real databases retain priority and switch the strategy/cache
+provenance on arrival/removal. Original source bytes and coordinates are used;
+no declarations, macro expansions or source maps are fabricated.
+
+Best effort is a distinct persisted capability, always Partial even on an
+error-free run/cache/reuse. Native indexing rows explicitly say Best effort and
+explain default configuration/missing-input limits using the existing typography
+scale. Missing build guidance is now optional improvement advice. The earlier
+build-host question is superseded; no user input is required for this mode.
+SwiftUI-pro before/after, macOS and typography guidance applied.
+
+Include traversal prefers nearby available headers, considers up to eight
+candidates per directive, caps paths at 64 and recursive header depth at 128.
+Shared header paths are memoized; a cancellable utility task keeps preparation
+off the indexing actor so repository switches stay responsive. Compiler workers
+remain capped at four with normal progress reporting. Temporary database/log
+cleanup and existing source/digest/cache/snapshot boundaries remain.
+
+Actual read-only tkfiasco run: **11,513 translation units**, **15,669 tracked
+documents**, **523,683 symbols**, **2,820,466 occurrences**, **7,023 eligible
+C/C++ files uncovered**. The eligible source/header inventory is 22,268;
+some additional included fragments also emit documents. thread.cpp yields
+**467 occurrences**, all mapped to its original bytes. Source digests before/
+after match, and Git stays clean. Cold indexing/publication **321.438 s**;
+fresh actor reading the primed normal app cache **18.144 s**, no compiler run,
+honest cached Best effort. Index file **161,502,231 bytes**. Normal app cache
+primed at ~/Library/Caches/Radiology/repositories/11f9931c528659d1, with staged
+atomic writes and source/destination SHA-256 equality. No existing records
+needed preservation in that directory.
+
+The initial large preparation exposed redundant header walks; cancelled that
+scratch run and memoized discovery before the measured full run. Actual
+compiler error recovery resolves cross-file calls despite missing headers.
+Tests cover default languages/.C/include paths/header-only inputs, real database
+priority, database removal/restoration, cache labels and prompt cancellation/
+repository switching. Root filenames that resemble compiler options are
+explicitly passed as filenames, never flags.
+
+Full **305 tests /67 suites pass sequentially** (96.878 s), including actual
+compiler/cache transitions and cancellation. Additional cold/warm real-root
+probes pass (327.601 s /21.606 s including digest checks). Final targeted
+**8 tests /2 suites** pass (1.979 s), including filename/flag separation.
+make check/build, strict deep codesign and diff checks pass. Empty-environment
+packaged verification from /tmp loads **10 grammars,47 queries,4 scripts**.
+Signed bundle executable timestamp **2026-10-13 17:56:17 CDT**. Logs:
+/tmp/radiology-clang-fallback-{tests,targeted,final-targeted,tkfiasco,warm,check,build}.log.
+Contract plans/clang-best-effort.md; PLAN/README/SCIP/C-support/handoff updated.
+Prior uncommitted work preserved; no push/merge, source writes or shared-reader
+restart. Relaunch the upgraded app to load the new registry and cached index.
+
+## 2026-10-13 — C/C++ grammar and SCIP support (Codex)
+
+Added official Tree-sitter C 0.24.2 / C++ 0.23.4 SwiftPM products and all
+five query roles; registry is now ten grammars /47 query files. `.h` uses C++
+for mixed headers and `.C` explicitly uses C++; common source/header/template
+extensions are registered and remain source-filter eligible. Recursive
+declarator fields provide precise names through pointer/reference returns,
+qualified definitions and operators. Function-pointer variables stay out of
+callable outlines; aliases remain. C++ lambdas own their calls, and new/delete
+remain unknown sites rather than falsely absent calls.
+
+scip-clang 0.4.0 gains managed Apple Silicon installation using the upstream
+release API's pinned SHA-256, verified staging/version and atomic replacement.
+The real installer passed and the tool is installed in Radiology/tools/bin.
+Indexing discovers common build-directory databases off-main (including hidden
+build outputs), keeps discovery ephemeral across reindex, emits temporary
+supplementary logs, and persists Partial when source files are absent or
+Clang reports errors. Snapshot discovery remains exact-input only. Contextual
+missing-build guidance uses the existing Theme.Fonts.meta/secondary type style.
+SwiftUI-pro before/after, macOS and typography guidance applied.
+
+A real checked-in scip-clang fixture and installed-tool service test cover C
+definition/references/exact Back, C++ overload identities after Unicode, UTF-8
+mapping, hidden build discovery, source preservation, cache Partial and database
+removal/reindex. Upstream LinkageSpecDecl/extern-C occurrences are missing in
+0.4.0; tests retain that gap without a name-based substitute. The initial full
+run caught missing required Japanese Unicode markers in the new syntax
+fixtures; corrected both and reran. Earlier targeted parser/compiler/navigation
+checks pass. Final full suite **301 tests /66 suites passes** with
+`swift test --no-parallel` in **114.439 seconds**, including the installed
+compiler service and read-only tkfiasco probe. make check/build, strict deep
+codesign, diff check and shell syntax verification pass. Empty-environment
+packaged verification from /tmp loads **10 grammars,47 queries,4 indexing
+scripts**; C ABI15/C++ ABI14. The new app bundle is ready in build/Radiology.app.
+
+Read-only tkfiasco probe: **22,268 C/C++ source/header files,13 sampled parses**.
+Fiasco thread.cpp retains **143 declarations,129 folds,528 calls** with parse
+errors from custom INTERFACE/IMPLEMENTATION syntax. Standard probe main.cc
+parses without errors; other custom/configured sources remain partial.
+The first probe correctly exposed an empty intel_microcode.c; its acceptance
+now permits empty files. No compilation database/generated build inputs exist
+in this checkout, so tkfiasco precise semantics still need its configured Linux
+build. A location question is pending; no build flags/source maps fabricated.
+
+Contract: plans/c-cpp-support.md; PLAN/README/tree-sitter/SCIP/handoff updated.
+Existing uncommitted reader work retained on codex/toggle-current-function.
+No push/merge, tkfiasco writes, or shared-reader restart. Relaunch the built app
+to load the registry. Shared-reader physical launch/clicks were not attempted.
+Logs: /tmp/radiology-cpp-{tests,check,build}.log and
+/tmp/radiology-clang-install.log. No tkfiasco SCIP index was generated without
+its real build database and generated inputs.
+
+## 2026-10-11 — Dense direct-navigation trait implementation pane (Codex)
+
+Applied user's screenshot-directed refinement: **Trait Implementations**
+caption/count, no trait-name/"Trait" subheading, file-section headers,
+disclosure chevrons, previews or routine coverage footer. A native plain List
+uses 22-point rows with primary callout monospace semibold type names and
+secondary caption file:line inline. Full path/signature and trait/coverage
+context remain in help/accessibility; gaps get a small caption warning icon.
+Each complete row is a native plain Button; its primary action selects and
+opens the exact impl. Keyboard selection/Return and exact Back remain.
+
+Removed implementation preview view, worker preview method, model preview/
+disclosure dictionaries, tasks and generation plumbing. Index extraction/cache,
+destination byte verification, PR identity and pane preference key are retained.
+The menu caption also reads Trait Implementations. SwiftUI guidance before/
+after, macOS interaction and typography skills applied using the existing type
+scale; the full row is a semantic button with path/signature accessibility.
+
+Updated existing tests for the new interaction. The real-index service test
+asserts exactly three native impl rows (no headers/status fillers), ≤24-point
+row height, primary-action navigation, exact Back after scrolling, and cache
+reload. Trait/member selection, index/Before clearing, pane toggles, negative
+impls and stale-byte rejection pass. A synthetic application mouse-event
+attempt ended the test-runner lifecycle before completion and was removed;
+tests invoke the same production primary action, and do not claim physical
+shared-reader clicks. Six actual pane renders at 220/280/420 points in light/
+dark inspected under /tmp/radiology-dense-trait-renders/.
+
+Fresh targeted **14 tests /4 suites**, full **291 tests /63 suites** with
+`swift test --no-parallel` pass (full 74.894 seconds). make check/build, strict
+deep codesign, empty-env /tmp packaged resources (8 grammars, 37 queries, 3
+scripts) and diff check pass. Signed **2026-10-11 17:14:26 CDT**. Logs
+/tmp/radiology-dense-trait-{targeted,tests,check,build}.log. PLAN/README/handoff/
+architecture/Context/design/contracts updated. Local/uncommitted on
+codex/toggle-current-function, retaining earlier work; no push/merge, viewed-
+repository writes or user-reader restart. Relaunch the built app for this UI.
+
+## 2026-10-11 — Persistent Context pane controls (Codex)
+
+Implemented the requested right-sidebar interface: a persistent Context/Panes
+header menu and shared View > Context Panes checked controls for References,
+Definition/Outline, Implementations and Bookmarks. InspectorPanes is an
+Equatable value in AppModel, defaulting every missing preference to enabled;
+guarded didSet persists four contextPane.* booleans app-wide. Direct Bindable
+Toggle writes and Show All Panes share one model. RootView reopens its existing
+inspector binding when an enabled count increases; whole-column controls and
+⌥⌘I remain unchanged.
+
+InspectorPaneStack composes only active physical regions, using nested native
+splits for three, one split for two, and full-height content for one. No blank
+split children remain. Implementations retains the contextual middle slot;
+disabling it falls back to Definition/Outline when enabled. All-off/context-only
+empty states retain the menu and Show All recovery. Hidden References no longer
+suppresses a visible detail's symbol heading; trait dedup honors pinned refs.
+Model selection/disclosure/bookmark/source/history state is retained while
+display changes. SwiftUI before/after, macOS design and typography guidance
+applied with the existing semantic type scale and native menu controls.
+
+Three new tests cover default/persisted/all-off/reset choices, all 16 toggle
+combinations in actual NSHostingView/NSSplitView layouts, absence of unused
+regions, restored divider movement and preserved context/bookmarks/navigation/
+bytes. A real Rust fixture verifies native implementation-list removal and
+definition fallback with retained selection/preview. Existing native inspector
+and trait divider checks pass. Twelve production all/none renders at
+220/280/420 points in light/dark inspected; unshown NSWindows render list cells.
+
+Fresh **swift test --no-parallel: 291 tests /63 suites pass** (84.153 seconds).
+Two ordinary parallel full runs hit the existing Files manual-scroll assertion
+(bounds minY1688.5 after a programmatic top scroll); Files alone and with the
+new pane suite pass, as does the complete sequential run. No Files production
+code or assertion was changed for this task. Logs
+/tmp/radiology-pane-{targeted,tests,tests-with-renders,tests-serial,files-check,files-pair}.log
+retain the evidence; parallel GUI timing remains a test-suite limitation.
+
+make check/build, strict deep codesign and empty-env /tmp packaged resources
+pass (8 grammars,37 queries,3 scripts). Signed **2026-10-11 16:39:26 CDT**.
+Build/check logs /tmp/radiology-pane-{check,build}.log; renders
+/tmp/radiology-pane-renders/. PLAN/README/handoff/architecture/Context/design
+updated; contract plans/inspector-pane-controls.md. Local/uncommitted on
+codex/toggle-current-function with all earlier reader work retained. No push,
+merge, viewed-repository writes or user-reader restart. Physical menu clicking
+and closed-inspector recovery remain unperformed in the shared reader.
+
+## 2026-10-11 — Rust trait implementation indexing and pane (Codex)
+
+Implemented after user authorization, including advance indexing. Changed
+semantic publications now attach a trait-to-impl lookup, built off the main
+actor from lightweight Rust syntax extraction and exact SCIP token identities.
+Versioned rust-trait-implementations.json caches each file by exact source blob
+plus occurrence/encoding digest; existing SCIP caches gain it automatically.
+Stale contributions and PR blob mismatches are excluded. Preview/navigation
+verify complete destination bytes and reject late generation/revision results.
+
+Trait declarations, members/default bodies, trait-name references and impl
+bodies select Implementations in the existing middle inspector pane. References
+and Bookmarks remain independently scrollable/resizable. Rows group by file,
+emphasize implementing types, disclose real source/constraints, and use native
+selection/Return/double-click/context-menu navigation with exact Back. Negative
+impls are marked and counted separately; bounds, comments, inherent impls and
+unexpanded macros cannot create edges. Unresolved/unindexed/stale/read/parse
+coverage is explicit; generated/cfg-inactive impls may be absent. Before has no
+mapped semantics and cannot acquire After context. SwiftUI before/after review,
+macOS design and typography skills applied using the existing type scale.
+
+Fresh full suite **288 tests /62 suites** passes, including 10 targeted tests
+for real rust-analyzer alias/path/blanket/negative identity, cache persistence/
+source and semantic invalidation, corrupt caches, exclusions/failed regeneration,
+same-length source edits, context/cancellation/Before, service precomputation,
+preview-without-navigation, exact Back and native dividers in both directions.
+An added fourth-pane prototype exposed native sizing trouble; the delivered
+layout uses the existing middle pane with a flexible wrapper and passes both
+new and existing native divider tests. A transient stale-publication test was
+corrected to inspect publication history rather than poll that brief phase.
+Six production-row renders at 220/280/420 points in light/dark inspected.
+
+Read-only existing tkos-cache probe: **348 files /78 trait identities /585 impl
+blocks**, 3 unresolved headers, zero read/parse failures. Cold **2.639 s**; warm
+fresh actor **0.413 s**, 348 cache hits/zero reparses. Probe derived data went to
+disposable /tmp, with no source or original-cache writes.
+
+make check/build, strict deep codesign and empty-env /tmp packaged resources
+pass (8 grammars, 37 queries, 3 indexing scripts). Signed binary timestamp
+**2026-10-11 16:11:13 CDT**. Logs /tmp/radiology-trait-{tests,check,build,probe}.log;
+renders /tmp/radiology-trait-renders/. PLAN/README/handoff/architecture/design/
+Context/SCIP docs updated; contract plans/rust-trait-implementations.md.
+Local/uncommitted on codex/toggle-current-function with prior x-key/Files work
+preserved. No push/merge, shared-reader restart or physical live interaction;
+relaunch the built app to load the feature, with automatic cached enrichment.
+
+## 2026-10-11 — Rust trait implementation pane feasibility (Codex)
+
+Assessed the user's question; implementation was not requested. A useful
+explicit/indexed-impl pane is a small-to-medium addition, estimated 1–3 focused
+engineering days including validation. Existing semantic references plus new
+Rust impl-header extraction can identify blocks by exact trait identity and
+reuse Context preview/navigation. Upstream rust-analyzer SCIP still emits empty
+relationships, matching the existing real-cache measurement. Its live Go to
+Implementation supports trait enumeration but would require a new LSP lifecycle.
+Macros/derives, cfg, incomplete indexing, and Before semantics constrain “every.”
+SwiftUI skill before/after recommendation and macOS layout/interaction guidance
+applied. Details in plans/rust-trait-implementations.md; PLAN index updated.
+Documentation only; no fresh tests/build, viewed-repository writes, push, merge,
+or app restart. Existing uncommitted reader/sidebar work preserved.
+
+## 2026-10-11 — Files reveals and centers current source (Codex)
+
+Implemented Files follow behavior after user's retry: ScrollViewReader and leaf
+path IDs; FileTreeExpansion.reveal unions parents. A root/path/loaded-path/
+navigation/query/filter keyed task expands/selects, yields for disclosures and
+centers. Files remount and same-file explicit jumps reveal again; passive caret/
+scroll/manual directory browsing do not. Root/mode/path/cancellation guards reject
+stale work; programmatic selection skips openFile, preserving exact bookmark/
+search caret, revision and history.
+
+FilesSidebarPresentation adds only the current document through source/test/text
+filters as a view exception, retaining preferences and original model data.
+Before-only/current loaded paths outside the snapshot get temporary leaves;
+Before caption and Finder's materialized root retain revision identity. Footer
+counts account for exceptions and note current file revealed. FileNode.revealing
+copies/inserts only its ancestor chain with natural directory-first ordering.
+Skills SwiftUI before/after, macOS and typography applied; contract
+plans/files-sidebar-navigation.md. Earlier x-key work retained.
+
+Four new tests pass: actual NSHostingView/NSTableView/NSScrollView integration on
+181 files proves bookmark a/deep/file055 expansion/selection/exact centering,
+manual scrolling survives caret moves, same-file jumps recenter, and Search into
+b/deep/file044 then Files preserves byte19/navigation/history. Disposable real
+Git deleted src/old.rs Before stays selected at byte5 with both source filters
+and a nonmatching query, including return to tree. Pure tests cover missing
+paths, filter exceptions and unrelated expansion. Existing strict SourceFilters
+model tests remain unchanged and pass; only the view adds the exception.
+
+Fresh full suite **277 tests /59 suites**, check/build/strict deep codesign,
+empty-env /tmp packaged resources (8 grammars/37 queries/3 scripts), diff check
+pass; signed **2026-10-11 15:37:26 CDT**. Logs
+/tmp/radiology-files-reveal-{check,targeted,tests,build}.log. Physical live-reader
+interaction unperformed; actual native list/scroll geometry verified. PLAN,
+README, architecture/design/filter/handoff updated. Local/uncommitted with x-key
+work on codex/toggle-current-function; no restart/tkos writes/push/merge.
+
+## 2026-10-11 — Plain x toggles the current function (Codex)
+
+Implemented user's source-local x key: ReaderTextView converts the native UTF-16
+selection start to canonical bytes and weakly invokes SourceViewerCoordinator.
+The snapshot's innermost named callable selects its own body fold by exact
+declaration end, avoiding nested functions and parameter lambdas. Existing fold
+IDs determine collapse/expand. If ancestors hide the target, expansion reveals
+those too; sibling/nested choices remain. Shared setFold applies the existing
+TextKit union once and records manual choices against late PR defaults. No source
+bytes, selection/caret, history, mode, filters or semantic state change. No SCIP
+required. Outside functions, abstract or single-line bodies, and missing syntax
+leave folding unchanged. Shift/Command/Option/Control, IME marked text, and
+editable controls retain their handling; Caps Lock works; holding x toggles only
+once. Source help/README document the key. SwiftUI skill before/after and native
+macOS keyboard guidance applied; no typography/layout change.
+
+Four new native ReaderTextView.keyDown/TextKit tests cover actual expansion/
+collapse and glyph visibility, nested selection and sibling/closure preservation,
+opening a hidden parent, exact selection/source and zero caret notifications,
+Unicode conversion after emoji, modified/Caps Lock/editable routes and repeat
+suppression. Parsed body probes pass Rust/Swift/Go/Python/JS/TS/Kotlin; Kotlin's
+multiline default lambda is not treated as the target body. Initial editable
+insertion assertion failed because the synthetic view has no window/input focus;
+corrected to test that editable keyDown does not invoke the fold callback.
+
+Fresh full suite **273 tests /58 suites** passes. make check/build, strict deep
+codesign, empty-env /tmp packaged resources (8 grammars/37 queries/3 scripts),
+and diff check pass; signed **2026-10-11 15:08:18 CDT**. Logs
+/tmp/radiology-function-x-{check,targeted,tests,build}.log. Physical keyboard
+check not performed; native event tests exercise dispatch/folding/rendering.
+PLAN/README/structural/handoff updated; contract plans/function-fold-key.md.
+Local/uncommitted on codex/toggle-current-function after the earlier main
+publication; no push, merge, user-reader restart or viewed-repository writes.
+
 ## 2026-10-11 — Published all reader work and merged to main (Codex)
 
 User authorized pushing all accumulated work to GitHub. Confirmed authenticated

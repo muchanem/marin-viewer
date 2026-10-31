@@ -1,11 +1,24 @@
 # Caret-driven Context inspector
 
+**Pane visibility, 2026-10-11:** the inspector's persistent Panes menu and
+View > Context Panes enable/disable References, Definition/Outline,
+Implementations and Bookmarks. Preferences persist app-wide; remaining panes
+reflow without blank splits. All-off recovery and contextual detail fallback
+preserve source/history and row/disclosure/bookmark state. See
+[inspector-pane-controls.md](inspector-pane-controls.md).
+
 **Current layout, 2026-10-11:** the inspector now has References,
-Definition/Outline and repository/PR Bookmarks in two nested native VSplitViews.
+Definition/Outline/Implementations and repository/PR Bookmarks in two nested native VSplitViews.
 Both horizontal dividers resize the independently scrolling panes. ⌘D adds a
 bookmark; reordered first-ten entries use ⌘0…⌘9. Source modes use ⌥⌘1/⌥⌘2.
 See [bookmarks.md](bookmarks.md) for scope, persistence, native split tests and
-current acceptance limits. References and Definition/Outline retain their behavior;
+current acceptance limits. Rust trait contexts show precomputed Implementations
+in the middle pane; References and Bookmarks remain available. The caption is
+Trait Implementations; dense flat type/file:line rows navigate with one click
+or Return, without a trait subheading or disclosure. Coverage stays in help
+and a gap indicator, and exact Back remains; see
+[rust-trait-implementations.md](rust-trait-implementations.md). Other contexts
+retain Definition/Outline behavior;
 reference disclosure now includes the containing callable's incoming caller
 tree. Existing symbol/section type hierarchy, exact-identity deduplication and
 faint backgrounds remain. See [reference-call-trees.md](reference-call-trees.md)

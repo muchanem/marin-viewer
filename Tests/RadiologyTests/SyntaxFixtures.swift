@@ -19,7 +19,7 @@ enum SyntaxFixtures {
 
     /// All fixtures, one per registered language plus the JSX and Kotlin-script dialects.
     static let names = ["sample.swift", "sample.rs", "sample.go", "sample.py", "sample.js",
-                        "sample.jsx", "sample.ts", "sample.tsx", "sample.kt", "sample.kts"]
+                        "sample.jsx", "sample.ts", "sample.tsx", "sample.kt", "sample.kts", "sample.c", "sample.cpp"]
 }
 
 extension SyntaxSnapshot {

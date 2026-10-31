@@ -8,6 +8,7 @@ struct IndexCache: Sendable, Equatable {
     /// repository (`…/revisions/<sha>/index`); the root argument of its
     /// methods is ignored. The default cache keys directories by root hash.
     let flat: Bool
+    var personality: IndexingPersonality? = nil
 
     init(root: URL, flat: Bool = false) {
         self.root = root
@@ -30,7 +31,12 @@ struct IndexCache: Sendable, Equatable {
     }
 
     func directory(for root: URL) -> URL {
-        flat ? self.root : self.root.appending(path: Self.repositoryID(for: root), directoryHint: .isDirectory)
+        let base = flat ? self.root : self.root.appending(path: Self.repositoryID(for: root), directoryHint: .isDirectory)
+        return personality == .sel4 ? base.appending(path: "personalities/sel4", directoryHint: .isDirectory) : base
+    }
+
+    func selecting(_ personality: IndexingPersonality?) -> IndexCache {
+        var result = self; result.personality = personality; return result
     }
 
     func metadataURL(for root: URL) -> URL { directory(for: root).appending(path: "index-metadata.json") }
@@ -106,6 +112,9 @@ struct IndexReuseSource: Sendable, Equatable {
 
 /// How an index run should treat its cache and provenance.
 struct IndexOpenOptions: Sendable, Equatable {
+    /// Nil preserves direct service callers' original adapter configuration.
+    /// The app always supplies its remembered Default or seL4 personality.
+    var personality: IndexingPersonality? = nil
     /// Replaces the service's default cache (a revision's flat cache).
     var cache: IndexCache? = nil
     var reuseSources: [IndexReuseSource] = []

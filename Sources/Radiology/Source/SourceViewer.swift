@@ -115,6 +115,7 @@ struct SourceViewer: NSViewRepresentable {
             reader.onTogglePinnedOccurrences = onTogglePinnedOccurrences
             reader.onGoToDefinition = onGoToDefinition
             reader.onKeyboardGoToDefinition = onKeyboardGoToDefinition
+            reader.onToggleEnclosingFunction = { [weak coordinator] byte in coordinator?.toggleFunction(at: byte) ?? false }
             reader.onFindReferences = onFindReferences
             reader.criticalityMenu = criticalityMenu
             reader.pointerSummariesEnabled = pointerSummariesEnabled
@@ -147,6 +148,7 @@ struct SourceViewer: NSViewRepresentable {
                 help = "Read-only source code. Double-click a symbol to pin its occurrences."
             }
             let hiddenTests = testCodePresentation?.hiddenRegions.count ?? 0
+            help += " Press x to expand or collapse the function at the caret."
             if hiddenTests > 0 {
                 help += " \(hiddenTests) test \(hiddenTests == 1 ? "region is" : "regions are") hidden; click a region's label or gutter control to show it."
             }
@@ -169,6 +171,14 @@ struct SourceViewer: NSViewRepresentable {
             && (appliedDefaultFolds || (reviewFoldInput != nil && coordinator.reviewDefaultsPending))
             ? coordinator.visibleTopCharacter() : nil
         let reviewFoldsChanged = coordinator.applyInitialReviewFolds(reviewFoldInput, sourceIdentity: sourceIdentity)
+        // Replacing attributes can reset TextKit's selection even for the
+        // same source. Keep the caret for late syntax and font updates.
+        let selection = text.selectedRange()
+        let selectedByte = buffer.byteOffset(forUTF16: selection.location)
+        // Apply once per visit, including syntax arriving after a file loads.
+        // Ordinary updates must preserve functions the reader manually folds.
+        let expandsTargetFunction = selectsTarget && target?.path == buffer.path
+            && (changed || coordinator.revision != revision || appliedDefaultFolds)
         var appliedFoldLayout = false
         if changed || syntaxChanged || text.font?.pointSize != fontSize {
             if changed { coordinator.cancelDestinationHighlight() }
@@ -206,19 +216,21 @@ struct SourceViewer: NSViewRepresentable {
             if changed || coordinator.revision != revision || appliedDefaultFolds {
                 let byte = changed || coordinator.revision != revision
                     ? (target?.path == buffer.path ? target?.byteOffset ?? 0 : 0)
-                    : buffer.byteOffset(forUTF16: text.selectedRange().location)
-                coordinator.reveal(byteOffset: byte, applyAttributes: false)
+                    : selectedByte
+                coordinator.reveal(byteOffset: byte, expandFunction: expandsTargetFunction, applyAttributes: false)
                 if let viewport = refreshedViewport, viewport.path == buffer.path, viewport.revision == buffer.revision {
                     coordinator.reveal(byteOffset: viewport.byteOffset, applyAttributes: false)
                 }
             }
             coordinator.applyFoldAttributes()
+            if !changed { text.setSelectedRange(selection) }
             appliedFoldLayout = true
         } else if testsChanged || reviewFoldsChanged || bulkFoldsChanged {
             // Hide Tests toggled or a region was revealed: reveal any fold
             // around a new target first, then apply one combined layout.
             if coordinator.revision != revision {
-                coordinator.reveal(byteOffset: target?.path == buffer.path ? target?.byteOffset ?? 0 : 0, applyAttributes: false)
+                coordinator.reveal(byteOffset: target?.path == buffer.path ? target?.byteOffset ?? 0 : 0,
+                                   expandFunction: expandsTargetFunction, applyAttributes: false)
             }
             view.gutter?.onToggleTestRegion = onToggleTestRegion
             coordinator.applyFoldAttributes()
@@ -234,7 +246,7 @@ struct SourceViewer: NSViewRepresentable {
             // generated the folded glyph tree. Invalidating the same large
             // document again in this update can re-enter NSATSTypesetter and
             // corrupt its glyph-to-character mapping.
-            coordinator.reveal(byteOffset: byte, applyAttributes: !appliedFoldLayout)
+            coordinator.reveal(byteOffset: byte, expandFunction: expandsTargetFunction, applyAttributes: !appliedFoldLayout)
             if selectsTarget { text.setSelectedRange(range) }
             if let viewport = refreshedViewport, viewport.path == buffer.path, viewport.revision == buffer.revision {
                 coordinator.preserveViewport(atCharacter: buffer.utf16Offset(forByte: viewport.byteOffset))

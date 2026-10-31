@@ -1,0 +1,10 @@
+# Radiology indexing personality. Changes take effect on Reindex.
+schema_version = 1
+id = "default"
+name = "Default"
+summary = "Detect projects and use their available build settings."
+engine = "automatic"
+# An empty list allows every registered indexer.
+indexers = []
+project_limit = 32
+clang_jobs = 4

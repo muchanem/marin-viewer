@@ -17,6 +17,13 @@ App-level SCIP support is a separate, later layer documented in
 | TypeScript | `.ts`, `.mts`, `.cts` | [tree-sitter/tree-sitter-typescript](https://github.com/tree-sitter/tree-sitter-typescript) (`typescript`) | `0.23.2` | `ecmascript` + `typescript` |
 | TypeScript JSX | `.tsx` | the same package's `tsx` grammar | `0.23.2` | `ecmascript` + `typescript` + `jsx` |
 | Kotlin | `.kt`, `.kts` | [fwcd/tree-sitter-kotlin](https://github.com/fwcd/tree-sitter-kotlin) | `0.3.8` | `kotlin` |
+| C | `.c` | [tree-sitter/tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c) | `0.24.2` | `c` |
+| C++ | `.C`, `.cc`, `.cpp`, `.cxx`, `.c++`, `.h`, `.hh`, `.hpp`, `.hxx`, `.h++`, `.ipp`, `.inl`, `.tpp`, `.tcc` | [tree-sitter/tree-sitter-cpp](https://github.com/tree-sitter/tree-sitter-cpp) | `0.23.4` | `c` + `cpp` |
+
+Plain `.h` uses C++ to retain class/template structure in mixed headers;
+uppercase `.C` is the deliberate case-sensitive C++ exception. Both grammars
+provide all five query roles. Recursive declarator handling selects exact
+names rather than return types/parameters. See [C/C++ support](c-cpp-support.md).
 
 JSX and TSX are separate languages, not supersets: the TypeScript grammar
 rejects JSX, and the TSX grammar reads `<T>expr` as an element rather than a

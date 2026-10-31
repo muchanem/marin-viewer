@@ -34,14 +34,32 @@ actor SyntaxWorker {
             languageName: language.displayName,
             highlights: try highlights(queries.highlights, tree: tree, data: data),
             folds: try folds(queries.folds, tree: tree, buffer: buffer),
-            symbols: try symbols(queries.symbols, tree: tree, data: data),
+            symbols: try symbols(queries.symbols, tree: tree, data: data, languageID: language.id),
             scopes: try scopes(queries.scopes, tree: tree, data: data),
             hasParseErrors: root.hasError,
             callSites: try callSites(queries.calls, tree: tree, data: data),
             supportsCallSites: queries.calls != nil,
             testRegions: tests.regions,
             isTestOnlyDocument: tests.isTestOnlyDocument,
-            foldHeaderOwnership: foldHeaders(root: root, languageID: language.id))
+            foldHeaderOwnership: foldHeaders(root: root, languageID: language.id),
+            rustTraitImpls: language.id == "rust" ? try RustTraitImplSyntax.extract(root: root, data: data) : [],
+            recoveredFunctionDeclarations: root.hasError && ["c", "cpp"].contains(language.id)
+                ? try recoverFunctionDeclarations(root: root, data: data) : [])
+    }
+
+    /// A lightweight indexing pass: no highlighting, folds, calls, or outline.
+    func rustTraitImpls(_ buffer: SourceBuffer) throws -> (impls: [RustTraitImplSyntax], hasErrors: Bool) {
+        guard let language = SourceLanguageRegistry.language(for: buffer.path), language.id == "rust" else { return ([], false) }
+        try Task.checkCancellation()
+        let parser = Parser()
+        try parser.setLanguage(language.treeSitterLanguage)
+        let data = buffer.data
+        let previousTree: Tree? = nil
+        guard let tree = parser.parse(tree: previousTree, encoding: TSInputEncodingUTF8, readBlock: { offset, _ in
+            guard offset < data.count else { return nil }
+            return data.subdata(in: offset..<min(data.count, offset + 32_768))
+        })?.copy(), let root = tree.rootNode else { throw BrowserError.message("Rust structure could not be read.") }
+        return (try RustTraitImplSyntax.extract(root: root, data: data), root.hasError)
     }
 
     /// `@call.name` plus the `@call`/`@call.<kind>` capture of each match,
@@ -148,7 +166,7 @@ actor SyntaxWorker {
         }
     }
 
-    private func symbols(_ query: Query?, tree: Tree, data: Data) throws -> [DocumentSymbol] {
+    private func symbols(_ query: Query?, tree: Tree, data: Data, languageID: String) throws -> [DocumentSymbol] {
         guard let query else { return [] }
         var found: [(kind: String, range: Range<Int>, name: Range<Int>, text: String)] = []
         for match in try matches(query, tree: tree, data: data) {
@@ -156,7 +174,16 @@ actor SyntaxWorker {
                   let captureName = symbol.name,
                   let nameCapture = match.captures.first(where: { $0.name == "name" }) else { continue }
             let range = intRange(symbol.node.byteRange)
-            let nameRange = intRange(nameCapture.node.byteRange)
+            let nameNode: Node
+            if languageID == "c" || languageID == "cpp" {
+                let isPrototype = symbol.node.nodeType == "declaration" || symbol.node.nodeType == "field_declaration"
+                guard let resolved = CDeclarationSyntax.name(in: nameCapture.node, requireFunction: isPrototype,
+                                                            allowFunctionPointer: captureName == "symbol.typealias") else { continue }
+                nameNode = resolved
+            } else {
+                nameNode = nameCapture.node
+            }
+            let nameRange = intRange(nameNode.byteRange)
             guard nameRange.upperBound <= data.count, !nameRange.isEmpty else { continue }
             found.append((String(captureName.dropFirst("symbol.".count)), range, nameRange,
                           String(decoding: data[nameRange], as: UTF8.self)))

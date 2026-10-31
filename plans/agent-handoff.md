@@ -2,6 +2,90 @@
 
 ## Reading order and workspace status
 
+**2026-10-31 publication batch:** all nonignored local changes are bundled for
+direct publication on GitHub `main`, as explicitly requested by the user.
+The starting branch and local/remote `main` shared `6d446b9`, so this uses a
+normal fast-forward push without a PR merge. Read PLAN.md and the newest
+PROGRESS.md first for the current Code Paths/sidebar behavior and validation;
+the local/uncommitted descriptions below are historical.
+[Publication details](github-publication.md).
+
+Latest C/C++ decision: the user explicitly requested best effort without build
+information. scip-clang now automatically indexes original source using a
+temporary GNU C11/C++20 database with inferred include paths, always persisting
+Best effort/Partial coverage. Real databases take priority and regenerate on
+arrival/removal. No configured build is required. Cancellable preparation and
+memoized header discovery keep repository switching responsive. Read
+[clang-best-effort.md](clang-best-effort.md) and newest PROGRESS.md for gates
+and actual tkfiasco coverage; this supersedes the prerequisite below.
+Actual tkfiasco index: 15,669 documents/523,683 symbols/2,820,466 occurrences,
+normal app cache primed and verified; thread.cpp 467 occurrences map exactly.
+Cold 321.438 s/warm 18.144 s, no source writes. **305 tests /67 suites**, final
+targeted 8, check/build/strict signing/resources pass; signed 17:56:17 CDT.
+Relaunch the upgraded app to use the cached index.
+
+C/C++ work (2026-10-13): official C/C++ grammars and five query roles,
+recursive declarator names, `.h` mixed headers and `.C` routing; scip-clang
+managed Apple Silicon install with pinned SHA-256, build database discovery,
+temporary logs and persisted partial coverage. The tool is installed here.
+tkfiasco benefits from real build inputs and uses custom Fiasco preprocessing;
+upstream extern-C omissions remain unavailable. **301 tests /66 suites**,
+check/build/strict signing and empty-env packaged resources (10 grammars,
+47 queries,4 scripts) pass. Relaunch the built app for the registry. Read
+[c-cpp-support.md](c-cpp-support.md) and newest PROGRESS.md for final gates.
+Prior uncommitted reader work is retained; no push/merge or shared app restart.
+
+Latest refinement (2026-10-11): dense **Trait Implementations** caption/count,
+flat 22-point type/file:line rows and single-click navigation with exact Back.
+Separate trait/file headings and all implementation disclosure/preview UI,
+state/tasks and worker preview code removed. Native plain Buttons retain full
+path/signature help, keyboard selection/Return, negative markers, and coverage
+help/gap icon. Same index cache and pane preference key. **291 tests /63 suites
+pass with --no-parallel**; row structure/height and primary action/Back checked,
+six actual pane renders inspected. Read [rust-trait-implementations.md](rust-trait-implementations.md)
+and newest PROGRESS.md for build/sign/resource evidence. Previous reader work
+retained on codex/toggle-current-function; user reader not restarted.
+
+Latest local work (2026-10-11): persistent checked Panes and View > Context
+Panes menus control References, Definition/Outline, Implementations and
+Bookmarks. The contextual middle slot has a definition fallback; all-off
+recovery stays reachable. Active native split regions reflow while model
+selection/disclosure/bookmark and source/history state survive. All 16 choices,
+native lists/dividers and 12 light/dark renders verified. **291 tests /63 suites
+pass with swift test --no-parallel**, check/build/sign/resources pass; signed
+**16:39:26 CDT**. Parallel full runs expose the Files manual-scroll timing
+assertion, while Files alone and with pane tests pass. Read
+[inspector-pane-controls.md](inspector-pane-controls.md) and newest PROGRESS.md
+for gates and physical interaction limits. Earlier reader work is retained,
+local/uncommitted on codex/toggle-current-function.
+
+Latest local feature (2026-10-11): Rust trait contexts show Implementations in
+the middle inspector pane. Impl blocks are resolved by exact SCIP identities,
+precomputed before semantic publication, and persisted by source/semantic
+digests; activation rejects changed bytes. Aliases/blankets/negative impls,
+coverage and exact Back are tested; macros/configuration gaps remain explicit.
+**288 tests /62 suites** pass. Read-only probe: 348 files, 585 blocks,
+cold 2.639 s/warm 0.413 s, zero warm reparses. Existing x-key/Files work retained;
+local/uncommitted on codex/toggle-current-function. Read
+[rust-trait-implementations.md](rust-trait-implementations.md) and newest
+PROGRESS.md for build/sign/resource evidence and physical UI limits.
+
+Latest local work (2026-10-11): Files expands/selects/centers the current source
+after navigation and returning from Search, including bookmark/same-file jumps.
+View-only active-file exceptions retain filter settings and Before-only paths;
+sync preserves exact caret/history/revision. Actual native List/scroll tests pass;
+**277 tests /59 suites**, check/build/sign/resources, signed **15:37:26 CDT**.
+Local with x-key changes on codex/toggle-current-function, not published. Read
+[files-sidebar-navigation.md](files-sidebar-navigation.md).
+
+Latest local work (2026-10-11): plain x in the focused source toggles the current
+named function's own fold, with nested/default-lambda ownership, ancestor reveal
+and unchanged canonical selection/source/history. Unmodified, non-editable,
+non-composition route only; repeat events are consumed. **273 tests /58 suites**
+pass, including native keyDown/TextKit and seven grammar probes. On local branch
+codex/toggle-current-function after the earlier publication below. Read
+[function-fold-key.md](function-fold-key.md) and the newest PROGRESS.md gates.
+
 **Current publication state (2026-10-11):** all accumulated workspace source,
 tests, assets and docs are committed and merged to GitHub main through
 [PR #1](https://github.com/tqbf/radiology/pull/1), feature commit3b8f7f5 / merge

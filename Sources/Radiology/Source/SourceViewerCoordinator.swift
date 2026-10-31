@@ -229,8 +229,31 @@ final class SourceViewerCoordinator: NSObject, NSTextViewDelegate {
     }
 
     func toggleFold(_ fold: SourceFold) {
+        setFold(fold, folded: !foldedIDs.contains(fold.id))
+    }
+
+    /// A source-local keyboard action: toggle the innermost named callable.
+    /// If an enclosing fold hides it, expansion also opens those ancestors so
+    /// the action has a visible effect. Sibling/nested fold choices survive.
+    @discardableResult
+    func toggleFunction(at byte: Int) -> Bool {
+        guard let buffer, let syntax, syntax.path == buffer.path,
+              let target = syntax.enclosingFunctionFold(at: byte) else { return false }
+        let ancestors = syntax.folds.filter {
+            $0.id != target.fold.id && foldedIDs.contains($0.id)
+                && $0.byteRange.lowerBound <= target.function.byteRange.lowerBound
+                && target.function.byteRange.upperBound <= $0.byteRange.upperBound
+        }.map(\.id)
+        let collapse = !foldedIDs.contains(target.fold.id) && ancestors.isEmpty
+        foldedIDs.subtract(ancestors)
+        manualFoldIDs.formUnion(ancestors)
+        setFold(target.fold, folded: collapse)
+        return true
+    }
+
+    private func setFold(_ fold: SourceFold, folded: Bool) {
         manualFoldIDs.insert(fold.id)
-        if foldedIDs.contains(fold.id) { foldedIDs.remove(fold.id) } else { foldedIDs.insert(fold.id) }
+        if folded { foldedIDs.insert(fold.id) } else { foldedIDs.remove(fold.id) }
         applyFoldAttributes()
         gutter?.foldedIDs = foldedIDs
         gutter?.needsDisplay = true
@@ -264,9 +287,14 @@ final class SourceViewerCoordinator: NSObject, NSTextViewDelegate {
         gutter?.needsDisplay = true
     }
 
-    func reveal(byteOffset: Int, applyAttributes: Bool = true) {
+    /// Explicit navigation opens the destination callable as well as its
+    /// ancestors. Passive caret/viewport restoration only opens hiding folds.
+    func reveal(byteOffset: Int, expandFunction: Bool = false, applyAttributes: Bool = true) {
         guard let syntax else { return }
-        let hidden = syntax.folds.filter { foldedIDs.contains($0.id) && $0.byteRange.contains(byteOffset) }
+        let functionID = expandFunction ? syntax.enclosingFunctionFold(at: byteOffset)?.fold.id : nil
+        let hidden = syntax.folds.filter {
+            foldedIDs.contains($0.id) && ($0.byteRange.contains(byteOffset) || $0.id == functionID)
+        }
         guard !hidden.isEmpty else { return }
         foldedIDs.subtract(hidden.map(\.id))
         if applyAttributes { applyFoldAttributes() }

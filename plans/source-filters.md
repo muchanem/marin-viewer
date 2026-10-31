@@ -1,5 +1,11 @@
 # Source filters: Hide Tests and Source Files Only
 
+**Active-file reveal update, 2026-10-11:** Files now derives a current-document
+exception, including through its text filter, so navigation can expand/select/
+center it. Model filter data/preferences and other excluded files remain;
+Changes retains its policy. Footer “current file revealed” supersedes the older
+hidden-file notice below. See [files-sidebar-navigation.md](files-sidebar-navigation.md).
+
 Status: designed and implemented by Opus 5.5 on 2026-10-04 (see PROGRESS.md for
 actual gates). GPT Sol owns live UI acceptance in
 [source-filters-ui-review.md](source-filters-ui-review.md); nothing here is a

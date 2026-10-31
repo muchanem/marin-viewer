@@ -24,12 +24,19 @@ struct RootView: View {
             ContextInspectorView()
         }
         .focusedSceneValue(\.isContextPresented, $isContextPresented)
+        .onChange(of: model.inspectorPanes.enabledCount) { oldCount, newCount in
+            if newCount > oldCount { isContextPresented = true }
+        }
+        .onChange(of: model.inspectorRevealRevision) { isContextPresented = true }
+        .onChange(of: model.sidebarRevealRevision) { sidebarVisibility = .all }
         .sheet(item: $model.sheet) { sheet in
             switch sheet {
             case .files: QuickFilePicker()
             case .line: GoToLineSheet()
             case .symbols: SymbolSearchSheet()
             case .pullRequest: PullRequestNumberSheet()
+            case .codePath: CodePathImportSheet()
+            case .keyboardHelp: KeyboardShortcutsHelpView()
             }
         }
         .onChange(of: model.pullRequests.loadError) { _, error in

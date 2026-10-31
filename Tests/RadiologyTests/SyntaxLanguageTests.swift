@@ -7,7 +7,7 @@ import Testing
 /// different grammars.
 struct SyntaxLanguageTests {
     @Test(arguments: ["sample.swift", "sample.rs", "sample.go", "sample.py", "sample.js",
-                      "sample.jsx", "sample.ts", "sample.tsx", "sample.kt", "sample.kts"])
+                      "sample.jsx", "sample.ts", "sample.tsx", "sample.kt", "sample.kts", "sample.c", "sample.cpp"])
     func everySupportedDialectProvidesFunctionBodyFolds(_ fixture: String) async throws {
         let (_, snapshot) = try await SyntaxFixtures.snapshot(fixture)
         #expect(snapshot.folds.contains { $0.kind == "function" },

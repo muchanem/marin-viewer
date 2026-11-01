@@ -2,7 +2,13 @@
 
 This turn prepares PR #{{number}} of `marin-community/marin` for Mark's review before he opens it. Your
 working directory is a worktree at the PR's head `{{head}}`. The base is `{{base}}` and the merge base
-is `{{merge_base}}`. The viewer holds SCIP indexes for base and head, which `find_symbol` queries.
+is `{{merge_base}}`. This run has no viewer attached, so `find_symbol` is unavailable; find
+declarations with `rg` and `git grep` in the worktree.
+
+The run can write only inside `{{wordbase}}/prs/{{number}}/`, with the Write and Edit tools. Bash
+runs read-only commands (`git log/show/diff/grep`, `rg`, `ls`, `cat`, `sed -n`, `wc`) and the check
+command below, each as one plain command without `cd`, `&&`, `;`, `$(...)` or redirection; run
+`git -C <dir>` where a directory matters.
 
 Write the PR's outputs into `{{wordbase}}/prs/{{number}}/`, following DESIGN.md section 6. Every text
 field follows `prompts/style.md`. Mark reads this material instead of the raw diff, so each claim
@@ -10,18 +16,16 @@ must hold at the head commit.
 
 ## Read first
 
-1. `gh pr view {{number}} --repo marin-community/marin --json title,body,author,state,files,reviews,comments`
-   and the review threads with `gh api repos/marin-community/marin/pulls/{{number}}/comments`. The
-   GitHub API quota is shared by every job on the account: make at most 10 `gh` calls in this turn
-   and report the count at the end. Prefer `git` for anything in the worktree.
+1. The PR's metadata, reviews and review comments, which the poller fetched and attached below this
+   prompt under `PR METADATA` and `REVIEW COMMENTS`. The GitHub API quota is shared by every job on
+   the account, so this turn makes no `gh` calls of its own; use `git` for anything in the worktree.
 2. `git diff {{merge_base}} {{head}} --stat`, then the diff of every source file. Read tests after
    the source that they cover.
-3. The wordbase entries for the subsystems and files that the PR changes, through `wordbase_entry`, and
-   `wordbase/reviewer.md`.
-4. For Mark's own PRs, the Claude Code transcripts of the branch's sessions
-   (`~/.claude/projects/*/*.jsonl`, matched on branch name or worktree path) and the Iris jobs that they
-   mention, through `uv run iris --cluster=marin job describe <job>` from the Marin clone. Record
-   what the transcripts establish about intent and testing in `l3` of the PR description.
+3. The wordbase entries for the subsystems and files that the PR changes, through `wordbase_entry` or
+   by reading them under `{{wordbase}}`, and `{{wordbase}}/reviewer.md`.
+4. For Mark's own PRs, the excerpts of the branch's Claude Code sessions and the Iris job records
+   that the poller attached under `SESSIONS` and `IRIS JOBS`. Record what they establish about intent
+   and testing in `l3` of the PR description.
 
 ## Outputs
 
@@ -160,13 +164,13 @@ Each line holds a review note:
 
 ## Check before finishing
 
-Run `uv run --with pyyaml ~/openathena/marin-viewer/prompts/check_fixture.py --wordbase {{wordbase}}`
-and fix every failure it reports. It checks the required keys, the enumerations, every declaration
-name against the head commit, every step's `node` against the PR diagram, the grid cells and the
-box paths.
+Run `{{check}}` and fix every failure it reports. It checks the required keys, the enumerations,
+every declaration name against the head commit, every step's `node` against the PR diagram, the
+grid cells, the box limit and the box paths. After the turn, the poller validates the files again,
+lints every text field and sends you any failures once.
 
-End the turn with a short record for the panel: the files read, the outputs written, the number of
-steps, diagrams and draft notes, and the `gh` call count.
+End the turn with a short record for the panel: the files read, the outputs written, and the number
+of steps, diagrams and draft notes.
 
 ## Update turns
 

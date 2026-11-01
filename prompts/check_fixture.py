@@ -3,8 +3,11 @@
 Run from anywhere:
 
     uv run --with pyyaml prompts/check_fixture.py [--wordbase DIR] [--marin DIR] [--strict]
+        [--strict-boxes] [--pr N ...] [--entry FILE ...]
 
-The script reads every entry under the wordbase and checks required keys and enumerations. Against the
+The script reads every entry under the wordbase and checks required keys and enumerations. With
+`--pr` or `--entry` it checks only the named PR directories and entry files, which is how the poller
+checks the output of one run. Against the
 source at the PR's head commit it resolves each excerpt's `functions` with Radiology's matching rule,
 checks that they are consecutive declarations under one parent, and resolves each diagram box's `at`.
 It checks that every code-path step points at a box in the PR diagram, that grid layouts give every
@@ -36,6 +39,8 @@ MAX_BOXES = 10
 MAX_COLS, MAX_ROWS = 4, 3
 NOTE_LINE = re.compile(r"^- \d{4}-\d{2}-\d{2} · [0-9a-f]{7,40} · session \S+ · \S")
 SENTENCE_BREAK = re.compile(r"(?<!\be\.g)(?<!\bi\.e)[.!?]\s+[A-Z`]")
+
+STRICT_BOXES = False  # set by --strict-boxes: more than MAX_BOXES boxes fails instead of warning
 
 errors: list[str] = []
 warnings: list[str] = []
@@ -218,7 +223,11 @@ def check_diagram(where: str, d: object, repo: Repo, commit: str, step_ids: set[
     if "direction" in layout and layout["direction"] not in DIRECTIONS:
         fail(where, f"layout direction {layout['direction']} is not one of {sorted(DIRECTIONS)}")
     if len(d["nodes"]) > MAX_BOXES:
-        warnings.append(f"{where}: {len(d['nodes'])} boxes, more than the {MAX_BOXES} the preparation prompt allows")
+        message = f"{len(d['nodes'])} boxes, more than the {MAX_BOXES} the preparation prompt allows"
+        if STRICT_BOXES:
+            fail(where, message)
+        else:
+            warnings.append(f"{where}: {message}")
     cells: dict[tuple[int, int], str] = {}
     for n in d["nodes"]:
         nw = f"{where} node {n.get('id')}"
@@ -479,11 +488,23 @@ def main() -> None:
     parser.add_argument("--wordbase", type=Path, default=VIEWER / "wordbase")
     parser.add_argument("--marin", type=Path, action="append", help="Marin checkout(s) to read commits from")
     parser.add_argument("--strict", action="store_true", help="fail when an excerpt's lines differ from its declarations")
+    parser.add_argument("--strict-boxes", action="store_true", help=f"fail when a diagram has more than {MAX_BOXES} boxes")
+    parser.add_argument("--pr", type=int, action="append", help="check only this PR directory (repeatable)")
+    parser.add_argument("--entry", type=Path, action="append", help="check only this entry file (repeatable)")
     args = parser.parse_args()
+    global STRICT_BOXES
+    STRICT_BOXES = args.strict_boxes
     candidates = args.marin or [VIEWER / "marin", Path.home() / "openathena" / "marin"]
     wordbase = args.wordbase.resolve()
+    selective = bool(args.pr or args.entry)
 
     pr_dirs = sorted(p for p in (wordbase / "prs").iterdir() if p.is_dir()) if (wordbase / "prs").exists() else []
+    if selective:
+        wanted = {str(n) for n in args.pr or []}
+        missing = wanted - {p.name for p in pr_dirs}
+        for n in sorted(missing):
+            fail(f"prs/{n}", "no such PR directory")
+        pr_dirs = [p for p in pr_dirs if p.name in wanted]
     heads = []
     for pr_dir in pr_dirs:
         parsed = front_matter(pr_dir / "pr.md")
@@ -501,8 +522,14 @@ def main() -> None:
 
     for pr_dir in pr_dirs:
         check_pr(pr_dir, repo)
-    for path in sorted(wordbase.rglob("*.md")):
-        if ".git" not in path.parts:
+    if selective:
+        entries = [e.resolve() for e in args.entry or []]
+    else:
+        entries = [p for p in sorted(wordbase.rglob("*.md")) if ".git" not in p.parts]
+    for path in entries:
+        if not path.exists():
+            fail(str(path), "no such entry")
+        else:
             check_entry(path, wordbase, repo)
 
     for what, n in sorted(counts.items()):

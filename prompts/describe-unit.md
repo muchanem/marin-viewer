@@ -9,15 +9,16 @@ reader called the Marin viewer. This message holds everything you need. You have
 cannot open files, so describe only what the text below shows.
 
 The unit is `{{unit}}` at commit `{{commit}}`, in the package `{{package}}`. It is {{unit_kind}}: a
-single directory, or a slice of a package small enough to fit here. Write an entry for every file in
-the unit.
+single directory, or a slice of a package small enough to fit here. Write an entry for every file
+listed under `TARGETS`. The other files in the unit are there as context.
 
 ## Inputs
 
 The inputs follow this prompt, each between a `=== BEGIN <name> ===` line and an `=== END <name> ===`
 line:
 
-1. `SOURCE <path>`: the full source of each file in the unit, one block per file.
+1. `SOURCE <path>`: the full source of each file in the unit, one block per file. A sibling that does
+   not fit the budget appears with its signatures only, and its block heading says so.
 2. `README`: the package README.
 3. `NEIGHBOURS`: for each module that the unit imports and each module that imports the unit, its path,
    its wordbase `l1` line or `no entry`, and the signatures of its classes and functions. A heading
@@ -25,8 +26,9 @@ line:
 4. `SUBSYSTEM`: the subsystem page, or `none`.
 5. `EXISTING`: the current entries for files in the unit, or `none` on a first pass. Each entry gives
    its commit, its layers and its symbols.
-6. `DIFF`: on a regeneration, the diff from the commit in `EXISTING` to `{{commit}}`. On a first pass,
-   `none`.
+6. `DIFF`: on a regeneration, the diff of the targets from the last described commit to `{{commit}}`.
+   On a first pass, `none`.
+7. `TARGETS`: the paths to write entries for, one per line.
 
 Use the neighbours to say who calls a file and what part it plays for them, by module and function
 name. Do not describe the neighbours themselves, and claim nothing about them beyond their `l1` and
@@ -63,8 +65,8 @@ file `{ "keep": true }` in place of a new entry.
 ## Output
 
 Reply with a single JSON object and nothing else: no Markdown fences, no commentary before or after
-it. Its keys are the repository paths of every file in the unit, and each value is an entry or
-`{ "keep": true }`. Escape double quotes and backslashes inside strings, and put code names in
+it. Its keys are exactly the paths listed under `TARGETS`, and each value is an entry or
+`{ "keep": true }`. Give `keep` only to a target that has an entry under `EXISTING`. Escape double quotes and backslashes inside strings, and put code names in
 backticks.
 
 ```json

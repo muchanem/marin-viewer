@@ -12,7 +12,9 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest run",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "poll": "node dist/poll.js",
+    "compare": "node dist/compare.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.302",

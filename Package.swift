@@ -17,6 +17,8 @@ let package = Package(
         .package(url: "https://github.com/fwcd/tree-sitter-kotlin", exact: "0.3.8"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-c", exact: "0.24.2"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-cpp", exact: "0.23.4"),
+        // The Marin viewer's SwiftUI-free models: diff rows, blame, wordbase formats.
+        .package(path: "Packages/ViewerCore"),
     ],
     targets: [
         // Upstream tree-sitter-javascript and tree-sitter-python publish SwiftPM
@@ -48,6 +50,7 @@ let package = Package(
                 .product(name: "TreeSitterC", package: "tree-sitter-c"),
                 .product(name: "TreeSitterCPP", package: "tree-sitter-cpp"),
                 "GrammarScanners",
+                .product(name: "ViewerCore", package: "ViewerCore"),
             ],
             resources: [.copy("Queries"), .copy("IndexingScripts"), .copy("IndexingPersonalities"), .copy("Help")],
             swiftSettings: [.swiftLanguageMode(.v6)]

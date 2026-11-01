@@ -8,3 +8,10 @@ __pycache__/
 
 # Inherited, inactive starter copy; the root Swift package is the project.
 /repo/
+
+# Marin viewer: secrets, data and local state stay out of the repository.
+.env
+/marin/
+/wordbase/
+/state/
+node_modules/

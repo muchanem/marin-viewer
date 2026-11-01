@@ -1,0 +1,42 @@
+[
+  {
+    "path": ["FILES", "http_service.py", "l2"],
+    "from": "keeps up to 16 handler tasks in flight",
+    "to": "keeps up to 16 handler tasks running at once"
+  },
+  {
+    "path": ["FILES", "backends/local/launch.py", "l1"],
+    "from": "enters a machine's pinned namespaces",
+    "to": "enters the namespaces held open by a machine's init process"
+  },
+  {
+    "path": ["STEPS", "4", "l2"],
+    "from": "starts the process in the machine's pinned namespaces through `launch.py`",
+    "to": "starts the process through `launch.py` in the namespaces held open by the machine's init process"
+  },
+  {
+    "path": ["STEPS", "1", "l2"],
+    "from": "uses it to reach `create_task`",
+    "to": "calls it to get to `create_task`"
+  },
+  {
+    "path": ["STEP_DIA", "2", "nodes", "cp", "sub"],
+    "from": "own network namespace",
+    "to": "a separate network namespace"
+  },
+  {
+    "path": ["FINDINGS", "f2", "l1"],
+    "from": "which reaches async callers as",
+    "to": "which arrives at async callers as"
+  },
+  {
+    "path": ["FINDINGS", "f3", "l1"],
+    "from": "nothing records in-flight count, queue depth or drops",
+    "to": "nothing records the number of requests running at once, queue depth or drops"
+  },
+  {
+    "path": ["MEMORY", "1", "text"],
+    "from": "no counters for in-flight requests, queue depth or drops",
+    "to": "no counters for requests running at once, queue depth or drops"
+  }
+]

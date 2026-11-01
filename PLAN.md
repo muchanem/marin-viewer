@@ -4,6 +4,12 @@ Radiology is a native, read-only macOS repository browser. The active implementa
 
 ## Current accepted state
 
+**Marin viewer diff reader (2026-11-01, branch `mark/diff-reader`):** the PR
+reader for the Marin viewer, By step and By file, built on ViewerCore and
+Radiology's highlighter, with blame, review-note dots and Ask chips handed to
+the shell through callbacks. Not linked into the app window yet.
+[Design, API and demo differences](plans/diff-reader.md).
+
 **Publication batch (2026-10-31):** the user requested bundling all local changes
 and pushing directly to GitHub `main`. The starting local branch, local `main`
 and fetched `origin/main` all pointed to `6d446b9`, allowing one new commit and a

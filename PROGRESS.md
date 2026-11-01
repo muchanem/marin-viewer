@@ -1,5 +1,33 @@
 # Progress
 
+## 2026-11-01: Diff reader for the Marin viewer (Claude, workstream 1)
+
+Built the viewer's main column under `Sources/Radiology/Viewer/Diff/`: an
+async loader for a PR (whole-file git diff, head and base parses, excerpts
+resolved by function name, descriptions, notes), a cached porcelain blame
+store, and a SwiftUI reader with sticky file headers whose card bodies are one
+TextKit view each with a fixed gutter. By step and By file modes, gap bars with
+Show 15 above or below and Show all, Whole file, collapsible cards, layered
+descriptions, blame, note dots that open notes inline, cross-row selection and
+copy, go to definition (⌘-click) and Ask (⌘>, context menu) through callbacks.
+plans/diff-reader.md describes the design, public API and the differences from
+the demo. ViewerCore commit d6de5b8 relabels gaps that hide changes and keeps
+deletion runs at excerpt edges.
+
+Found while testing: since macOS 14 views draw outside their bounds unless
+`clipsToBounds` is set, and the gutter's background fill covered the code.
+
+Validation:
+- `make check` passes; ViewerCore `swift test`: 42 tests in 8 suites pass.
+- `make test`: 352 tests in 81 suites, 1 failure, the known
+  `FilesSidebarRevealTests.nativeFilesListTracksBookmarksAndSearchAndPreservesTheirCaret`
+  scroll assertion. It fails the same way with every new viewer test skipped
+  (334 tests, two runs) and passes alone.
+- Snapshot PNGs of steps 1, 6 and 7, By file on `http_service.py` with blame,
+  and note f1 open, compared side by side with headless renders of the demo.
+  Remaining differences are listed in the plan.
+- Tests that need #10640 skip when `marin/` or `wordbase/` is missing.
+
 ## 2026-10-31 — Bundle all local changes for GitHub main (Codex)
 
 The user explicitly requested bundling every local change and pushing to GitHub

@@ -122,33 +122,48 @@ enum Theme {
                                       stroke: base.withAlphaComponent(dark ? 0.88 : 0.72))
     }
 
-    /// Maps Tree-sitter capture names to dynamic system colors, so both
-    /// appearances come from Apple's own light and dark palettes rather than a
-    /// hand-inverted one. Roles are keyed on the capture's first component,
-    /// with a few whole-name exceptions that need to stand out from their
-    /// surroundings.
+    /// Maps Tree-sitter capture names to Atom's One Light syntax palette
+    /// (atom/one-light-syntax, styles/colors.less and syntax/_base.less). The
+    /// Marin viewer is light-only, so the colors are fixed. One Light's red
+    /// (variables, `self`, tags) is left out: `self` takes the orange One Light
+    /// gives Python parameters, and tags take the function blue. Roles are keyed
+    /// on the capture's first component, with whole-name exceptions where One
+    /// Light distinguishes a sub-scope.
     enum SyntaxColors {
+        static let text = rgb(0x383A42)        // mono-1
+        static let comment = rgb(0xA0A1A7)     // mono-3
+        static let cyan = rgb(0x0184BC)        // hue-1: escapes, builtins
+        static let blue = rgb(0x4078F2)        // hue-2: functions
+        static let purple = rgb(0xA626A4)      // hue-3: keywords
+        static let green = rgb(0x50A14F)       // hue-4: strings
+        static let orange = rgb(0x986801)      // hue-6: numbers, constants, parameters
+        static let typeOrange = rgb(0xC18401)  // hue-6-2: types and classes
+
         static func color(for capture: String) -> NSColor {
             switch capture {
-            case "string.escape", "string.special": .systemOrange
-            case "variable.builtin": .systemPink
+            case "string.escape", "string.special", "string.regexp": cyan
+            case "type.builtin", "function.builtin": cyan
+            case "variable.builtin", "variable.parameter": orange
+            case "comment.documentation": comment
             default: role(of: capture)
             }
         }
 
         private static func role(of capture: String) -> NSColor {
             switch capture.split(separator: ".").first {
-            case "comment": .secondaryLabelColor
-            case "string": .systemRed
-            case "number", "constant": .systemOrange
-            case "keyword": .systemPink
-            case "type", "constructor", "namespace", "tag": .systemTeal
-            case "function": .systemBlue
-            case "property": .systemIndigo
-            case "attribute": .systemPurple
-            case "label": .systemBrown
-            default: .textColor
+            case "comment": comment
+            case "string": green
+            case "number", "constant": orange
+            case "keyword": purple
+            case "type", "constructor", "namespace": typeOrange
+            case "function", "attribute", "tag": blue
+            default: text
             }
+        }
+
+        private static func rgb(_ hex: UInt32) -> NSColor {
+            NSColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
+                    blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
         }
     }
 }

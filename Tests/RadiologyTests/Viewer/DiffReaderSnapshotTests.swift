@@ -78,7 +78,7 @@ struct DiffReaderSnapshotTests {
                 guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
                 total += 1
                 let luminance = 0.2126 * color.redComponent + 0.7152 * color.greenComponent + 0.0722 * color.blueComponent
-                if luminance < 0.6 { dark += 1 }
+                if luminance < 0.75 { dark += 1 }
             }
         }
         return total == 0 ? 0 : Double(dark) / Double(total)

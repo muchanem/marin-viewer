@@ -104,12 +104,21 @@ Choices made in this design that Mark may revisit:
 
 These need Mark before or during the build:
 
-- **Xcode 26 or a Swift 6.2 toolchain.** Radiology's `Package.swift` requires
-  `swift-tools-version:6.2`, and this machine has only the Command Line Tools with Swift 6.1.2.
-- **An API key from the Console organization linked to the Max plan**, for background runs. Store it
-  in the macOS Keychain (service `marin-viewer`, account `anthropic-api-key`). Interactive sessions
-  use the existing `claude` login.
-- **A GitHub remote for the fork**, if the fork should live on GitHub. Until then it is a local repo.
+- **Xcode 26.** Radiology's `Package.swift` requires `swift-tools-version:6.2`. A build on the
+  Command Line Tools (Swift 6.1.2) with that version lowered fails at only three sites:
+  - `isolated deinit` in `ReaderTextView.swift:119`, which needs Swift 6.2;
+  - `ToolbarSpacer` in `ReaderToolbar.swift:21`, which needs the macOS 26 SDK;
+  - `@Entry` in `ContextInspectorFocus.swift:6`, which needs SwiftUI's macro plugin, shipped only with
+    Xcode.
+
+  Until Xcode 26 is installed, Swift work goes into `Packages/ViewerCore`, a SwiftUI-free local package
+  (tools-version 6.0) that builds on either toolchain and that the app target depends on.
+- **The API key for background runs** (Console organization linked to the Max plan) is `CLAUDE_API_KEY`
+  in `~/openathena/marin-viewer/.env`, which is gitignored. The sidecar reads it from there and passes
+  it as `ANTHROPIC_API_KEY` to background runs only. Interactive sessions use the existing `claude`
+  login.
+- **GitHub remote:** `origin` is `git@github.com:muchanem/marin-viewer.git`; `upstream` is
+  `https://github.com/tqbf/radiology`. Pushes happen only when Mark asks.
 - **Optional:** ask tqbf to add a LICENSE file. The author has said the project is open for others to
   use, but the repository has none at `7edfc79`.
 
@@ -128,6 +137,7 @@ wherever possible, which keeps those merges small.
   DESIGN.md
   Package.swift, Sources/, Tests/, Makefile ...  # Radiology, plus the viewer's Swift code
   Sources/Radiology/Viewer/      # new Swift code: strip, diagrams, panel, notes, sidecar client
+  Packages/ViewerCore/           # SwiftUI-free logic: diff rows, visibility, blame, wordbase models
   sidecar/                       # TypeScript: Agent SDK sessions, tools, poller, prep, lint, layout
   prompts/                       # system prompts, style rules, examples
   demo/                          # the HTML demo, its PR data, extract.py and smoke.js
@@ -222,13 +232,24 @@ graph around the current system.
 - `pr.md`: front matter `head`, `base`, `merge_base`, `prepared_at`, `session_id`, and the layered
   description.
 - `code-path.json`:
-  `[{ "id": 1, "title": "...", "l1": "...", "l2": "...", "node": "spec", "excerpts": [{ "path": "...", "function": "TaskSpec", "lines": [76, 106] }] }]`.
-  `function` resolves by declaration name against the head commit, following Radiology's rule; `lines`
-  is a fallback and is rewritten after each resolution. Radiology's text format can be exported for
-  compatibility.
+  `[{ "id": 1, "title": "...", "l1": "...", "l2": "...", "node": "spec", "excerpts": [{ "path": "...", "functions": ["ServiceEndpoint", "TaskSpec"], "lines": [45, 111] }] }]`.
+  - `functions` lists one or more consecutive declarations, resolved by name against the head commit
+    following Radiology's rule. The excerpt spans their union.
+  - `lines` is a fallback, rewritten after each resolution. A whole-module excerpt uses
+    `"functions": []` and keeps `lines`.
+  - Radiology's text format can be exported for compatibility, one step line per declaration.
 - `diagrams.json`:
   `{ "pr": Diagram, "steps": { "6": Diagram, ... } }`, where Diagram is
-  `{ "nodes": [{ "id", "label", "sub", "step"?, "at"?: { "path", "function" } }], "edges": [[from, to, label?]], "groups": [{ "label", "members": [ids] }] }`.
+  `{ "layout"?: { "mode": "auto" | "grid", "direction"?: "RIGHT" | "DOWN" }, "nodes": [{ "id", "label", "sub", "step"?, "at"?: { "path", "function" }, "paths"?: [repo paths], "grid"?: { "col", "row", "span"? } }], "edges": [[from, to, label?]], "groups": [{ "label", "members": [ids] }] }`.
+  - `paths` gives the files a box stands for. The app marks a box as touched when the PR changes
+    one of them, and dims it when the PR changes none.
+  - **Layout:** every diagram is drawn into a card of about 460×196 points (aspect 2.35).
+    - In `auto` mode the sidecar runs ELK's layered algorithm with `elk.aspectRatio` 2.35 and
+      `elk.layered.wrapping.strategy` `MULTI_EDGE`, so long chains wrap into rows.
+    - In `grid` mode every node carries a `grid` cell (integer column and row, optional column span)
+      and the sidecar scales the grid to the card. The agent never writes pixel coordinates.
+    - The preparation prompt asks for at most 10 boxes per diagram. It asks for `grid` when the
+      picture depends on placement: two sides of a boundary, a loop, or groups side by side.
 - `notes.jsonl`, one review note per line:
   `{ "id", "path", "line", "side": "head|base", "commit", "severity": "high|medium|low|design", "status": "draft|approved|rejected|posted|resolved", "who", "l1", "l2", "github_comment_id"?, "created", "updated" }`.
 - `files.json`: per changed file, the layered description of the change (the file-header text).
@@ -349,10 +370,33 @@ once and then kept with a `lint:` field listing what still fails.
 - headings that start with question words;
 - bold labels.
 
+**Context for descriptions.** A file described alone cannot say who calls it or what part it plays,
+so a description run covers a unit with its surroundings: one directory, or a slice of a package
+that fits in about half the model's context. The prompt holds:
+- the source of every file in the unit;
+- the package README;
+- the signatures and wordbase `l1` lines of the modules the unit imports and of those that import it;
+- the subsystem page, if it exists.
+
+The run writes an entry for every file in the unit. The poller's regenerations take the same shape:
+a changed file is described with its directory and its neighbours' entries in context, and
+unchanged siblings keep their entries unless the change alters what they do.
+
 **First full pass.** The repository has 16 packages under `lib/` and about 1,950 Python files.
-Describing all of them is a separate job on the GLM-5.3 fleet: an Iris job fanned out with Zephyr,
-one unit per file, with Claude writing the subsystem pages afterwards. The `glm_infer` session owns
-that fleet; ask it before launching (Marin's CLAUDE.md §11). Until the pass has run, entries appear
+Describing all of them is a separate job on the GLM-5.3 fleet. The pass runs in two rounds.
+1. Directory units, with each package processed leaves first, so a unit's imports already have
+   entries when it runs.
+2. Subsystem pages, written from the finished file entries.
+
+The job is a few Iris tasks: a coordinator and 4 to 8 workers. Each worker runs many concurrent
+requests through a sliding window (`wait -n` style). It sizes concurrency from live readings of KV,
+waiting and preemptions on the fleet, following the shed rule, and fixes no number in advance.
+Per-request overhead is small and per-task overhead is large, so tasks stay few and fat. The job
+verifies completion by counting files with entries against files expected. Mark approved GLM-5.3 use for
+this project without further approval from him or the `glm_infer` session (2026-11-01). The fleet's
+shed rule in Marin's CLAUDE.md §11 still applies, because it protects other tenants. GLM-5.3 may also
+serve the poller's per-file regenerations through the router port-forward, if its prose passes the
+20-file comparison against Claude. Until the pass has run, entries appear
 only for files that commits or PRs touch, and the poller fills them in.
 
 ## 9. Building it with subagents
@@ -366,7 +410,7 @@ Each workstream owns its directories. All of them read sections 6 and 7 as the c
 | 2. Shell | strip, diagrams, left tabs, right panel, chips, menus, ⌘>, windows | Every interaction in `demo/smoke.js` works on the fixture in the app |
 | 3. Sidecar | `sidecar/` sessions, tools, protocol, layout, posting | Protocol tests pass. A live session on #10640 answers a chip question and issues `focus_code_path` |
 | 4. Pipeline | poller, prep, description runs, prompts, lint | One tick on a quiet `main` and one on a new commit both print correct summaries. Preparing a live review request (such as #10330) writes valid section 6 files |
-| 5. First pass | Iris/Zephyr GLM job | Only after `glm_infer` agrees and Mark approves the launch |
+| 5. First pass | Iris GLM job: a few fat tasks over directory units | Every Python file under `lib/` has an entry whose lint result is recorded, and a count of inputs seen equals inputs expected. Launch is pre-approved; follow the shed rule |
 
 Workstream 0 runs first. Workstreams 1, 3 and 4 then run in parallel against the fixture.
 Workstream 2 starts once 1 shows rows. Agents run Swift checks with Radiology's `make check` and
@@ -377,8 +421,12 @@ what it ran, what passed, and what differs from the demo.
 
 Rules for builders:
 
-- Never post to GitHub, push, or launch cluster jobs without Mark's confirmation in the session.
+- Never post to GitHub or push without Mark's confirmation in the session. GLM-5.3 jobs for this
+  project are pre-approved; other cluster jobs need confirmation.
 - Keep Radiology's code changes small and in new files where possible, so upstream merges stay easy.
 - Python goes through `uv run` (Marin's CLAUDE.md §1).
+- Commit messages, here and in the wordbase, follow Marin's
+  `docs/dev-guide/writing-style/pull-requests.md`: an imperative title of at most 72 characters, plain
+  paragraphs that lead with what changed, and no `Co-Authored-By` or other attribution trailers.
 - The GitHub API budget is shared. Prefer `git` and `raw.githubusercontent.com`, and have the poller
   print its `gh` call count per tick.

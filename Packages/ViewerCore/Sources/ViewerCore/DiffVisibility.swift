@@ -9,6 +9,11 @@ import Foundation
 /// `s<step>:<excerpt>` in By step mode) and Whole file per path, so a
 /// SwiftUI model keeps one `DiffVisibility` per card and passes the path's
 /// Whole file flag into `segments(wholeFile:)` and `isVisible(_:wholeFile:)`.
+///
+/// Two rules differ from the demo on purpose, and `DemoParityTests` states
+/// both: a gap that hides changed rows is not called "unchanged", and an
+/// excerpt shows the deletions just before its first line as well as those
+/// just after its last line.
 public struct DiffVisibility: Hashable, Sendable {
     public enum Mode: Hashable, Sendable {
         /// Changed rows plus `contextLines` rows either side (`diffVisible`).
@@ -34,11 +39,14 @@ public struct DiffVisibility: Hashable, Sendable {
     public let base: IndexSet
     /// Rows revealed since: the demo's `S.reveal[key]`.
     public private(set) var revealed: IndexSet
+    /// Added and deleted rows, so a gap can say whether it hides any.
+    public let changed: IndexSet
 
     public init(rows: [DiffRow], mode: Mode = .diff) {
         self.mode = mode
         rowCount = rows.count
         revealed = IndexSet()
+        changed = IndexSet(rows.indices.filter { rows[$0].isChange })
         switch mode {
         case .diff: base = Self.diffRows(rows)
         case .excerpt(let lines): base = Self.excerptRows(rows, lines: lines)
@@ -66,7 +74,9 @@ public struct DiffVisibility: Hashable, Sendable {
             let shown = isVisible(row, wholeFile: wholeFile)
             var end = row + 1
             while end < rowCount, isVisible(end, wholeFile: wholeFile) == shown { end += 1 }
-            segments.append(shown ? .rows(row..<end) : .gap(DiffGap(rows: row..<end, rowCount: rowCount)))
+            let range = row..<end
+            segments.append(shown ? .rows(range) : .gap(DiffGap(
+                rows: range, rowCount: rowCount, changedRows: changed.count(in: range))))
             row = end
         }
         return segments
@@ -111,16 +121,27 @@ public struct DiffVisibility: Hashable, Sendable {
         return visible
     }
 
-    /// A row with a new line is inside when the excerpt holds that line; a
-    /// deleted row takes the answer of the last row before it that had one.
-    /// So deletions just after the excerpt's last line are shown, those just
-    /// before its first line are not, and leading deletions never are.
+    /// A row with a new line is inside when the excerpt holds that line. A
+    /// run of deleted rows is inside when the row with a new line on either
+    /// side of it is, so deletions just before the excerpt's first line and
+    /// just after its last line both show. The demo's `rangeVisible` looked
+    /// only at the row before, which hid deletions at the top of an excerpt.
     private static func excerptRows(_ rows: [DiffRow], lines: ClosedRange<Int>) -> IndexSet {
         var visible = IndexSet()
-        var inside = false
-        for (index, row) in rows.enumerated() {
-            if let line = row.newLine { inside = lines.contains(line) }
-            if inside { visible.insert(index) }
+        var previousInside = false
+        var index = 0
+        while index < rows.count {
+            if let line = rows[index].newLine {
+                previousInside = lines.contains(line)
+                if previousInside { visible.insert(index) }
+                index += 1
+                continue
+            }
+            var end = index
+            while end < rows.count, rows[end].newLine == nil { end += 1 }
+            let nextInside = end < rows.count && rows[end].newLine.map(lines.contains) == true
+            if previousInside || nextInside { visible.insert(integersIn: index..<end) }
+            index = end
         }
         return visible
     }
@@ -139,22 +160,28 @@ public struct DiffGap: Hashable, Sendable {
     public let isAtTop: Bool
     /// The gap runs to the file's last row.
     public let isAtEnd: Bool
+    /// Added and deleted rows among the hidden ones. Only excerpt cards hide
+    /// changes; a diff card shows every change with its context.
+    public let changedRows: Int
 
-    public init(rows: Range<Int>, rowCount: Int) {
+    public init(rows: Range<Int>, rowCount: Int, changedRows: Int = 0) {
         self.rows = rows
         isAtTop = rows.lowerBound == 0
         isAtEnd = rows.upperBound == rowCount
+        self.changedRows = changedRows
     }
 
     public var count: Int { rows.count }
 
     /// "12 unchanged lines", "1 unchanged line at the top", "40 unchanged
     /// lines to the end". A gap that is both at the top and at the end says
-    /// "at the top". In an excerpt card the hidden rows can include changes;
-    /// the demo still calls them unchanged.
+    /// "at the top". A gap that hides changes says so: "124 hidden lines at
+    /// the top, 124 changed". The demo called those unchanged too.
     public var label: String {
         let place = isAtTop ? " at the top" : isAtEnd ? " to the end" : ""
-        return "\(count) unchanged line\(count == 1 ? "" : "s")\(place)"
+        let plural = count == 1 ? "" : "s"
+        guard changedRows > 0 else { return "\(count) unchanged line\(plural)\(place)" }
+        return "\(count) hidden line\(plural)\(place), \(changedRows) changed"
     }
 
     /// In the demo's order: Show 15 below, Show 15 above, Show all. Gaps of

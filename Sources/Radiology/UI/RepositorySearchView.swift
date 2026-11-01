@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RepositorySearchView: View {
     @Environment(AppModel.self) private var model
+    @Environment(ViewerStore.self) private var viewer: ViewerStore?
     @FocusState private var searchFocused: Bool
     @State private var showOptions = false
     var body: some View {
@@ -42,7 +43,9 @@ struct RepositorySearchView: View {
         } else {
             List(model.matches) { match in
                 Button {
-                    model.navigate(toSearchResult: match.location)
+                    // A hit in an open wordbase PR opens By file in the PR view.
+                    if let viewer, viewer.isReviewing { viewer.open(path: match.path, line: match.line) }
+                    else { model.navigate(toSearchResult: match.location) }
                 } label: {
                     VStack(alignment: .leading, spacing: Theme.spacing / 2) {
                         Text("\(match.path):\(match.line)").font(Theme.Fonts.meta).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
@@ -50,6 +53,7 @@ struct RepositorySearchView: View {
                             .font(Theme.Fonts.codePreview).lineLimit(2).truncationMode(.tail)
                     }.frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
                 }.buttonStyle(.plain)
+                .contextMenu { ViewerFileMenu(path: match.path) }
             }.listStyle(.sidebar)
             if model.searchLimited {
                 Text("First 5,000 matches. Narrow your search.").font(Theme.Fonts.meta).foregroundStyle(.secondary).padding(Theme.inset)

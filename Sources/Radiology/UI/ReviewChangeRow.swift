@@ -4,10 +4,13 @@ import SwiftUI
 struct ReviewChangeRow: View {
     let change: FileChange
     var isSelected = false
+    /// Viewer options: a letter for every status, and a dot for a draft review note.
+    var showsStatusLetter = false
+    var hasDraftNote = false
 
     var body: some View {
         HStack(alignment: .top, spacing: Theme.spacing) {
-            ReviewChangeStatus(status: change.status)
+            ReviewChangeStatus(status: change.status, showsLetter: showsStatusLetter)
             VStack(alignment: .leading, spacing: 2) {
                 Text(URL(filePath: change.path).lastPathComponent)
                     .font(Theme.Fonts.body)
@@ -20,6 +23,11 @@ struct ReviewChangeRow: View {
                     .lineLimit(1).truncationMode(.middle)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            if hasDraftNote {
+                Circle().fill(Color.viewerNote).frame(width: 6, height: 6).padding(.top, 6)
+                    .help("A draft review note is on this file")
+                    .accessibilityLabel("Draft review note")
+            }
             Group {
                 if let additions = change.additions, let deletions = change.deletions {
                     Text("+\(additions) −\(deletions)")

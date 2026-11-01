@@ -25,7 +25,10 @@ struct FileTreeLabel: View {
             }
         }
         .tag(path)
-        .contextMenu { Button("Reveal in Finder", action: revealInFinder) }
+        .contextMenu {
+            if !isDirectory { ViewerFileMenu(path: path) }
+            Button("Reveal in Finder", action: revealInFinder)
+        }
     }
 
     private func revealInFinder() {

@@ -14,6 +14,16 @@ export interface Config {
   state: string;
   prompts: string;
   envFile: string;
+  /**
+   * Where the OpenRouter key may live, tried in order: a variable name in a dotenv file. Defaults to
+   * `OPENROUTER_API_KEY` in `envFile`, then `OR_KEY_SCALE_UP` in the parent directory's `.env`.
+   */
+  openRouterKeys?: KeySource[];
+}
+
+export interface KeySource {
+  file: string;
+  name: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -25,7 +35,35 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     state: path.resolve(env.MARIN_VIEWER_STATE ?? path.join(root, "state")),
     prompts: path.resolve(env.MARIN_VIEWER_PROMPTS ?? path.join(root, "prompts")),
     envFile: path.resolve(env.MARIN_VIEWER_ENV_FILE ?? path.join(root, ".env")),
+    openRouterKeys: openRouterKeySources(root, env),
   };
+}
+
+/** `MARIN_VIEWER_OPENROUTER_ENV_FILE` and `MARIN_VIEWER_OPENROUTER_KEY_NAME` replace the first source. */
+export function openRouterKeySources(root: string, env: NodeJS.ProcessEnv = process.env): KeySource[] {
+  return [
+    { file: path.resolve(env.MARIN_VIEWER_OPENROUTER_ENV_FILE ?? env.MARIN_VIEWER_ENV_FILE ?? path.join(root, ".env")), name: env.MARIN_VIEWER_OPENROUTER_KEY_NAME ?? "OPENROUTER_API_KEY" },
+    { file: path.resolve(root, "..", ".env"), name: "OR_KEY_SCALE_UP" },
+  ];
+}
+
+/**
+ * The OpenRouter key and where it came from. The returned `source` names the file and variable and is
+ * safe to print; the key never is. Throws, naming the places it looked, when no source has it.
+ */
+export function openRouterKey(config: Config): { key: string; source: string } {
+  const sources = config.openRouterKeys ?? openRouterKeySources(config.root);
+  for (const s of sources) {
+    let text: string;
+    try {
+      text = readFileSync(s.file, "utf8");
+    } catch {
+      continue;
+    }
+    const key = parseDotenv(text)[s.name]?.trim();
+    if (key) return { key, source: `${s.name} in ${s.file}` };
+  }
+  throw new Error(`no OpenRouter key: looked for ${sources.map((s) => `${s.name} in ${s.file}`).join(", then ")}`);
 }
 
 /** Parse a dotenv file into a map. Values are never logged. */

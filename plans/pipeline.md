@@ -124,6 +124,48 @@ the highest count read so far. A non-200 or a shed reason is a hold: it polls ev
 port-forward died while the fleet may be fine. Completions go to `/v1/chat/completions` with the bulk token. The gate never sends a
 completion.
 
+## GPT-6.1 Terra on OpenRouter
+
+`pipeline/openrouter.ts` `OpenRouterBackend` runs the same `describe-unit.md` prompt and unit builder
+through OpenRouter's OpenAI-compatible `/chat/completions`. It streams the reply and sends
+`service_tier` and `reasoning: { effort }`. It retries a 429 or 5xx up to 3 times. From each reply it
+records the cost, the tier that served it, the reasoning tokens, the upstream provider and the
+generation id. The cost comes from `usage.cost`, then from `GET /generation?id=` when that is
+missing. A reply with no cost is an error and is never recorded as free.
+
+- **Key.** `openRouterKey` in `config.ts` reads `OPENROUTER_API_KEY` from the viewer's `.env`, then
+  `OR_KEY_SCALE_UP` from the parent directory's `.env`. `MARIN_VIEWER_OPENROUTER_ENV_FILE` and
+  `MARIN_VIEWER_OPENROUTER_KEY_NAME` replace the first source. Only the file and variable name are
+  ever printed. Run from a worktree, set `MARIN_VIEWER_ROOT` to the marin-viewer directory, or the
+  fallback looks in the worktree's parent.
+- **Model.** The model is `openai/gpt-6.1-terra` (canonical `openai/gpt-6.1-terra-20261026`) from the
+  public `GET /api/v1/models`, with 1.05M tokens of context and up to 128K output. The listed prices
+  per million tokens are $1 input, $5 output, $0.05 cache read and $1.25 cache write. Above 272K
+  prompt tokens they rise to $2, $7.50, $0.10 and $2.50. A `:batch` variant costs half.
+- **Service tiers.** OpenRouter takes a top-level `service_tier` (`default`, `flex`, `priority`, with
+  `fast` as an alias, plus `ultrafast`). Each tier is its own endpoint with its own price, listed by
+  `GET /api/v1/models/openai/gpt-6.1-terra/endpoints`:
+
+  | Tier | Endpoint tag | Input / output | Cache read / write | Multiple of default |
+  | --- | --- | --- | --- | --- |
+  | flex | `openai/flex` | $0.50 / $2.50 | $0.025 / $0.625 | 0.5 |
+  | default | `openai` | $1 / $5 | $0.05 / $1.25 | 1 |
+  | priority | `openai/fast` | $2 / $10 | $0.10 / $2.50 | 2 |
+
+  An Azure EU endpoint is listed at $1.20 / $6. The response's top-level `service_tier`, and the
+  generation record's `service_tier` and `provider_responses[].routed_service_tier`, report the tier
+  that served the request. Billing follows the served tier, so a priority request that falls back to
+  a standard endpoint pays the standard rate (OpenRouter's Service Tiers guide). Model and endpoint
+  `supported_parameters` do not list `service_tier`, yet requests take it.
+- **Billing.** Every uncached prompt token was billed at the cache-write price. For the shellbox local
+  unit, `usage.cost` and the generation record's `total_cost` were both $0.114006, which is exactly
+  31,203 prompt tokens at $2.50 plus 3,600 output tokens at $10. The record's negative
+  `cache_discount` (-$0.0156) is the write surcharge.
+- **Reasoning effort.** Neither the reply nor the generation record says which effort was applied. A probe
+  sent one prompt at each setting: low gave 169 reasoning tokens, medium 287 and high 338, and the
+  call with no setting gave 285. So the effort is honoured, and medium matches the model's default.
+  That is one call per setting. On description units Terra reasoned for only 54 to 96 tokens a call.
+
 ## Measured on 2026-11-01
 
 All on Marin main `1d274b5`. Costs come from `turn.result` and API usage, as recorded in `state/spend.jsonl`.
@@ -138,7 +180,7 @@ All on Marin main `1d274b5`. Costs come from `turn.result` and API usage, as rec
   failures, no lint hits and a clean `check_fixture.py --strict-boxes --pr 10330`. Its high-severity note
   says `calibforge_captured_fixtures.main` reads a `public_fixture_roots` key that nothing in the PR
   writes. `rg` confirms it: only a test fixture has the key.
-- The model comparison is in `state/reports/describe-comparison.md`. Every model described all 20 files in 4 units. Sonnet 5.5 cost $0.763 in 162 s and wrote 28.9K output tokens. Lint found 17 hits in its first drafts and 1 after the rewrites. Opus 5.5 cost $2.00 in 412 s and wrote 52.8K output tokens, with 5 lint hits in the first drafts and 0 after. GLM-5.3 cost $0 in 823 s and wrote 157.6K output tokens, most of them reasoning, with 7 lint hits in the first drafts and 1 after. Each model needed a rewrite on 3 units. The texts are comparably concrete and checkable. Opus describes more private symbols, and GLM adds `l3` caveats.
+- The model comparison is in `state/reports/describe-comparison.md`. Every model described all 20 files in 4 units. Sonnet 5.5 cost $0.763 in 162 s and wrote 28.9K output tokens. Lint found 17 hits in its first drafts and 1 after the rewrites. Opus 5.5 cost $2.00 in 412 s and wrote 52.8K output tokens, with 5 lint hits in the first drafts and 0 after. GLM-5.3 cost $0 in 823 s and wrote 157.6K output tokens, most of them reasoning, with 7 lint hits in the first drafts and 1 after. Each of those three needed a rewrite on 3 units. GPT-6.1 Terra (effort medium, priority requested and served) cost $0.372 in 80 s by OpenRouter's `usage.cost`. It wrote 12.4K output tokens and passed lint on every first draft, so it needed no rewrites. The first three write comparably concrete and checkable text. Opus describes more private symbols, and GLM adds `l3` caveats. Terra writes about half as much: its `l1` lines average 87 characters to Sonnet's 138 and its `l2` 344 to Sonnet's 657, though it lists the most symbols, 9.1 per file. Its text is accurate on the files read, but it leaves out details that Sonnet gives, such as the compression and the error mapping in `iris/actor/client.py`.
 - Full first pass on Sonnet 5.5, estimated. At main there are 1,955 non-empty `.py` files under
   `lib/` (21.2M characters, 603 of them tests) in 227 directories. They form 251 units once
   directories over 280K characters are split. The estimate uses the measured rates: 2.4 characters per
@@ -149,6 +191,25 @@ All on Marin main `1d274b5`. Costs come from `turn.result` and API usage, as rec
   costs about $82. Without prompt caching it would cost about $81. The same model reproduces the
   comparison's measured Sonnet cost within 3% ($0.742 modelled against $0.763). On the same 3 units
   Opus 5.5 cost 2.56 times as much as Sonnet, which puts an Opus pass near $175.
+- Every model, from the same token model. `pipeline/estimate.ts` now computes the estimates in the
+  report's Estimates section. Each model's output per file, rewrite share and input tokens against
+  Sonnet are measured on the 4 comparison units, and the 16 subsystem pages (about $4) are left out.
+  The file passes come to:
+
+  | Pass | Estimate |
+  | --- | --- |
+  | Sonnet 5.5 | $65 |
+  | Sonnet 5.5, Batch API | $32 |
+  | Opus 5.5 | $176 |
+  | GPT-6.1 Terra, priority | $32 |
+  | GPT-6.1 Terra, default | $16 |
+  | GPT-6.1 Terra, flex | $8 |
+
+  The Terra figures rest on 0.57 times Sonnet's input tokens, 620 output tokens per file and no
+  rewrites. Its tokenizer appears to need fewer tokens for this Python. Sonnet's first-call input
+  here is taken as half of a rewritten unit's input, which slightly understates that ratio. On the 4
+  units themselves, Terra's flex tier would have cost $0.093 against $0.372 at priority. Repricing
+  the recorded tokens at priority prices gives back exactly the $0.372 that OpenRouter charged.
 
 Three failures turned up on 2026-11-01 and are fixed.
 - API credit ran out after $8.69 of spend. The Agent SDK turn ended with `subtype: success`,

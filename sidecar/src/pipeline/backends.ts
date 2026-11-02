@@ -22,6 +22,14 @@ export interface Completion {
   cache_read_tokens: number;
   cost_usd: number;
   latency_ms: number;
+  /** Where `cost_usd` came from, when the backend does not compute it from a price table. */
+  cost_source?: string;
+  /** The service tier the provider reports serving, for backends that take one. */
+  served_tier?: string | null;
+  reasoning_tokens?: number;
+  /** The upstream provider that served the request, as OpenRouter reports it. */
+  provider?: string;
+  generation_id?: string;
 }
 
 export interface Backend {

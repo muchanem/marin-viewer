@@ -392,7 +392,7 @@ export class FirstPassRunner {
 
 /** Whether an entry's `by:` names a model run. Anything else, a hand-written fixture included, is protected. */
 export function isGenerated(by: unknown): boolean {
-  return typeof by === "string" && /^(claude-[\w.-]+|glm-[\w.-]+|[\w.-]+\/[\w.:-]+) (poll|prep|first-pass|compare)\b/.test(by);
+  return typeof by === "string" && /^(claude-[\w.-]+|glm-[\w.-]+|[\w.-]+\/[\w.:-]+) (poll|prep|first-pass|compare|system-pages)\b/.test(by);
 }
 
 /**

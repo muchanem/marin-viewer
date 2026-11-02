@@ -265,7 +265,7 @@ Three failures turned up on 2026-11-01 and are fixed.
 
 `npm run first-pass` (`first-pass.ts`, with the scheduling in `pipeline/firstpass.ts`) describes every
 source unit and slice at the clone's current `main`, then the orphan test batch. It writes no subsystem
-pages; those wait for a model decision.
+pages; `npm run system-pages` does (below).
 
 - **Model.** GPT-6.1 Terra at effort medium, `service_tier: "flex"`, pinned with
   `provider: { only: ["openai/flex"], allow_fallbacks: false }`. OpenRouter's Service Tiers guide says
@@ -322,6 +322,77 @@ pages; those wait for a model decision.
   are unchanged. `check_fixture.py` over the whole wordbase still gives the 2 WARN and 2 MISMATCH
   lines of the baseline. It adds 1386 failures of `system X has no entry`, one for each entry whose
   system has no page yet, since this pass writes none.
+
+## Subsystem pages
+
+`npm run system-pages` (`system-pages.ts`, with the page logic in `pipeline/systems.ts`) writes one
+page per package under `lib/` at the clone's `main`, in the DESIGN.md section 6 system format, with
+the map the strip's "In Marin" card draws. The poller's subsystem refresh (`refreshSystem`) uses the
+same writer.
+
+- **Models.** Fable 5.1 (`claude-fable-5-1`, effort high) writes the page. Opus 5.5 reads it cold
+  (`prompts/cold-reader.md`), before and after one rewrite. Both run on the Claude key.
+- **Order.** Packages go in dependency waves (`dependencyWaves`), so a page's neighbours already have
+  their `l1` when it is written. A neighbour without a page shows its README's opening paragraph.
+- **Kept pages.** A page whose `by:` names no model run (`isGenerated`) is kept. At 1d274b5 that is
+  `systems/shellbox.md` (`by: claude-opus-5-5 fixture ...`), the #10640 fixture's page.
+- **Context.** `systemInputs` fills a 256K o200k budget in this order, and the log names what it left
+  out:
+  1. the neighbours' `l1` lines (reserved first);
+  2. every source file's `l1`, then `l2` paragraphs while they fit;
+  3. the tests' `l1` lines;
+  4. the README, cut if needed;
+  5. entry-point excerpts, within `--excerpt-budget`: the top-level `__init__.py`, the
+     `pyproject.toml` script modules, `__main__`/`cli`/`main` modules, then modules by outside
+     importers. A file over 12,000 tokens is given as its definition lines.
+- **Reply.** The writer replies under a JSON schema (`PAGE_SCHEMA`, structured outputs), with
+  `l1`, `l2` and `diagram` required. Edges come back as `{from, to, label}` objects, and
+  `normaliseDiagram` turns them into the wordbase's `[from, to, label]` arrays. Without the schema,
+  Fable left the map out on the first dupekit trial, and on another wrote edges as objects that the
+  map schema rejected.
+- **Checks.** `checkPage` holds the map to the card:
+  - at most 10 boxes, 4 columns by 3 rows, one box per cell;
+  - a box named for the package and one for each neighbour, each with its `lib/<name>/` path; a
+    merged box lists its packages under `systems`;
+  - paths that exist at the commit;
+  - labels of up to 3 words and subs of up to 5;
+  - edges between real boxes.
+
+  Map problems, lint hits and cold-reader gaps all go back in the one rewrite. A map that still fails
+  is dropped, and its problems are recorded in `lint:`.
+- **Caching.** The rewrite reads the writer's prompt from cache. The cold reader's prompt puts CODE
+  before DESCRIPTION, and the code half is sent as its own cached block (`cachePrefix`), so the second
+  read takes it from cache.
+- **Spend cap.** `--cap`, $25 by default, counts every call of the run at this commit from the
+  ledger, earlier invocations included. A call that would start past the cap raises `SpendStop`.
+- **Resume.** A page is done when its `by` is `claude-fable-5-1 system-pages <sha7>` at the commit.
+  `--redo a,b` writes those pages again. The state file is `state/runs/system-pages-<sha7>.json`, and
+  every call's reply text is kept under `state/runs/system-pages-<sha7>/<page>.json`.
+- **Lock.** `state/system-pages.lock`. The poller does nothing while that process lives.
+- **Output.** After each wave, `check_fixture.py` checks the wave's pages, and the wordbase is
+  committed with each page's gaps and cost in the body.
+
+## Measured on 2026-11-02: subsystem pages at 1d274b5
+
+- **Result.** 15 pages written, 0 failed; shellbox kept. Every page has a map that passes
+  `checkPage`, and no page carries `lint:`. `check_fixture.py` over the whole wordbase gives the 2 WARN
+  and 2 MISMATCH lines of the baseline and no `system X has no entry`.
+- **Spend.** $23.18 of the $25 cap: Fable 5.1 $17.92 and Opus 5.5 $5.26. The 15 final pages cost
+  $21.21. Five dupekit trials while the map and cache fixes went in cost $1.96.
+- **Excerpt budget.** The first 7 pages (dupekit, haliax, rigging, verifyit, finelog, finestore,
+  iris) ran with `--excerpt-budget 20000`. They cost 1.25 to 1.4 times the estimate, which put the
+  whole run on course for about $27, so the run was stopped between waves. The other 8 ran with
+  5,000. iris's prompt was the largest, at 63K o200k tokens (110K counted by Claude). No page came
+  near the 256K budget, so only excerpts were left out: from 0 entry points (dupekit, ducky) to 215
+  (marin). rigging, finelog, fray and marin have no README.
+- **Prompt wording.** After the run, one line of `describe-system.md` was reworded to pass the prompt
+  lint ("several of them:" read as a counting opener). The pages were written with the old line.
+- **Tokenizer.** Claude's count ran about 1.7 times o200k on these prompts. Opus 5.5 counted the
+  same text at about 0.71 of Fable 5.1's count.
+- **Cold reader.** 52 gaps before the rewrites and 19 after. The rewrite cut gaps on 11 pages. fray
+  had none and took no rewrite. finelog and rolloutengine stayed at 1. haliax went from 2 to 5: the
+  rewrite added claims its inputs do not show.
+- **Time.** 20.4 min of wall clock for the 15 pages, up to 4 pages in flight. A page took 35 to 204 s.
 
 ## Measured on 2026-11-02: full context
 

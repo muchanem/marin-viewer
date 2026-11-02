@@ -15,7 +15,8 @@
     "start": "node dist/main.js",
     "poll": "node dist/poll.js",
     "compare": "node dist/compare.js",
-    "first-pass": "node dist/first-pass.js"
+    "first-pass": "node dist/first-pass.js",
+    "system-pages": "node dist/system-pages.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.302",

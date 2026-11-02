@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-11-02 — Subsystem pages for the 16 packages under lib/ (Claude, workstream 4)
+
+`npm run system-pages` (`sidecar/src/system-pages.ts`, page logic in `sidecar/src/pipeline/systems.ts`) writes one page per package at the Marin clone's `main`, in dependency waves. Fable 5.1 writes each page under a JSON schema, and Opus 5.5 reads it cold before and after one rewrite. The context is the package's file entries, its tests' `l1` lines, the README and entry-point excerpts, within 256K o200k tokens, and the log names what was left out. [plans/pipeline.md](plans/pipeline.md) "Subsystem pages" covers each rule, and "Measured on 2026-11-02: subsystem pages" has the numbers.
+
+- Schema addition: a diagram box may carry `systems:`, a list of the neighbouring packages it stands for (`DiagramNode.systems` in `sidecar/src/protocol.ts`, DESIGN.md section 6). iris, marin and rigging have 10 neighbours each, which would need 11 boxes. `check_fixture.py` counts a package listed there as having a box.
+- 15 pages were written and none failed. `systems/shellbox.md` is the #10640 fixture's page (`by: claude-opus-5-5 fixture ...`) and was kept. levanter and rigging were rewritten. Every page has a map that passes the checks, and none carries `lint:`.
+- `check_fixture.py` over the whole wordbase is back to the baseline of 2 WARN and 2 MISMATCH, with no `system X has no entry`.
+- Cold-reader gaps: 52 before the rewrites and 19 after. haliax went from 2 to 5.
+- Spend: $23.18 of the $25 cap, Fable 5.1 $17.92 and Opus 5.5 $5.26. That includes $1.96 for five dupekit trials while the map fixes went in. The excerpt budget was lowered from 20,000 to 5,000 tokens after 7 pages, to stay under the cap.
+- `npm test`: 261 tests passed in 19 files. The new tests cover the map checks, the dependency waves, the rewrite, failed cold reads, a dropped map, the spend stop, the cache prefix, the output schema and the subsystem-page lock. The typecheck is clean.
+- Wordbase commits: `a346eda` to `d5b4c17` (the dupekit trials), then `896aab0`, `a16afb2`, `334e428`, `690b71a`, `dbb0ad8`, `0030a25`, `ea0d7b8` and `ec7a800`.
+
 ## 2026-11-02 — The first pass of file descriptions (Claude, workstream 4)
 
 `npm run first-pass` (`sidecar/src/first-pass.ts`, scheduling in `sidecar/src/pipeline/firstpass.ts`) describes every source unit and slice at the Marin clone's `main`, then the orphan test batch, with GPT-6.1 Terra on OpenRouter's flex tier pinned to `openai/flex`. The run is resumable and has a `--dry-run` and a `--check`. It keeps a sliding window of calls in flight, a tier guard, a $35 spend cap and a lock that stops the poller from ticking. [plans/pipeline.md](plans/pipeline.md) "The first pass" covers each rule, and "Measured on 2026-11-02: the first pass" has the numbers.

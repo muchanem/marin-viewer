@@ -177,6 +177,8 @@ describe("resumption", () => {
   it("protects entries that no model wrote", () => {
     expect(isGenerated("openai/gpt-6.1-terra first-pass 1d274b5")).toBe(true);
     expect(isGenerated("claude-sonnet-5-5 poll 41a4198")).toBe(true);
+    expect(isGenerated("claude-fable-5-1 system-pages 1d274b5")).toBe(true);
+    expect(isGenerated("claude-opus-5-5 fixture (layers from lib/shellbox/README.md); demo CTX (diagram)")).toBe(false);
     expect(isGenerated("hand-written demo fixture")).toBe(false);
     expect(isGenerated(undefined)).toBe(false);
   });

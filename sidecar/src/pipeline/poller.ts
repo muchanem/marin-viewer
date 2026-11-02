@@ -99,9 +99,12 @@ export async function pool<T, R>(items: T[], n: number, fn: (item: T, i: number)
   return out;
 }
 
-/** The first pass's lock, when its process is still alive (`state/first-pass.lock`, written by `npm run first-pass`). */
-export function firstPassLock(stateDir: string): { pid: number; commit: string; started: string } | null {
-  const file = path.join(stateDir, "first-pass.lock");
+/**
+ * A full run's lock, when its process is still alive: `state/first-pass.lock` from `npm run first-pass`,
+ * or `state/system-pages.lock` from `npm run system-pages`.
+ */
+export function firstPassLock(stateDir: string, name = "first-pass.lock"): { pid: number; commit: string; started: string } | null {
+  const file = path.join(stateDir, name);
   if (!existsSync(file)) return null;
   let lock: { pid: number; commit: string; started: string };
   try {
@@ -226,11 +229,14 @@ export class Poller {
       initialised: false,
     };
     if (s.gap) this.print(s.gap);
-    // Two drivers must never write one wordbase: a running first pass holds this lock.
-    const lock = firstPassLock(this.config.state);
-    if (lock) {
+    // Two drivers must never write one wordbase: a running first pass or subsystem-page run holds a lock.
+    const held = ([["first pass", "first-pass.lock"], ["subsystem-page run", "system-pages.lock"]] as const)
+      .map(([what, name]) => ({ what, lock: firstPassLock(this.config.state, name) }))
+      .find((x) => x.lock);
+    if (held?.lock) {
+      const lock = held.lock;
       s.errors++;
-      this.print(`ERROR first pass running (pid ${lock.pid}, Marin ${lock.commit.slice(0, 7)}, since ${lock.started}); this tick does nothing`);
+      this.print(`ERROR ${held.what} running (pid ${lock.pid}, Marin ${lock.commit.slice(0, 7)}, since ${lock.started}); this tick does nothing`);
       this.print(summaryLine(s, this.opts));
       return s;
     }

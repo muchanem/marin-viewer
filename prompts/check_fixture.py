@@ -474,8 +474,13 @@ def check_entry(path: Path, wordbase: Path, repo: Repo) -> None:
             check_layers(where, meta)
         if "diagram" in meta:
             ids = check_diagram(f"{where} diagram", meta["diagram"], repo, meta.get("commit", "HEAD"))
+            # A box may stand for several neighbouring systems by listing them under `systems`.
+            covered = set(ids)
+            for n in meta["diagram"].get("nodes", []) if isinstance(meta["diagram"], dict) else []:
+                if isinstance(n, dict) and isinstance(n.get("systems"), list):
+                    covered.update(s for s in n["systems"] if isinstance(s, str))
             for other in meta.get("uses", []) + meta.get("used_by", []) + [meta["name"]]:
-                if other not in ids:
+                if other not in covered:
                     fail(f"{where} diagram", f"system {other} from uses/used_by has no box")
         check_notes_section(where, body)
     elif kind == "reviewer":

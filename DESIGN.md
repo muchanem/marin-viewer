@@ -225,6 +225,13 @@ System entries add `members:` (paths and child systems), `uses:` and `used_by:` 
 `diagram:` block in the diagram format below. The "In Marin" map comes from the `uses` / `used_by`
 graph around the current system.
 
+- The map has a box with the system's own name, and a box for every system in `uses` and
+  `used_by`.
+- A package such as `iris` has ten neighbours, which leaves no room for its own parts within 10
+  boxes. One box may then stand for several neighbours, listing them under `systems:` (a list of
+  names) and giving each one's `lib/<name>/` under `paths`. `check_fixture.py` counts a system
+  listed there as having a box.
+
 ### PR outputs
 
 `wordbase/prs/<n>/` holds:

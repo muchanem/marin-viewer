@@ -1,15 +1,17 @@
 // Drive and capture a running Radiology / Marin viewer window for UI review.
 //
-//   swift tools/viewer-ui.swift launch [--viewer-pr N]   start a new instance, print its pid
+//   swift tools/viewer-ui.swift launch [--viewer-pr N]   start a new instance on the Retina screen, print its pid
 //   swift tools/viewer-ui.swift place <pid> [W H]         move the window to the Retina display (default 1440x900)
 //   swift tools/viewer-ui.swift dump <pid> [depth]        print the accessibility tree of the front window
 //   swift tools/viewer-ui.swift press <pid> <text>        press the first element whose title or description contains text
 //   swift tools/viewer-ui.swift keys <pid> <key> [cmd,shift,option,control]
-//   swift tools/viewer-ui.swift capture <pid> <out.png>   capture the window, active, without shadow
+//   swift tools/viewer-ui.swift capture <pid> <out.png>   capture the window, active, without shadow; refuses
+//                                                          a window that is not wholly on the Retina screen
 //
-// Needs Screen Recording and Accessibility for the terminal. Captures are 2x only on a Retina screen,
-// which is why `place` exists: an external 1x display halves the detail. Activate before capturing,
-// or the window draws in its inactive style (grey traffic lights and selection).
+// Needs Screen Recording and Accessibility for the terminal. All captures and interactive checks
+// happen on the built-in Retina screen: the external ultrawide is 1x, which halves the detail, and
+// Mark's other work is open there. Activate before capturing, or the window draws in its inactive
+// style (grey traffic lights and selection).
 
 import AppKit
 import ApplicationServices
@@ -45,7 +47,32 @@ func activate(_ pid: pid_t) {
     RunLoop.current.run(until: Date().addingTimeInterval(0.4))
 }
 
-func windowNumber(_ pid: pid_t) -> Int {
+func retinaScreen() -> NSScreen {
+    guard let s = NSScreen.screens.first(where: { $0.backingScaleFactor > 1 }) else { fail("no Retina screen") }
+    return s
+}
+
+/// A screen's frame in window-server coordinates (top-left origin on the primary screen).
+func serverFrame(_ screen: NSScreen) -> CGRect {
+    let primaryHeight = NSScreen.screens[0].frame.height
+    let f = screen.frame
+    return CGRect(x: f.minX, y: primaryHeight - f.maxY, width: f.width, height: f.height)
+}
+
+func place(_ pid: pid_t, width: Double = 1440, height: Double = 900) -> String {
+    let retina = retinaScreen()
+    let visible = retina.visibleFrame
+    let primaryHeight = NSScreen.screens[0].frame.height
+    var origin = CGPoint(x: visible.minX + 10, y: primaryHeight - visible.maxY + 4)
+    var size = CGSize(width: min(width, visible.width - 20), height: min(height, visible.height - 8))
+    let window = frontWindow(pid)
+    AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, AXValueCreate(.cgPoint, &origin)!)
+    AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, AXValueCreate(.cgSize, &size)!)
+    activate(pid)
+    return "placed at \(origin) size \(size) on \(retina.localizedName)"
+}
+
+func mainWindow(_ pid: pid_t) -> (number: Int, bounds: CGRect) {
     let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
     let mine = list.filter {
         ($0[kCGWindowOwnerPID as String] as? Int32) == pid && ($0[kCGWindowLayer as String] as? Int) == 0
@@ -58,8 +85,9 @@ func windowNumber(_ pid: pid_t) -> Int {
         }
         return area(a) < area(b)
     }
-    guard let n = best?[kCGWindowNumber as String] as? Int else { fail("process \(pid) has no on-screen window") }
-    return n
+    guard let best, let n = best[kCGWindowNumber as String] as? Int,
+          let r = best[kCGWindowBounds as String] as? [String: Double] else { fail("process \(pid) has no on-screen window") }
+    return (n, CGRect(x: r["X"] ?? 0, y: r["Y"] ?? 0, width: r["Width"] ?? 0, height: r["Height"] ?? 0))
 }
 
 func pressable(_ e: AXUIElement) -> Bool {
@@ -107,6 +135,7 @@ case "launch":
         RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         if let p = launched?.processIdentifier,
            let ws = attr(AXUIElementCreateApplication(p), kAXWindowsAttribute) as? [AXUIElement], !ws.isEmpty {
+            FileHandle.standardError.write(Data((place(p) + "\n").utf8))
             print(p)
             exit(0)
         }
@@ -114,17 +143,7 @@ case "launch":
     fail("no window within 20 s")
 case "place":
     guard let pid else { fail("place <pid> [W H]") }
-    guard let retina = NSScreen.screens.first(where: { $0.backingScaleFactor > 1 }) else { fail("no Retina screen") }
-    let primaryHeight = NSScreen.screens[0].frame.height
-    let visible = retina.visibleFrame
-    let w = rest.count > 2 ? Double(rest[1])! : 1440, h = rest.count > 2 ? Double(rest[2])! : 900
-    var origin = CGPoint(x: visible.minX + 10, y: primaryHeight - visible.maxY + 4)
-    var size = CGSize(width: min(w, visible.width - 20), height: min(h, visible.height - 8))
-    let window = frontWindow(pid)
-    AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, AXValueCreate(.cgPoint, &origin)!)
-    AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, AXValueCreate(.cgSize, &size)!)
-    activate(pid)
-    print("placed at \(origin) size \(size) on \(retina.localizedName)")
+    print(rest.count > 2 ? place(pid, width: Double(rest[1])!, height: Double(rest[2])!) : place(pid))
 case "dump":
     guard let pid else { fail("dump <pid> [depth]") }
     dump(frontWindow(pid), 0, rest.count > 1 ? Int(rest[1])! : 4)
@@ -159,9 +178,14 @@ case "keys":
 case "capture":
     guard let pid, rest.count > 1 else { fail("capture <pid> <out.png>") }
     activate(pid)
+    let window = mainWindow(pid)
+    let retina = serverFrame(retinaScreen())
+    guard retina.contains(window.bounds) else {
+        fail("window \(window.bounds) is not wholly on the Retina screen \(retina); run `place \(pid)` first")
+    }
     let task = Process()
     task.executableURL = URL(filePath: "/usr/sbin/screencapture")
-    task.arguments = ["-x", "-o", "-l\(windowNumber(pid))", rest[1]]
+    task.arguments = ["-x", "-o", "-l\(window.number)", rest[1]]
     try task.run()
     task.waitUntilExit()
     guard task.terminationStatus == 0, let image = NSImage(contentsOfFile: rest[1]),

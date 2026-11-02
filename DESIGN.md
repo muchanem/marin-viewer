@@ -436,6 +436,8 @@ Rules for builders:
   project are pre-approved; other cluster jobs need confirmation.
 - Keep Radiology's code changes small and in new files where possible, so upstream merges stay easy.
 - Python goes through `uv run` (Marin's CLAUDE.md §1).
+- UI captures and interactive checks happen on the built-in Retina display, through
+  `tools/viewer-ui.swift`, never on the external ultrawide (1x, and Mark's other work is there).
 - Commit messages, here and in the wordbase, follow Marin's
   `docs/dev-guide/writing-style/pull-requests.md`: an imperative title of at most 72 characters, plain
   paragraphs that lead with what changed, and no `Co-Authored-By` or other attribution trailers.

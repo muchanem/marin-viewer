@@ -69,13 +69,39 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const writer = new LineWriter(process.stdout);
   const router = createRouter({ config, send: (m) => writer.send(m) });
-  process.on("uncaughtException", (e) => log("uncaught exception:", e));
+  exitWhenOrphaned();
+  process.on("uncaughtException", (e) => {
+    // A broken stdout or stderr means the app is gone. Logging it would write to the same broken
+    // pipe and raise again, which spun orphaned sidecars at 100% CPU.
+    if (isBrokenPipe(e)) process.exit(0);
+    log("uncaught exception:", e);
+  });
   process.on("unhandledRejection", (e) => log("unhandled rejection:", e));
   log(`sidecar ready (root ${config.root}, wordbase ${config.wordbase}, state ${config.state})`);
   await readLines(process.stdin, writer, (m) => router.handle(m));
   log("stdin closed; shutting down");
   router.bridge.cancelAll("the sidecar is shutting down");
   await router.sessions.shutdown();
+  // Session subprocesses or timers can hold the event loop open after the app has gone.
+  process.exit(process.exitCode ?? 0);
+}
+
+export function isBrokenPipe(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code;
+  return code === "EPIPE" || code === "ERR_STREAM_DESTROYED";
+}
+
+/** Exit when stdout or stderr breaks, or when the app dies and the sidecar is reparented. */
+function exitWhenOrphaned(): void {
+  for (const stream of [process.stdout, process.stderr]) {
+    stream.on("error", (e) => {
+      if (isBrokenPipe(e)) process.exit(0);
+    });
+  }
+  const parent = process.ppid;
+  setInterval(() => {
+    if (process.ppid !== parent) process.exit(0);
+  }, 2_000).unref();
 }
 
 const isEntry = import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("/main.js");

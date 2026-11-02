@@ -10,7 +10,7 @@ struct ScipTypeScriptIndexer: SemanticIndexer {
     let displayName = "scip-typescript"
     let defaultEncoding = ColumnEncoding.utf16
     let pinnedVersion: String? = "0.4.0"
-    let manualInstallation = "Install Node.js 22 or newer with npm, then Radiology can install scip-typescript."
+    let manualInstallation = "Install Node.js 22 or newer with npm, then Marin Viewer can install scip-typescript."
 
     func strategies(for inspection: RepositoryInspection) -> [IndexingStrategy] {
         var strategies: [IndexingStrategy] = []
@@ -47,7 +47,7 @@ struct ScipTypeScriptIndexer: SemanticIndexer {
         guard let npm = ToolLocator.executable("npm"), ToolLocator.executable("node") != nil else { return nil }
         let prefix = tools.npmPrefix("scip-typescript")
         return ProvisioningPlan(prerequisites: ["node", "npm"],
-                                summary: "Run npm install for \(Self.package)@\(pinnedVersion ?? "latest") into Radiology's tools directory.",
+                                summary: "Run npm install for \(Self.package)@\(pinnedVersion ?? "latest") into Marin Viewer's tools directory.",
                                 steps: [IndexCommand(executable: npm, arguments: ["install", "--no-fund", "--no-audit", "--prefix", prefix.path, "\(Self.package)@\(pinnedVersion ?? "latest")"],
                                                      directory: tools.url, environment: ToolDirectory.childEnvironment())])
     }

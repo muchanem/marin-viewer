@@ -134,10 +134,10 @@ Code Paths is a left sidebar tab beside Files, Search, and (during PR review) Ch
 
 **⌘W / ⌘M / ⌘Q** — Close the reader window / minimize / quit.
 
-**⌘H / ⌥⌘H** — Hide Radiology / hide other apps.
+**⌘H / ⌥⌘H** — Hide Marin Viewer / hide other apps.
 
 **⌃⌘F** — Enter/exit full screen through the native Window command.
 
 **⌘/** — Open this keyboard reference.
 
-The lists above include every shortcut explicitly assigned by Radiology, its focus-specific handlers, and common native macOS commands. System-wide shortcuts, menu remappings, text key-binding customizations, and accessibility settings follow macOS rather than an app-specific keymap. Actions such as Cancel Indexing, Exit PR, pane toggles, Copy/Delete Code Path, and bookmark reordering have menu/control access but no additional app-assigned shortcut.
+The lists above include every shortcut explicitly assigned by Marin Viewer, its focus-specific handlers, and common native macOS commands. System-wide shortcuts, menu remappings, text key-binding customizations, and accessibility settings follow macOS rather than an app-specific keymap. Actions such as Cancel Indexing, Exit PR, pane toggles, Copy/Delete Code Path, and bookmark reordering have menu/control access but no additional app-assigned shortcut.

@@ -9,7 +9,7 @@ struct ScipPythonIndexer: SemanticIndexer {
     let displayName = "scip-python"
     let defaultEncoding = ColumnEncoding.utf16
     let pinnedVersion: String? = "0.6.6"
-    let manualInstallation = "Install Node.js with npm and Python 3.10 or newer, then Radiology can install scip-python."
+    let manualInstallation = "Install Node.js with npm and Python 3.10 or newer, then Marin Viewer can install scip-python."
 
     func strategies(for inspection: RepositoryInspection) -> [IndexingStrategy] {
         var directories: [String] = []
@@ -43,7 +43,7 @@ struct ScipPythonIndexer: SemanticIndexer {
         guard let npm = ToolLocator.executable("npm"), ToolLocator.executable("node") != nil else { return nil }
         let prefix = tools.npmPrefix("scip-python")
         return ProvisioningPlan(prerequisites: ["node", "npm", "python3"],
-                                summary: "Run npm install for \(Self.package)@\(pinnedVersion ?? "latest") into Radiology's tools directory.",
+                                summary: "Run npm install for \(Self.package)@\(pinnedVersion ?? "latest") into Marin Viewer's tools directory.",
                                 steps: [IndexCommand(executable: npm, arguments: ["install", "--no-fund", "--no-audit", "--prefix", prefix.path, "\(Self.package)@\(pinnedVersion ?? "latest")"],
                                                      directory: tools.url, environment: ToolDirectory.childEnvironment())])
     }

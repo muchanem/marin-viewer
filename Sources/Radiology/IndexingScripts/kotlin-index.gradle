@@ -42,7 +42,7 @@ gradle.projectsEvaluated {
                         '--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED'
                     ])
                 } else {
-                    throw new GradleException("Radiology cannot attach the SCIP compiler plugin to ${task.path} (${task.class.name}).")
+                    throw new GradleException("Marin Viewer cannot attach the SCIP compiler plugin to ${task.path} (${task.class.name}).")
                 }
                 task.outputs.upToDateWhen { false }
             }

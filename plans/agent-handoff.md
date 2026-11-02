@@ -256,8 +256,8 @@ Choose checks proportional to the change:
 make check
 make test
 make build
-codesign --verify --deep --strict build/Radiology.app
-build/Radiology.app/Contents/MacOS/Radiology --verify-resources
+codesign --verify --deep --strict "build/Marin Viewer.app"
+"build/Marin Viewer.app/Contents/MacOS/Marin Viewer" --verify-resources
 ```
 
 The opt-in real-source folding probe requires the external tkos checkout:

@@ -4,6 +4,13 @@ Radiology is a native, read-only macOS repository browser. The active implementa
 
 ## Current accepted state
 
+**App identity (2026-11-02, branch `mark/app-identity`):** the bundle is
+`build/Marin Viewer.app`, bundle id `com.muchanem.marin-viewer`, and its icon is
+the Marin Viewer logo laid out on the macOS squircle (rendered by rsvg-convert).
+The SwiftPM target and module stay `Radiology`; upstream's `RADIO.png` is no
+longer used. [What changed, where Radiology remains, and the state the id keys](plans/build-system.md)
+("App identity").
+
 **Marin viewer diff reader (2026-11-01, branch `mark/diff-reader`):** the PR
 reader for the Marin viewer, By step and By file, built on ViewerCore and
 Radiology's highlighter, with blame, review-note dots and Ask chips handed to

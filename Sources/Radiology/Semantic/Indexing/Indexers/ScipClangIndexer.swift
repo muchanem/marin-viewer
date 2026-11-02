@@ -12,7 +12,7 @@ struct ScipClangIndexer: SemanticIndexer {
     let pinnedVersion: String? = "0.4.0"
     static let releaseDigest = "ff042fbc8a029f09f4b69fc7692e290e21c52923593207ee52d4e7439473ec64"
     static let buildRequirement = "C/C++ uses best-effort defaults without compile_commands.json. A real build database improves coverage: for CMake, configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON; for Make, capture the build with Bear. Place it at the repository root or in build/."
-    let manualInstallation = "Install scip-clang from https://github.com/sourcegraph/scip-clang/releases and place it on PATH or in Radiology's tools/bin directory. The managed 0.4.0 release requires Apple Silicon."
+    let manualInstallation = "Install scip-clang from https://github.com/sourcegraph/scip-clang/releases and place it on PATH or in ~/Library/Application Support/Radiology/tools/bin. The managed 0.4.0 release requires Apple Silicon."
 
     func strategies(for inspection: RepositoryInspection) -> [IndexingStrategy] {
         if let database = inspection.first(named: "compile_commands.json") {
@@ -38,7 +38,7 @@ struct ScipClangIndexer: SemanticIndexer {
         #if arch(arm64)
         guard let script = Bundle.module.url(forResource: "install-clang-indexer", withExtension: "sh", subdirectory: "IndexingScripts") else { return nil }
         return ProvisioningPlan(prerequisites: [],
-                                summary: "Download scip-clang 0.4.0 for Apple Silicon into Radiology's tools directory and verify its pinned SHA-256 checksum.",
+                                summary: "Download scip-clang 0.4.0 for Apple Silicon into Marin Viewer's tools directory and verify its pinned SHA-256 checksum.",
                                 steps: [IndexCommand(executable: URL(filePath: "/bin/sh"),
                                                      arguments: [script.path, tools.bin.path, "0.4.0", Self.releaseDigest],
                                                      directory: tools.url, environment: ToolDirectory.childEnvironment())])

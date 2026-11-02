@@ -72,7 +72,7 @@ struct DocumentOutlineView: View {
         if let syntaxError = model.syntaxError { return syntaxError }
         guard let path = model.source?.path else { return "Open a source file to see its declarations." }
         guard let language = SourceLanguageRegistry.language(for: path) else {
-            return "Radiology parses "
+            return "Marin Viewer parses "
                 + SourceLanguageRegistry.all.map(\.displayName).formatted(.list(type: .and))
                 + ". Other files are shown as plain text."
         }

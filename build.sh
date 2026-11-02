@@ -17,14 +17,19 @@
 set -euo pipefail
 
 CONFIG="${1:-debug}"
-APP_NAME="Radiology"
+# The SwiftPM target, module and product keep upstream Radiology's name so merges from
+# tqbf/radiology stay small; only the bundle a user sees is Marin Viewer. Info.plist is the one
+# place that names the bundle and its executable, and this script reads both from it.
+PRODUCT_NAME="Radiology"
 BUILD_DIR="build"
-APP="$BUILD_DIR/$APP_NAME.app"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 PROVISION_PROFILE="${PROVISION_PROFILE:-}"
 VERSION="${VERSION:-0.0.0}"
-ENTITLEMENTS="$APP_NAME/$APP_NAME.entitlements"
+ENTITLEMENTS="$PRODUCT_NAME/$PRODUCT_NAME.entitlements"
 INFO_PLIST_SRC="Resources/Info.plist"
+BUNDLE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$INFO_PLIST_SRC")"
+BUNDLE_EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INFO_PLIST_SRC")"
+APP="$BUILD_DIR/$BUNDLE_NAME.app"
 
 # Build number: monotonic-ish from the date so re-signs differ. Falls back to 1.
 BUILD_NUMBER="$(date +%Y%m%d%H%M 2>/dev/null || echo 1)"
@@ -37,7 +42,7 @@ echo "→ swift build --build-system swiftbuild -c $CONFIG"
 swift build --build-system swiftbuild -c "$CONFIG"
 
 BIN_PATH="$(swift build --build-system swiftbuild -c "$CONFIG" --show-bin-path)"
-EXECUTABLE="$BIN_PATH/$APP_NAME"
+EXECUTABLE="$BIN_PATH/$PRODUCT_NAME"
 if [ ! -x "$EXECUTABLE" ]; then
 	echo "✗ executable not found at $EXECUTABLE" >&2
 	exit 1
@@ -50,7 +55,7 @@ echo "→ assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-cp "$EXECUTABLE" "$APP/Contents/MacOS/$APP_NAME"
+cp "$EXECUTABLE" "$APP/Contents/MacOS/$BUNDLE_EXECUTABLE"
 
 # Info.plist — substitute version placeholders.
 sed -e "s/__SHORT_VERSION__/$VERSION/g" \
@@ -81,7 +86,7 @@ done
 
 # Radiology's query resources are not optional: without them every file falls
 # back to plain text. Fail the build rather than shipping a silent regression.
-QUERY_ROOT="$APP/Contents/Resources/${APP_NAME}_${APP_NAME}.bundle/Contents/Resources/Queries"
+QUERY_ROOT="$APP/Contents/Resources/${PRODUCT_NAME}_${PRODUCT_NAME}.bundle/Contents/Resources/Queries"
 if [ ! -d "$QUERY_ROOT" ]; then
 	echo "✗ Tree-sitter query resources missing from $APP" >&2
 	exit 1

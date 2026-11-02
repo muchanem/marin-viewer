@@ -8,7 +8,7 @@ struct RustAnalyzerIndexer: SemanticIndexer {
     let displayName = "rust-analyzer"
     let defaultEncoding = ColumnEncoding.utf8
     let pinnedVersion: String? = nil
-    let manualInstallation = "Install rustup from https://rustup.rs, then Radiology can add the rust-analyzer component."
+    let manualInstallation = "Install rustup from https://rustup.rs, then Marin Viewer can add the rust-analyzer component."
 
     func strategies(for inspection: RepositoryInspection) -> [IndexingStrategy] {
         inspection.topLevelDirectories(containing: "Cargo.toml").filter { inspection.contains(extension: "rs", under: $0) }.map {

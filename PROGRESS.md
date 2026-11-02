@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-11-02 — The app is called Marin Viewer and has the Marin Viewer icon (branch `mark/app-identity`)
+
+The app launched as "Radiology" with upstream's icon. It is now `build/Marin Viewer.app`, with executable `Marin Viewer` and bundle id `com.muchanem.marin-viewer`. The app menu, About panel, window title fallback, Help and the messages that name the app all say Marin Viewer. `build.sh` reads the bundle and executable names from Info.plist. The SwiftPM target, module, entitlements and the `Radiology/` cache and Application Support paths keep upstream's name. [plans/build-system.md](plans/build-system.md) "App identity" lists both sides, the state the bundle id keys and the `defaults export | import` line that carries the old window and session state over.
+
+- Icon: `Resources/marin-viewer-logo.svg` is the source. NSImage (CoreSVG) drops its glow filter, so `scripts/make-icon.swift` renders it with rsvg-convert 2.62.1 (Homebrew librsvg, checked by `make deps`) at every size. The logo is a circle, and macOS 27 put the circle as-is onto a grey squircle plate. The script therefore draws an 824-point continuous-corner squircle with a cream rim and the disc's dark face, and puts the boat inside. IconServices now draws it full size. At 16 px the icon reads as a teal sail on a dark tile with one cream wave line. At 32 px the mast, hull and waves are separate, and at 64 px every detail shows.
+- `.icon` (Icon Composer) builds with `actool` after `xcodebuild -runFirstLaunch` (run on this machine), but actool's CoreSVG also drops the glow. The `.icns` stays.
+- `tools/viewer-ui.swift` launches `build/Marin Viewer.app` and gains `menubar <pid>`, which prints the menu bar and the app menu through Accessibility.
+- `make check` passes. `make test`: 399 tests in 88 suites, 1 failure in `FilesSidebarRevealTests.nativeFilesListTracksBookmarksAndSearchAndPreservesTheirCaret`. That test fails 2 of 4 runs on `main` too (a 60 ms sleep before a scroll check). `make build` passes, and `--verify-resources` under `env -i` loads all 10 grammars from the renamed bundle.
+- Live check on the Retina screen with `--viewer-pr 10640` from empty defaults: the menu bar reads “Marin Viewer” with About, Hide and Quit Marin Viewer, `pgrep "Marin Viewer"` finds the process, and the About panel shows the name and new icon. The About panel's copyright still reads “© 2026 Thomas Ptacek”.
+
 ## 2026-11-02 — The first pass of file descriptions (Claude, workstream 4)
 
 `npm run first-pass` (`sidecar/src/first-pass.ts`, scheduling in `sidecar/src/pipeline/firstpass.ts`) describes every source unit and slice at the Marin clone's `main`, then the orphan test batch, with GPT-6.1 Terra on OpenRouter's flex tier pinned to `openai/flex`. The run is resumable and has a `--dry-run` and a `--check`. It keeps a sliding window of calls in flight, a tier guard, a $35 spend cap and a lock that stops the poller from ticking. [plans/pipeline.md](plans/pipeline.md) "The first pass" covers each rule, and "Measured on 2026-11-02: the first pass" has the numbers.

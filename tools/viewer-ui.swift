@@ -1,8 +1,9 @@
-// Drive and capture a running Radiology / Marin viewer window for UI review.
+// Drive and capture a running Marin Viewer window for UI review.
 //
 //   swift tools/viewer-ui.swift launch [--viewer-pr N]   start a new instance on the Retina screen, print its pid
 //   swift tools/viewer-ui.swift place <pid> [W H]         move the window to the Retina display (default 1440x900)
 //   swift tools/viewer-ui.swift dump <pid> [depth]        print the accessibility tree of the front window
+//   swift tools/viewer-ui.swift menubar <pid>             print the menu bar titles and the app menu's items
 //   swift tools/viewer-ui.swift press <pid> <text>        press the first element whose title or description contains text
 //   swift tools/viewer-ui.swift keys <pid> <key> [cmd,shift,option,control]
 //   swift tools/viewer-ui.swift capture <pid> <out.png>   capture the window, active, without shadow; refuses
@@ -121,7 +122,7 @@ let pid = rest.first.flatMap { pid_t($0) }
 switch command {
 case "launch":
     let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-    let app = root.appending(path: "build/Radiology.app")
+    let app = root.appending(path: "build/Marin Viewer.app")
     let config = NSWorkspace.OpenConfiguration()
     config.createsNewApplicationInstance = true
     config.arguments = rest
@@ -147,6 +148,19 @@ case "place":
 case "dump":
     guard let pid else { fail("dump <pid> [depth]") }
     dump(frontWindow(pid), 0, rest.count > 1 ? Int(rest[1])! : 4)
+case "menubar":
+    guard let pid else { fail("menubar <pid>") }
+    guard AXIsProcessTrusted() else { fail("Accessibility is not granted to this terminal") }
+    guard let bar = attr(AXUIElementCreateApplication(pid), kAXMenuBarAttribute),
+          let menus = attr(bar as! AXUIElement, kAXChildrenAttribute) as? [AXUIElement] else {
+        fail("process \(pid) has no accessible menu bar")
+    }
+    print("menu bar: " + menus.map { "“\(label($0))”" }.joined(separator: " "))
+    // The app menu is the first title after the Apple menu; its items are one level down.
+    if menus.count > 1, let menu = (attr(menus[1], kAXChildrenAttribute) as? [AXUIElement])?.first,
+       let items = attr(menu, kAXChildrenAttribute) as? [AXUIElement] {
+        for item in items where !label(item).isEmpty { print("  \(label(item))") }
+    }
 case "press":
     guard let pid, rest.count > 1 else { fail("press <pid> <text>") }
     activate(pid)

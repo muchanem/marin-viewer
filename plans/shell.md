@@ -192,7 +192,7 @@ needs Screen Recording) and `cache-N-*.png` (drawn offscreen), plus `snapshots.l
 directly so the environment reaches it:
 
 ```bash
-MARIN_VIEWER_SNAPSHOT_DIR=<dir> build/Radiology.app/Contents/MacOS/Radiology --viewer-pr 10640 \
+MARIN_VIEWER_SNAPSHOT_DIR=<dir> "build/Marin Viewer.app/Contents/MacOS/Marin Viewer" --viewer-pr 10640 \
   --viewer-wordbase <scratch wordbase> --viewer-state <scratch state>
 ```
 

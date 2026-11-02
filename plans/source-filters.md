@@ -263,7 +263,7 @@ Back, toggling, stale identity), and an opt-in real tkos probe
     1/947; Kotlin 0/1,490; JavaScript 0/151; TSX 0/207. Every non-Rust hit was
     inspected and is a true positive: in-script `unittest.TestCase` classes and
     `scripts/bun-test-preload.ts`'s `beforeEach`.
-- Preview without the UI: `defaults write org.sockpuppet.radiology hideTests -bool YES`
+- Preview without the UI: `defaults write com.muchanem.marin-viewer hideTests -bool YES`
   (and `sourceFilesOnly`) before launch; the toggles reflect it.
 - Not verified: live UI (toggle look, label legibility in light/dark,
   click targets, pointer cursor, narrow sidebar, VoiceOver reading). Owned by

@@ -13,7 +13,7 @@ struct ScipKotlinIndexer: SemanticIndexer {
     let defaultEncoding = ColumnEncoding.utf16
     let pinnedVersion: String? = Self.toolVersion
     let requiresIsolatedWorkspace = true
-    let manualInstallation = "Install JDK 17 or newer, then use Install in the indexing status panel to build Radiology's pinned Kotlin compiler indexer. A real Gradle build and its dependencies are required."
+    let manualInstallation = "Install JDK 17 or newer, then use Install in the indexing status panel to build Marin Viewer's pinned Kotlin compiler indexer. A real Gradle build and its dependencies are required."
 
     func strategies(for inspection: RepositoryInspection) -> [IndexingStrategy] {
         let markers: Set<String> = ["settings.gradle", "settings.gradle.kts", "build.gradle", "build.gradle.kts"]
@@ -70,7 +70,7 @@ struct ScipKotlinIndexer: SemanticIndexer {
     func provisioning(in tools: ToolDirectory) -> ProvisioningPlan? {
         guard ToolLocator.executable("java") != nil else { return nil }
         return ProvisioningPlan(prerequisites: ["JDK 17 or newer"],
-                                summary: "Build the pinned scip-java Kotlin compiler plugin in Radiology's tools directory. The attached checkout is not built or modified.",
+                                summary: "Build the pinned scip-java Kotlin compiler plugin in Marin Viewer's tools directory. The attached checkout is not built or modified.",
                                 steps: [IndexCommand(executable: URL(filePath: "/bin/sh"),
                                                      arguments: [Self.script("install-kotlin-indexer.sh").path, Self.toolRoot(in: tools).path,
                                                                  Self.sourceCommit, Self.toolVersion, Self.gradle(in: tools)?.path ?? "", Self.gradleVersion],

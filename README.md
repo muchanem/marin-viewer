@@ -10,11 +10,11 @@ Radiology is a native, read-only macOS code browser for understanding unfamiliar
 - language-specific SCIP indexers only when semantic navigation is wanted (see below)
 
 ```sh
-make run       # debug build, assemble/sign build/Radiology.app, then open it
-make build     # debug build and assemble/sign build/Radiology.app
+make run       # debug build, assemble/sign build/Marin Viewer.app, then open it
+make build     # debug build and assemble/sign build/Marin Viewer.app
 make check     # compile with SwiftPM; no app bundle or signing
 make test      # run the Swift Testing suite
-make release   # release build into build/Radiology.app
+make release   # release build into build/Marin Viewer.app
 make help      # all build/install/distribution targets
 ```
 
@@ -192,14 +192,14 @@ Radiology discovers at most 32 project strategies, shallowest first, and explici
 ## Development launch and diagnostics
 
 ```sh
-build/Radiology.app/Contents/MacOS/Radiology \
+"build/Marin Viewer.app/Contents/MacOS/Marin Viewer" \
   --repository /absolute/path/to/repository \
   --file relative/path/to/file.rs
 
-build/Radiology.app/Contents/MacOS/Radiology \
+"build/Marin Viewer.app/Contents/MacOS/Marin Viewer" \
   --repository /absolute/path/to/repository --pull-request 724
 
-build/Radiology.app/Contents/MacOS/Radiology --verify-resources
+"build/Marin Viewer.app/Contents/MacOS/Marin Viewer" --verify-resources
 ```
 
 `--repository PATH` opens a folder, `--file RELATIVE_PATH` selects a file inside it (in After when combined with `--pull-request N`, which opens that pull request), and `--verify-resources` compiles every bundled grammar/query combination and exits before opening a window.

@@ -7,7 +7,7 @@ actor SearchWorker {
     /// so a full stderr pipe cannot deadlock the stdout reader.
     func search(root: URL, options: SearchOptions, receive: @escaping @Sendable ([SearchMatch]) async -> Void) async throws -> Bool {
         guard let rg = ToolLocator.executable("rg") else {
-            throw BrowserError.message("ripgrep was not found. Install it with brew install ripgrep, then rebuild or relaunch Radiology.")
+            throw BrowserError.message("ripgrep was not found. Install it with brew install ripgrep, then rebuild or relaunch Marin Viewer.")
         }
         let command = RunningProcess()
         let output = Pipe()

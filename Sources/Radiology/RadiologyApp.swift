@@ -16,7 +16,7 @@ struct RadiologyApp: App {
     }
 
     var body: some Scene {
-        Window("Radiology", id: "reader") {
+        Window("Marin Viewer", id: "reader") {
             RootView()
                 .environment(model)
                 .environment(viewer)

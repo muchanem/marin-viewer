@@ -43,7 +43,7 @@ actor ToolProvisioner {
     /// Runs the adapter's installation plan and re-verifies the tool.
     func provision(_ indexer: any SemanticIndexer, progress: @escaping @Sendable (String) -> Void) async throws -> ToolAvailability {
         guard let plan = indexer.provisioning(in: tools) else {
-            throw BrowserError.message("Radiology cannot install \(indexer.displayName) automatically. \(indexer.manualInstallation)")
+            throw BrowserError.message("Marin Viewer cannot install \(indexer.displayName) automatically. \(indexer.manualInstallation)")
         }
         try FileManager.default.createDirectory(at: tools.url, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: tools.goBin, withIntermediateDirectories: true)

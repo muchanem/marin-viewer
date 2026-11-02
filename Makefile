@@ -1,7 +1,7 @@
-# Radiology — a native read-only code browser
+# Marin Viewer — a native read-only PR viewer, forked from Radiology
 #
 # Quick start:
-#   make           # debug-builds via SwiftPM into ./build/Radiology.app
+#   make           # debug-builds via SwiftPM into "./build/Marin Viewer.app"
 #   make run       # build + launch
 #   make check     # compile only, no bundling/signing (agent / CI gate)
 #   make test      # run the SwiftPM test suite
@@ -13,16 +13,20 @@
 # codesign / notarytool / stapler). `make dist` produces a
 # signed-and-stapled release zip once signing identities are configured.
 #
-# Renaming the template? Run `./scripts/rename.sh NewName` — it rewrites
-# every reference (this Makefile included) in one pass.
+# The bundle a user sees is "Marin Viewer" (Info.plist names it and its
+# executable). The SwiftPM target, module and entitlements keep upstream's
+# "Radiology" so merges from tqbf/radiology stay small, so do NOT run
+# ./scripts/rename.sh here: it would rename those too.
 
 CONFIG       := debug
-APP          := build/Radiology.app
+APP_NAME     := Marin Viewer
+APP          := build/$(APP_NAME).app
 LSREGISTER   := /System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister
 MIN_MACOS    := 14
 MIN_SWIFT    := 6.2
 
-APP_NAME      := Radiology
+# Release zips are named without the space so shell tools can take them unquoted.
+DIST_NAME     := Marin-Viewer
 ENTITLEMENTS  := Radiology/Radiology.entitlements
 
 # ---------------------------------------------------------------------------
@@ -37,8 +41,8 @@ FILE_VERSION    := $(shell test -f VERSION && sed -n '1p' VERSION | tr -d '[:spa
 VERSION         ?= $(or $(GIT_TAG_VERSION),$(FILE_VERSION))
 
 DIST_DIR      := dist
-NOTARY_ZIP    := $(DIST_DIR)/$(APP_NAME)-$(VERSION)-notary.zip
-RELEASE_ZIP   := $(DIST_DIR)/$(APP_NAME)-$(VERSION)-macos.zip
+NOTARY_ZIP    := $(DIST_DIR)/$(DIST_NAME)-$(VERSION)-notary.zip
+RELEASE_ZIP   := $(DIST_DIR)/$(DIST_NAME)-$(VERSION)-macos.zip
 
 # Dev signing identity (used by ./build.sh). Falls back to ad-hoc ("-") if
 # the named identity is missing — fine for `make run` on your own machine.
@@ -51,7 +55,7 @@ CERT_NAME     ?= $(if $(TEAM_ID),Developer ID Application: Thomas Ptacek ($(TEAM
 
 # Notarization credentials profile name. Populate once with
 # `make notary-setup` (interactive; never puts the password on the cmdline).
-NOTARY_PROFILE ?= radiology-notary
+NOTARY_PROFILE ?= marin-viewer-notary
 
 PROVISION_PROFILE ?=
 NOTES_FILE       ?=
@@ -69,7 +73,7 @@ help:
 	@echo "  test              Run the SwiftPM test suite"
 	@echo "  release           Build release into ./$(APP)"
 	@echo "  run               Build and launch $(APP_NAME)"
-	@echo "  icon              Regenerate build/AppIcon.icns from RADIO.png"
+	@echo "  icon              Regenerate build/AppIcon.icns from $(ICON_SOURCE)"
 	@echo "  clean             Remove ./build/ ./.build/ ./dist/"
 	@echo "  deps              Verify build prerequisites (auto-run before build)"
 	@echo ""
@@ -110,6 +114,10 @@ deps:
 	@echo "  ✓ Package.swift present"
 	@[ -x ./build.sh ] || { echo "  ✗ ./build.sh missing or not executable."; exit 1; }
 	@echo "  ✓ build.sh present"
+	@command -v rsvg-convert >/dev/null 2>&1 || { \
+	  echo "  ✗ rsvg-convert not on PATH; it renders the app icon. Install it with"; \
+	  echo "    brew install librsvg, then re-run."; exit 1; }
+	@echo "  ✓ rsvg-convert present"
 	@echo "→ Prerequisites OK."
 
 # ---------------------------------------------------------------------------
@@ -117,14 +125,15 @@ deps:
 # ---------------------------------------------------------------------------
 
 ICON_SCRIPT := scripts/make-icon.swift
-ICON_SOURCE := RADIO.png
+ICON_SOURCE := Resources/marin-viewer-logo.svg
 APP_ICON    := build/AppIcon.icns
 
-# App icon: regenerated when the artwork or script changes. The script resizes
-# RADIO.png to every macOS size and iconutil packages the variants.
+# App icon: regenerated when the artwork or script changes. The script lays the
+# logo on the macOS icon squircle at every size (rendered by rsvg-convert) and
+# iconutil packages the variants.
 $(APP_ICON): $(ICON_SCRIPT) $(ICON_SOURCE)
 	@mkdir -p build
-	@swift $(ICON_SCRIPT)
+	@swift $(ICON_SCRIPT) $(ICON_SOURCE)
 	@iconutil -c icns build/AppIcon.iconset -o $(APP_ICON)
 	@echo "✓ $(APP_ICON)"
 
@@ -160,15 +169,15 @@ run: build
 
 install: build
 	@if [ ! -d "$(APP)" ]; then echo "✗ $(APP) missing — build failed?"; exit 1; fi
-	rm -rf /Applications/$(APP_NAME).app
+	rm -rf "/Applications/$(APP_NAME).app"
 	cp -R "$(APP)" /Applications/
 	@echo "✓ copied to /Applications/$(APP_NAME).app"
-	$(LSREGISTER) -f /Applications/$(APP_NAME).app
+	$(LSREGISTER) -f "/Applications/$(APP_NAME).app"
 	@echo "✓ registered /Applications/$(APP_NAME).app with LaunchServices"
 
 uninstall:
-	@if [ -d /Applications/$(APP_NAME).app ]; then \
-	  rm -rf /Applications/$(APP_NAME).app 2>/dev/null || sudo rm -rf /Applications/$(APP_NAME).app; \
+	@if [ -d "/Applications/$(APP_NAME).app" ]; then \
+	  rm -rf "/Applications/$(APP_NAME).app" 2>/dev/null || sudo rm -rf "/Applications/$(APP_NAME).app"; \
 	  echo "✓ removed /Applications/$(APP_NAME).app"; \
 	else \
 	  echo "  (no /Applications/$(APP_NAME).app to remove)"; \

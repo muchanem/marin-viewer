@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FleetHold, GlmBackend, parseEngineMetrics, shedReason, TunnelDown, type FleetSample } from "./backends.js";
+import { ClaudeBackend, FleetHold, GlmBackend, parseEngineMetrics, shedReason, TunnelDown, type FleetSample } from "./backends.js";
 
 function worker(kv: number, waiting = 0, running = 1, pre = 0) {
   return {
@@ -133,5 +133,54 @@ describe("GlmBackend", () => {
     const route: Route = (url) => (url.endsWith("/admin/engines/metrics") ? { status: 403, body: "primary token required" } : healthy(url));
     const g = new GlmBackend({ url: "http://glm", fetchFn: fetcher(route), log: () => {} });
     expect(await g.gate()).toMatch(/answered 403/);
+  });
+});
+
+describe("ClaudeBackend", () => {
+  /** A client whose stream records the request and answers with a fixed message. */
+  const client = (sent: Record<string, unknown>[]) =>
+    ({
+      beta: {
+        messages: {
+          stream: (req: Record<string, unknown>) => {
+            sent.push(req);
+            return {
+              finalMessage: async () => ({
+                model: "claude-fable-5-1",
+                stop_reason: "end_turn",
+                content: [{ type: "text", text: '{"l1": "x"}' }],
+                usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 1000, cache_creation_input_tokens: 0 },
+              }),
+            };
+          },
+        },
+      },
+    }) as unknown as ConstructorParameters<typeof ClaudeBackend>[3];
+  const config = {} as ConstructorParameters<typeof ClaudeBackend>[0];
+
+  it("sends a cache prefix as its own block, and a schema as the output format", async () => {
+    const sent: Record<string, unknown>[] = [];
+    const b = new ClaudeBackend(config, "claude-fable-5-1", "high", client(sent));
+    const c = await b.complete([{ role: "user", content: "CODE\nDESCRIPTION" }], { cachePrefix: "CODE\n", jsonSchema: { type: "object" } });
+    expect(c.input_tokens).toBe(1010);
+    expect(c.cache_read_tokens).toBe(1000);
+    const req = sent[0]!;
+    expect(req.cache_control).toBeUndefined();
+    expect(req.output_config).toEqual({ effort: "high", format: { type: "json_schema", schema: { type: "object" } } });
+    expect((req.messages as { content: unknown }[])[0]!.content).toEqual([
+      { type: "text", text: "CODE\n", cache_control: { type: "ephemeral" } },
+      { type: "text", text: "DESCRIPTION" },
+    ]);
+  });
+
+  it("uses the automatic breakpoint by default and none when cache is false", async () => {
+    const sent: Record<string, unknown>[] = [];
+    const b = new ClaudeBackend(config, "claude-fable-5-1", "high", client(sent));
+    await b.complete([{ role: "user", content: "hi" }]);
+    await b.complete([{ role: "user", content: "hi" }], { cache: false });
+    expect(sent[0]!.cache_control).toEqual({ type: "ephemeral" });
+    expect(sent[1]!.cache_control).toBeUndefined();
+    expect((sent[1]!.messages as { content: unknown }[])[0]!.content).toBe("hi");
+    expect(sent[0]!.output_config).toEqual({ effort: "high" });
   });
 });

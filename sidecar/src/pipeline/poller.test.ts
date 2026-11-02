@@ -37,6 +37,10 @@ describe("tick output", () => {
     expect(firstPassLock(dir)).toBeNull();
     writeFileSync(file, "{not json");
     expect(firstPassLock(dir)?.commit).toBe("unreadable");
+    // The subsystem-page run's lock reads the same way under its own name.
+    expect(firstPassLock(dir, "system-pages.lock")).toBeNull();
+    writeFileSync(path.join(dir, "system-pages.lock"), JSON.stringify({ pid: process.pid, commit: "abc1234", started: "t" }));
+    expect(firstPassLock(dir, "system-pages.lock")?.pid).toBe(process.pid);
     rmSync(dir, { recursive: true, force: true });
   });
 

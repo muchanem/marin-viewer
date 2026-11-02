@@ -95,6 +95,8 @@ export const DiagramNode = z
     at: z.object({ path: z.string().min(1), function: z.string().min(1).optional() }).strict().optional(),
     /** Files the box stands for; the app marks it touched or dimmed from the PR's changed files. */
     paths: z.array(z.string().min(1)).optional(),
+    /** Subsystem maps only: the packages one box stands for, when it stands for several. */
+    systems: z.array(z.string().min(1)).optional(),
     /** Grid cell, required in grid mode. */
     grid: z
       .object({ col: z.number().int().nonnegative(), row: z.number().int().nonnegative(), span: z.number().int().positive().optional() })

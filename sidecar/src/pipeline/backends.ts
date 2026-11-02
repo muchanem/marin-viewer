@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { parseDotenv, type Config } from "../config.js";
-import { costUsd } from "./pricing.js";
+import { costUsd, PRICES } from "./pricing.js";
 
 export interface Turn {
   role: "user" | "assistant";
@@ -32,16 +32,30 @@ export interface Completion {
   generation_id?: string;
 }
 
+export interface CompleteOptions {
+  maxTokens?: number;
+  system?: string;
+  /** Claude only: false sends no cache breakpoint, for a prompt that is read once. */
+  cache?: boolean;
+  /**
+   * Claude only: a prefix of the first turn to send as its own block with a cache breakpoint, so a
+   * second call that shares it reads it from cache. Implies no automatic breakpoint.
+   */
+  cachePrefix?: string;
+  /** Claude only: a JSON schema the reply must follow (structured outputs, `output_config.format`). */
+  jsonSchema?: Record<string, unknown>;
+}
+
 export interface Backend {
   /** A short label for summaries and the ledger, such as `claude-sonnet-5-5` or `glm-5.3`. */
   readonly name: string;
-  complete(turns: Turn[], opts?: { maxTokens?: number; system?: string }): Promise<Completion>;
+  complete(turns: Turn[], opts?: CompleteOptions): Promise<Completion>;
 }
 
 // ---------------------------------------------------------------------------
 // Claude
 
-function apiKey(config: Config): string {
+export function apiKey(config: Config): string {
   let text: string;
   try {
     text = readFileSync(config.envFile, "utf8");
@@ -65,7 +79,7 @@ export class ClaudeBackend implements Backend {
     this.client = client ?? new Anthropic({ apiKey: apiKey(config), maxRetries: 3, timeout: 20 * 60_000 });
   }
 
-  async complete(turns: Turn[], opts: { maxTokens?: number; system?: string } = {}): Promise<Completion> {
+  async complete(turns: Turn[], opts: CompleteOptions = {}): Promise<Completion> {
     const started = Date.now();
     // Streaming keeps long outputs clear of HTTP timeouts. `fallbacks: "default"` lets the API rerun a
     // refused request on another model inside the same call.
@@ -74,11 +88,21 @@ export class ClaudeBackend implements Backend {
       max_tokens: opts.maxTokens ?? 32_000,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
-      output_config: { effort: this.effort },
+      output_config: { effort: this.effort, ...(opts.jsonSchema ? { format: { type: "json_schema", schema: opts.jsonSchema } } : {}) },
       // The rewrite and fix turns resend the whole unit context; the automatic breakpoint lets them read it from cache.
-      cache_control: { type: "ephemeral" },
+      ...(opts.cache === false || opts.cachePrefix ? {} : { cache_control: { type: "ephemeral" } }),
       ...(opts.system ? { system: opts.system } : {}),
-      messages: turns.map((t) => ({ role: t.role, content: t.content })),
+      messages: turns.map((t, i) =>
+        i === 0 && opts.cachePrefix && t.content.startsWith(opts.cachePrefix) && t.content.length > opts.cachePrefix.length
+          ? {
+              role: t.role,
+              content: [
+                { type: "text", text: opts.cachePrefix, cache_control: { type: "ephemeral" } },
+                { type: "text", text: t.content.slice(opts.cachePrefix.length) },
+              ],
+            }
+          : { role: t.role, content: t.content },
+      ),
     } as Anthropic.Beta.Messages.MessageCreateParamsStreaming);
     const msg = await stream.finalMessage();
     if (msg.stop_reason === "refusal") throw new Error(`${this.name} refused the request (${msg.stop_details?.category ?? "no category"})`);
@@ -91,7 +115,7 @@ export class ClaudeBackend implements Backend {
       cache_creation_input_tokens: msg.usage.cache_creation_input_tokens ?? 0,
     };
     // A fallback bills at the serving model's rates; price on the model that answered when known.
-    const served = msg.model in { "claude-opus-5-5": 1, "claude-sonnet-5-5": 1, "claude-haiku-5-5": 1 } ? msg.model : this.name;
+    const served = msg.model in PRICES ? msg.model : this.name;
     return {
       text,
       model: msg.model,

@@ -8,6 +8,14 @@
 //   swift tools/viewer-ui.swift keys <pid> <key> [cmd,shift,option,control]
 //   swift tools/viewer-ui.swift capture <pid> <out.png>   capture the window, active, without shadow; refuses
 //                                                          a window that is not wholly on the Retina screen
+//   swift tools/viewer-ui.swift snap <pid> <out.png> [pad] capture the screen area of the window plus `pad`
+//                                                          points, so sheets, menus and popovers show too
+//   swift tools/viewer-ui.swift click <pid> X Y [right|double|cmd]
+//                                                          click at window point X,Y (top-left origin)
+//   swift tools/viewer-ui.swift scroll <pid> X Y DY        scroll DY lines (negative scrolls down) at X,Y
+//   swift tools/viewer-ui.swift type <pid> <text>          type text into the focused control
+//   swift tools/viewer-ui.swift menu <pid> <title>         choose a menu bar item by its exact title
+//   swift tools/viewer-ui.swift quit <pid>                 quit the instance politely (runs its close path)
 //
 // Needs Screen Recording and Accessibility for the terminal. All captures and interactive checks
 // happen on the built-in Retina screen: the external ultrawide is 1x, which halves the detail, and
@@ -170,8 +178,14 @@ case "press":
 case "keys":
     guard let pid, rest.count > 1 else { fail("keys <pid> <key> [modifiers]") }
     activate(pid)
-    let codes: [String: CGKeyCode] = ["return": 36, "escape": 53, "tab": 48, "space": 49, "down": 125, "up": 126,
-                                      "left": 123, "right": 124, "period": 47, "o": 31, "i": 34, "1": 18, "2": 19, "3": 20]
+    var codes: [String: CGKeyCode] = ["return": 36, "escape": 53, "tab": 48, "space": 49, "down": 125, "up": 126,
+                                      "left": 123, "right": 124, "period": 47, "comma": 43, "slash": 44,
+                                      "leftbracket": 33, "rightbracket": 30, "delete": 51]
+    let letters: [Character: CGKeyCode] = ["a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9,
+                                           "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17, "o": 31, "u": 32,
+                                           "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46,
+                                           "1": 18, "2": 19, "3": 20, "4": 21, "5": 23, "6": 22, "7": 26, "8": 28, "9": 25, "0": 29]
+    for (k, v) in letters { codes[String(k)] = v }
     guard let code = codes[rest[1].lowercased()] else { fail("unknown key \(rest[1]); known: \(codes.keys.sorted())") }
     var flags = CGEventFlags()
     for m in (rest.count > 2 ? rest[2] : "").split(separator: ",") {
@@ -205,6 +219,87 @@ case "capture":
     guard task.terminationStatus == 0, let image = NSImage(contentsOfFile: rest[1]),
           let rep = image.representations.first else { fail("capture failed") }
     print("\(rest[1]) \(rep.pixelsWide)x\(rep.pixelsHigh)")
+case "snap":
+    guard let pid, rest.count > 1 else { fail("snap <pid> <out.png> [pad]") }
+    activate(pid)
+    let pad = rest.count > 2 ? Double(rest[2])! : 0
+    let retina = serverFrame(retinaScreen())
+    let area = mainWindow(pid).bounds.insetBy(dx: -pad, dy: -pad).intersection(retina)
+    guard !area.isNull, retina.contains(mainWindow(pid).bounds) else { fail("window is not on the Retina screen; run `place \(pid)` first") }
+    let task = Process()
+    task.executableURL = URL(filePath: "/usr/sbin/screencapture")
+    task.arguments = ["-x", "-R\(Int(area.minX)),\(Int(area.minY)),\(Int(area.width)),\(Int(area.height))", rest[1]]
+    try task.run()
+    task.waitUntilExit()
+    print(task.terminationStatus == 0 ? rest[1] : "capture failed")
+case "click", "scroll":
+    guard let pid, rest.count > (command == "scroll" ? 3 : 2), let x = Double(rest[1]), let y = Double(rest[2]) else {
+        fail("click <pid> X Y [right|double|cmd] or scroll <pid> X Y DY")
+    }
+    activate(pid)
+    let bounds = mainWindow(pid).bounds
+    let point = CGPoint(x: bounds.minX + x, y: bounds.minY + y)
+    guard serverFrame(retinaScreen()).contains(point) else { fail("point \(point) is not on the Retina screen") }
+    if command == "scroll" {
+        let lines = Int32(rest[3])!
+        let move = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)!
+        move.post(tap: .cghidEventTap)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        for _ in 0..<abs(lines) {
+            let e = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: lines > 0 ? 1 : -1, wheel2: 0, wheel3: 0)!
+            e.location = point
+            e.post(tap: .cghidEventTap)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+        }
+        print("scrolled \(lines) at \(x),\(y)")
+    } else {
+        let style = rest.count > 3 ? rest[3] : ""
+        let right = style == "right"
+        let (down, up): (CGEventType, CGEventType) = right ? (.rightMouseDown, .rightMouseUp) : (.leftMouseDown, .leftMouseUp)
+        let move = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)!
+        move.post(tap: .cghidEventTap)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        for click in 1...(style == "double" ? 2 : 1) {
+            for type in [down, up] {
+                let e = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: right ? .right : .left)!
+                e.setIntegerValueField(.mouseEventClickState, value: Int64(click))
+                if style == "cmd" { e.flags = .maskCommand }
+                e.post(tap: .cghidEventTap)
+                RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+            }
+        }
+        print("clicked \(style.isEmpty ? "left" : style) at \(x),\(y)")
+    }
+case "type":
+    guard let pid, rest.count > 1 else { fail("type <pid> <text>") }
+    activate(pid)
+    for scalar in rest[1].utf16 {
+        for down in [true, false] {
+            let e = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: down)!
+            var unit = scalar
+            e.keyboardSetUnicodeString(stringLength: 1, unicodeString: &unit)
+            e.post(tap: .cghidEventTap)  // to the active app, which `activate` made this one
+            RunLoop.current.run(until: Date().addingTimeInterval(0.12))  // filtering fields drop a burst
+        }
+    }
+    print("typed \(rest[1].count) characters")
+case "menu":
+    guard let pid, rest.count > 1 else { fail("menu <pid> <item title>") }
+    activate(pid)
+    guard let bar = attr(AXUIElementCreateApplication(pid), kAXMenuBarAttribute) else { fail("no menu bar") }
+    func item(_ e: AXUIElement, _ depth: Int) -> AXUIElement? {
+        let role = attr(e, kAXRoleAttribute) as? String
+        if role == kAXMenuItemRole as String, label(e) == rest[1] { return e }
+        guard depth < 6, let kids = attr(e, kAXChildrenAttribute) as? [AXUIElement] else { return nil }
+        for k in kids { if let hit = item(k, depth + 1) { return hit } }
+        return nil
+    }
+    guard let e = item(bar as! AXUIElement, 0) else { fail("no menu item “\(rest[1])”") }
+    let result = AXUIElementPerformAction(e, kAXPressAction as CFString)
+    print(result == .success ? "chose “\(rest[1])”" : "menu press failed: \(result.rawValue)")
+case "quit":
+    guard let pid, let app = NSRunningApplication(processIdentifier: pid) else { fail("quit <pid>") }
+    print(app.terminate() ? "asked \(pid) to quit" : "quit failed")
 default:
     fail("unknown command \(command)")
 }

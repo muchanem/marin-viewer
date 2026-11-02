@@ -27,6 +27,35 @@ Validation:
   and note f1 open, compared side by side with headless renders of the demo.
   Remaining differences are listed in the plan.
 - Tests that need #10640 skip when `marin/` or `wordbase/` is missing.
+## 2026-11-01 — Marin viewer shell (workstream 2, branch `mark/shell`)
+
+Built the viewer shell around Radiology's reader: File > Open PR… (⇧⌘O) and `--viewer-pr N`
+load a prepared PR from the wordbase. Above the split view, the strip shows the PR description,
+the In Marin system map and the PR map, which zooms into step diagrams. The sidebar adds a Code
+path tab and the Changes, Files and Search tabs for the PR. The inspector shows the session panel
+(Session, Review notes, Context), and a code window can be promoted to its own forked session.
+`ViewerStore` holds the PR and the seam state that the diff reader will observe;
+[plans/shell.md](plans/shell.md) documents the seam and its mapping to `DiffReaderModel`. The
+main view is a placeholder until `mark/diff-reader` merges. Edits to existing Radiology files:
+`BrowserMode`, `RepositorySidebar`, `ReviewChangeRow`, `ReviewChangeStatus`,
+`RepositorySearchView`, `FileTreeLabel`, `RootView`, `RadiologyApp` and the keyboard help.
+
+Validation:
+- `make check` passes. `make test` runs **370 tests / 81 suites** with one issue,
+  `FilesSidebarRevealTests.nativeFilesListTracksBookmarksAndSearchAndPreservesTheirCaret`.
+  Main at `39f19b5` fails the same assertion in a full run (334 tests / 77 suites, one issue),
+  and the suite passes alone, so the failure predates the shell.
+- 33 viewer tests in `ViewerLogicTests`, `SidecarClientTests` and `ViewerStoreTests` pass with a
+  scripted sidecar.
+- The opt-in `ViewerRealDataProbe` laid out all six #10640 diagrams with measured box sizes:
+  steps 2 and 4 overflow at the 0.8 scale floor and scroll; the rest fit. Snapshots of the opened
+  PR, the zoomed step 6 diagram, the session chips and the memories list match the demo's layout.
+- One live turn through the panel's sidecar client on the `claude` login answered a step 6 and
+  `_pump` chip question in 44 s for $0.26 and drafted one review note, in a scratch wordbase.
+
+Limits: offscreen snapshots draw the toolbar's selected segment blank, while the running app
+draws it. Radiology's sidebar opens at 144 pt in the stock reader and the viewer alike, so step
+titles truncate until the sidebar is widened. By file and Blame wait for the diff reader.
 
 ## 2026-10-31 — Bundle all local changes for GitHub main (Codex)
 

@@ -9,6 +9,11 @@ reader for the Marin viewer, By step and By file, built on ViewerCore and
 Radiology's highlighter, with blame, review-note dots and Ask chips handed to
 the shell through callbacks. Not linked into the app window yet.
 [Design, API and demo differences](plans/diff-reader.md).
+**Marin viewer shell (2026-11-01, branch `mark/shell`):** opening a prepared wordbase PR
+(⇧⌘O or `--viewer-pr N`) turns the reader window into the viewer: PR description, system map
+and PR map above the split view, the step sidebar, the session panel in the inspector, review
+notes and code windows. `ViewerStore` holds the PR and the state that the diff reader observes.
+[Shell, seam API and merge mapping](plans/shell.md).
 
 **Publication batch (2026-10-31):** the user requested bundling all local changes
 and pushing directly to GitHub `main`. The starting local branch, local `main`

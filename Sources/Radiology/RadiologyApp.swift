@@ -2,7 +2,11 @@ import SwiftUI
 
 @main
 struct RadiologyApp: App {
+    @NSApplicationDelegateAdaptor(ViewerAppDelegate.self) private var appDelegate
     @State private var model = AppModel()
+    /// The viewer's shared store: the open wordbase PR, notes, sessions and sidecar. Every
+    /// window reads it; see plans/shell.md.
+    @State private var viewer = ViewerStore(paths: ViewerPaths(arguments: ViewerLaunchArguments(CommandLine.arguments)))
 
     init() {
         guard CommandLine.arguments.contains("--verify-resources") else { return }
@@ -15,9 +19,19 @@ struct RadiologyApp: App {
         Window("Radiology", id: "reader") {
             RootView()
                 .environment(model)
+                .environment(viewer)
+                .environment(viewer.mainWindow)
                 .frame(minWidth: Theme.windowMinWidth, minHeight: Theme.windowMinHeight)
                 .task {
-                    await model.launch(using: LaunchArguments(CommandLine.arguments))
+                    viewer.mainReader = model
+                    appDelegate.viewer = viewer
+                    let arguments = ViewerLaunchArguments(CommandLine.arguments)
+                    if let number = arguments.pullRequest {
+                        await viewer.openPR(number)
+                        await ViewerAppDelegate.snapshotIfRequested()
+                    } else {
+                        await model.launch(using: LaunchArguments(CommandLine.arguments))
+                    }
                 }
         }
         .defaultSize(width: Theme.windowDefaultWidth, height: Theme.windowDefaultHeight)
@@ -25,6 +39,14 @@ struct RadiologyApp: App {
         .commands {
             SidebarCommands()
             ReaderCommands(model: model)
+            ViewerCommands(store: viewer)
         }
+        WindowGroup("Code", id: CodeWindowView.sceneID, for: CodeWindowRequest.self) { $request in
+            if let request {
+                CodeWindowView(request: request)
+                    .environment(viewer)
+            }
+        }
+        .defaultSize(width: 860, height: 640)
     }
 }

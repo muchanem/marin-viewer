@@ -2,35 +2,44 @@ import SwiftUI
 
 struct RepositorySidebar: View {
     @Environment(AppModel.self) private var model
+    /// Present in viewer windows; with a wordbase PR open the tabs become the viewer's.
+    @Environment(ViewerStore.self) private var viewer: ViewerStore?
     var body: some View {
         @Bindable var model = model
+        let viewerPR = viewer?.isReviewing == true
         VStack(spacing: 0) {
             if let repository = model.repository {
-                SidebarModeTabs(modes: BrowserMode.available(reviewing: model.isReviewing), selection: $model.mode)
+                SidebarModeTabs(modes: BrowserMode.available(reviewing: model.isReviewing, viewerPR: viewerPR), selection: $model.mode)
                 switch model.mode {
                 case .changes:
-                    ReviewChangesView()
+                    if viewerPR { ViewerChangesView() } else { ReviewChangesView() }
                 case .files:
-                    RepositoryFilesView(repository: repository)
+                    if viewerPR { ViewerFocusedFilesView() } else { RepositoryFilesView(repository: repository) }
                 case .codePaths: CodePathsSidebar()
                 case .search: RepositorySearchView()
+                case .steps: ViewerCodePathSidebar()
                 }
                 Divider()
-                HStack {
-                    Text(footer(repository)).font(Theme.Fonts.meta).foregroundStyle(.secondary).lineLimit(2)
-                        .help(footer(repository))
-                    Spacer()
-                    Image(systemName: repository.isGit ? "point.3.connected.trianglepath.dotted" : "folder")
-                        .help(model.review.map { "Pull request head: \($0.headSHA)" }
-                              ?? (repository.isGit ? "Git ignore rules applied" : "Folder browsing"))
-                        .accessibilityLabel(model.review.map { "Pull request head \($0.headSHA.prefix(10))" }
-                                            ?? (repository.isGit ? "Git repository" : "Folder"))
-                }.padding(Theme.inset)
+                if viewerPR {
+                    ViewerSidebarFooter(mode: model.mode, searchMatches: model.matches.count)
+                } else {
+                    HStack {
+                        Text(footer(repository)).font(Theme.Fonts.meta).foregroundStyle(.secondary).lineLimit(2)
+                            .help(footer(repository))
+                        Spacer()
+                        Image(systemName: repository.isGit ? "point.3.connected.trianglepath.dotted" : "folder")
+                            .help(model.review.map { "Pull request head: \($0.headSHA)" }
+                                  ?? (repository.isGit ? "Git ignore rules applied" : "Folder browsing"))
+                            .accessibilityLabel(model.review.map { "Pull request head \($0.headSHA.prefix(10))" }
+                                                ?? (repository.isGit ? "Git repository" : "Folder"))
+                    }.padding(Theme.inset)
+                }
             } else {
                 ContentUnavailableView("Repository", systemImage: "folder", description: Text("Open a folder to explore its files."))
             }
         }
-        .onChange(of: model.isReviewing) { if !model.isReviewing, model.mode == .changes { model.mode = .files } }
+        .onChange(of: model.isReviewing) { if !model.isReviewing, !viewerPR, model.mode == .changes { model.mode = .files } }
+        .onChange(of: viewerPR) { if !viewerPR, model.mode == .steps { model.mode = .files } }
     }
 
     /// Visible count, named filter state, and any hidden-open-file notice.

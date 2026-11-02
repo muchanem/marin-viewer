@@ -18,6 +18,22 @@ Open this document from Help > Keyboard Shortcuts (⌘/). ⌘ means Command, ⌥
 
 **⌥⌘B** — Switch the current PR file between Before and After when both exist.
 
+## Marin viewer
+
+These apply while a prepared Marin PR is open in the viewer.
+
+**⇧⌘O** — Open a prepared PR from the wordbase by number.
+
+**⌘>** — Ask the PR session about the selection, or about the focused file, step, diagram box or note. The question's chip appears in the session panel. Right-click offers the same Ask item.
+
+**⌥⌘3 / ⌥⌘4** — Show the PR By step / By file.
+
+**⌥⌘I** — Show or hide the session panel, which takes the Context inspector's place.
+
+**Escape**, with the PR map zoomed into a step diagram — Return to the PR map.
+
+**⌘Return**, in the session panel — Send the question.
+
 ## Navigation and search
 
 **⌘K** — Go to File. Type a fuzzy filename/path query; ↑/↓ selects a result, Return opens it, and Escape cancels.

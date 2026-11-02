@@ -2,9 +2,8 @@
 
 The shell turns Radiology's reader window into the Marin viewer when a prepared PR is open. It
 adds the strip of three cards above the split view, the step sidebar, the viewer toolbar, the
-session panel in the inspector and the code windows. The diff reader (workstream 3, branch
-`mark/diff-reader`) draws the main view. Until that branch merges, `ViewerMainPlaceholder` lists
-what the diff reader will show for the focused step.
+session panel in the inspector and the code windows. The diff reader (`Viewer/Diff/`) draws the
+main view; see "How the diff reader is wired" below.
 
 Open a PR with File > Open PR… (⇧⌘O) or launch with `--viewer-pr 10640`. File > Close PR returns
 the window to Radiology's reader. Without a PR open, the app is the stock reader.
@@ -80,31 +79,62 @@ Actions:
 | `openStepDiagram(_:in:)` | zooms a window's PR map into a step diagram, or toasts why it cannot |
 | `openCode(of:)` | a step-diagram box's click: `reveal` its code, or toast that it is outside the repository |
 
-### Mapping to `DiffReaderModel` at merge
+### How the diff reader is wired
 
-`ViewerMainPlaceholder` is the one view to replace. The replacement builds a `DiffReaderModel`
-from `PRReviewLoader().load(prDirectory: wordbase/prs/N, wordbaseRoot: wordbase, repository: head
-worktree)` when `store.pr` changes, then keeps the two in step.
+`openPR` loads the PR's `PRReviewDocument` once, off the main actor, with
+`PRReviewLoader().load(prDirectory:wordbaseRoot:repository:)` on the Marin clone (read-only
+`git show` and `git blame`). `install(document:)` keeps it as `store.document` and builds the main
+window's `DiffReaderModel` as `store.diffReader`. `makeReader(for:)` builds a reader on the same
+document for any window, so the document is never loaded twice. Opening another PR or Close PR
+drops both.
+
+`ViewerMainView` shows `DiffReaderView` once the reader exists. While the document loads, or if it
+fails to, it shows `ViewerMainPlaceholder` (the wordbase's excerpts) under a status line.
+
+While the reader exists it owns the view state, and the store's seam members read through to it,
+so the sidebar, strip, toolbar and panel follow what the reader shows:
 
 | store | diff reader |
 |---|---|
-| `mode` | `model.mode` (both directions) |
-| `focusedStepID` | `model.focus(step:)` |
-| `revealRequest` with `inStep` | `model.reveal(path:line:)` |
-| `revealRequest` without `inStep` | `model.revealFile(_:)`, then `reveal(path:line:)` when a line is known |
-| `blame` | `model.showBlame` |
-| `focusedNoteID` | `model.focus(note:)` / `closeNote()` |
-| `wholeFilePaths` | `model.showWholeFile(_:)` |
-| `notes` | `model.notes` |
-| `ask(_:from:)` | `model.onAsk` |
-| `openInNewWindow(path:line:)` | `model.onOpenInNewWindow` |
-| `focus(note:)` | `model.onNoteSelected` |
-| `reveal(path:line:)` | `model.onGoToDefinition`, after `definitionLookup` |
+| `mode` get / set | `model.mode` |
+| `focusedStepID` | `model.stepID` |
+| `blame` get / set | `model.showBlame` |
+| `focusedNoteID` | `model.expandedNoteID` |
+| `wholeFilePaths` | `model.wholeFile` |
+| `notes` (on every change) | `model.notes` |
+| `stepOrder` (on every change) | `model.setStepOrder(_:)`, which `stepPosition` and `nextStep` follow |
 
-Two gaps remain. `DiffReaderModel` takes its step order from the document, so a session's reorder
-(`stepOrder`, `movedSteps`) needs a setter there. `selectionContext()` reports mode, step, note,
-location and chips, and the diff reader's text selection should join it once the reader exposes
-one.
+Before the reader exists the store keeps the same values itself. `install(document:)` hands them
+over, so a step clicked or Blame turned on while the document loads still applies.
+
+The actions call the reader:
+
+| store action | diff reader |
+|---|---|
+| `focus(step:)` | `focus(step:)` |
+| `reveal(path:line:function:)`, so also `openCode(of:)` for a step-diagram box | the line comes from the document's declarations, then the code path's fallback lines, then `ViewerLocationResolver`; then `reveal(path:line:)`, which stays in the step when an excerpt holds the line, or `revealFile(_:)` |
+| `open(path:line:)` | `reveal(path:line:)` or `revealFile(_:)` By file |
+| `focus(note:)` | `focus(note:)` / `closeNote()` |
+| `revealNote(_:)` | By file at the note, then `focus(note:)` |
+| `showWholeFile(_:)`, `toggleWholeFile(_:)` | the same calls |
+
+`reveal` and `open` send a path outside the PR's changed files to a code window instead.
+
+The reader's callbacks:
+
+| callback | store |
+|---|---|
+| `onAsk` | `ask(_:from:)` with the reader's window |
+| `onOpenInNewWindow` | `openInNewWindow(path:line:)` |
+| `onNoteSelected` | opens that window's Review notes tab with the note focused |
+| `onGoToDefinition` | a destination in a changed file scrolls the reader; any other opens a code window there; none shows a toast |
+| `definitionLookup` | the main reader's SCIP index (`indexDefinition(of:)`), after the document's own declarations |
+| `onSelectionChanged` | a new code selection clears the window's `lastAskTarget` |
+
+Each card's `DiffCodeTextView` publishes its settled selection as `model.selection` (card, path,
+head lines, text). ⌘> in the text view asks about it directly. ⌘> from the menu takes the newer of
+the last clicked file, step, box or note and the code selection. `selectionContext()` reports the
+selection to the session as `selection: {path, lines, text}`.
 
 ## Sessions and the sidecar
 
@@ -127,24 +157,49 @@ Posting sends only approved notes, after the confirmation sheet, through `review
 and sends the sizes with the diagram to the sidecar's `layout` request. PR-map boxes whose step
 has a diagram get 10 pt more for the "+" mark. The sidecar returns positions, the scale that fits
 the card (floor 0.8) and `overflow`; `DiagramCard` scrolls an overflowing diagram and offers Open
-Larger. Measured on #10640, steps 2 and 4 overflow and the rest fit.
+Larger. Edge labels are measured the same way and sent as `edge_labels`; the sidecar widens the
+gap a labelled edge crosses so the label clears both boxes. Measured on #10640, the PR map and
+steps 2 and 4 overflow and the rest fit. The PR map overflows because its "loopback" label widens
+one gap.
+
+The strip is as tall as the taller of its two diagrams as drawn: an overflowing diagram is 196 pt,
+a fitted one is its height scaled to the card's width. It never shrinks below room for the
+description's sentence and More.
 
 ## Verification
 
 `Tests/RadiologyTests/Viewer/` holds `ViewerLogicTests`, `SidecarClientTests` and
-`ViewerStoreTests`, which mock the sidecar with `ScriptedTransport`. `ViewerRealDataProbe` is
-opt-in and runs against the real wordbase:
+`ViewerStoreTests`, which mock the sidecar with `ScriptedTransport`, and
+`ViewerReaderWiringTests`, which drive the diff reader through the store on a synthetic review
+document (`ShellFixture.document(for:)`, no git). `ViewerRealDataProbe` is opt-in and runs
+against the real wordbase:
 
 ```bash
 MARIN_VIEWER_PROBE=1 swift test --filter ViewerRealDataProbe/layoutScales
+MARIN_VIEWER_PROBE=1 swift test --filter ViewerRealDataProbe/readerByFileAndBlame
 MARIN_VIEWER_PROBE=1 MARIN_VIEWER_SNAPSHOTS=<dir> swift test --filter ViewerRealDataProbe/snapshots
 MARIN_VIEWER_PROBE=1 MARIN_VIEWER_LIVE=1 swift test --filter ViewerRealDataProbe/liveTurn
 ```
 
 Point `MARIN_VIEWER_PROBE_WORDBASE` and `MARIN_VIEWER_PROBE_STATE` at scratch copies, since the
-live turn can draft a note and `notes.keep` commits to the wordbase. `MARIN_VIEWER_SNAPSHOT=<png>`
-makes the built app write its main window to that file four seconds after `--viewer-pr` opens.
+live turn can draft a note and `notes.keep` commits to the wordbase.
+
+The built app captures itself. `MARIN_VIEWER_SNAPSHOT=<png>` writes the main window to that file
+four seconds after `--viewer-pr` opens. `MARIN_VIEWER_SNAPSHOT_DIR=<dir>` instead walks the window
+through five states: step 1, step 6 zoomed, By file on http_service.py with blame, note f1 inline,
+and ⌘> on a selection of `_pump`. It writes each state as `live-N-*.png` (`screencapture -l`, which
+needs Screen Recording) and `cache-N-*.png` (drawn offscreen), plus `snapshots.log`. Run the binary
+directly so the environment reaches it:
+
+```bash
+MARIN_VIEWER_SNAPSHOT_DIR=<dir> build/Radiology.app/Contents/MacOS/Radiology --viewer-pr 10640 \
+  --viewer-wordbase <scratch wordbase> --viewer-state <scratch state>
+```
 
 Offscreen snapshots draw the toolbar's selected segment blank or black; the running app draws it
-correctly. Radiology's sidebar comes up at 144 pt in both the stock reader and the viewer, below
-its declared 220 pt minimum, so step titles truncate until the sidebar is widened.
+correctly.
+
+Radiology's sidebar opened at 144 pt, below its 220 pt minimum, in both the stock reader and the
+viewer. The cause was modifier order in `RootView`: `.toolbar(removing: .sidebarToggle)` outside
+`.navigationSplitViewColumnWidth` hides the width from the split view. `SidebarWidthTests` holds
+the fix.

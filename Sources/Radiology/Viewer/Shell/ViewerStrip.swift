@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import ViewerCore
 
@@ -7,29 +8,61 @@ struct ViewerStrip: View {
     @Environment(ViewerStore.self) private var store
     @Environment(ViewerWindowModel.self) private var window
 
+    @State private var width: CGFloat = 0
+
     var body: some View {
         // Column weights 1.25 : 1 : 1.2, as in the demo.
-        GeometryReader { proxy in
-            let spacing: CGFloat = 10
-            let available = max(0, proxy.size.width - spacing * 2)
-            let unit = available / 3.45
-            HStack(alignment: .top, spacing: spacing) {
-                PRDescriptionCard().frame(width: unit * 1.25)
-                SystemMapCard().frame(width: unit)
-                PRMapCard().frame(width: unit * 1.2)
-            }
+        let unit = max(0, width - Self.spacing * 2) / 3.45
+        HStack(alignment: .top, spacing: Self.spacing) {
+            PRDescriptionCard().frame(width: unit * 1.25)
+            SystemMapCard().frame(width: unit)
+            PRMapCard().frame(width: unit * 1.2)
         }
-        .frame(height: Self.height)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: Self.height(diagram: diagramHeight(unit: unit)))
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(Color.viewerBackground)
         .overlay(alignment: .bottom) { Divider() }
     }
 
-    /// Header, a 196-point diagram and the card's padding.
-    static let height: CGFloat = 238
-    /// With the strip's vertical padding.
-    static let totalHeight: CGFloat = height + 20
+    static let spacing: CGFloat = 10
+
+    /// The taller of the two diagrams as their cards draw them, so the strip ends where the
+    /// drawings do. Until either is laid out, the card's full diagram height.
+    private func diagramHeight(unit: CGFloat) -> CGFloat {
+        let pr: DiagramKey = window.zoomedStep.map(DiagramKey.step) ?? .pr
+        let heights = [
+            Self.fittedHeight(store.layouts[.system], width: unit - ViewerCardMetrics.padding * 2),
+            Self.fittedHeight(store.layouts[pr], width: unit * 1.2 - ViewerCardMetrics.padding * 2),
+        ].compactMap { $0 }
+        return heights.max() ?? DiagramMetrics.card.height
+    }
+
+    /// The height `DiagramCard` gives a laid-out diagram in a card `width` wide: scaled down to
+    /// the width, never up, and at most the card's diagram height (an overflowing one scrolls).
+    static func fittedHeight(_ phase: DiagramLayoutPhase?, width: CGFloat) -> CGFloat? {
+        guard case .ready(let layout)? = phase, layout.width > 0, layout.height > 0 else { return nil }
+        if layout.overflow { return DiagramMetrics.card.height }
+        let scale = min(1, max(0, width) / layout.width, DiagramMetrics.card.height / layout.height)
+        return (layout.height * scale).rounded(.up)
+    }
+
+    /// The cards' height for a diagram `diagram` points tall: padding, the header line, the
+    /// header gap and the drawing. Never shorter than the description card's sentence and More.
+    static func height(diagram: CGFloat) -> CGFloat {
+        let content = max(diagram, minimumContent)
+        return ViewerCardMetrics.padding * 2 + headerHeight + ViewerCardMetrics.spacing + content
+    }
+
+    /// Room for about three lines of the description's sentence and its More link.
+    static let minimumContent: CGFloat = 84
+    /// One line of the caption-sized card header.
+    static let headerHeight: CGFloat = {
+        let font = NSFont.preferredFont(forTextStyle: .caption1)
+        return ceil(NSLayoutManager().defaultLineHeight(for: font))
+    }()
 }
 
 /// "Pull request": one sentence, More for the paragraph, Full description for the rest, Less.

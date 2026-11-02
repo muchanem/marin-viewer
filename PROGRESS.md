@@ -1,5 +1,44 @@
 # Progress
 
+## 2026-11-01 — The shell drives the diff reader (workstream 2, round 2, branch `mark/shell`)
+
+The main view is now `DiffReaderView`. `openPR` loads the PR's review document once and gives the
+main window a `DiffReaderModel`. While that reader exists, the store's mode, step, blame, note and
+whole-file state read from it, and the seam actions call it, so the sidebar, strip, toolbar and
+panel follow the reader. A session's reorder sets the reader's step order. Each card's text view
+publishes its code selection: ⌘> asks about it, and `selection_context` reports it to the
+session. The reader's callbacks are wired as follows:
+
+- Ask goes to the window's session.
+- Go to Definition scrolls the reader, or opens a code window outside the PR's files.
+- Open in New Window opens a code window.
+- A note dot focuses the note in the panel.
+
+A step-diagram box scrolls the reader to its code. [plans/shell.md](plans/shell.md) has the
+mapping.
+
+Fixes:
+
+- Blame moved from the Session menu to a toolbar toggle beside By step / By file.
+- The sidebar opened at 144 pt in both modes. The cause was `.toolbar(removing:)` applied
+  outside `.navigationSplitViewColumnWidth` in `RootView`.
+- The strip is now as tall as its diagrams as drawn.
+- Edge labels are measured in the app font and sent in the `layout` request, and the sidecar
+  widens the gaps they sit in.
+- Gaps read "N unchanged lines" etc.
+- In the reader, a row revealed in a card already on screen now stays centred. Before, SwiftUI's
+  scroll to the card landed after the card's own scroll and left the card's top in view.
+
+Validation:
+- `make check` passes. `make test`: 399 tests in 88 suites, 1 issue, the known
+  `FilesSidebarRevealTests` scroll assertion, which passes alone. ViewerCore: 42 tests in 8
+  suites. Sidecar `npm test`: 147 tests in 8 files.
+- The built app (`MARIN_VIEWER_SNAPSHOT_DIR`) captured itself with `screencapture -l` at step 1,
+  step 6 zoomed, By file on http_service.py with blame, note f1 inline, and ⌘> on a `_pump`
+  selection. Each capture is paired with a demo render.
+- `ViewerRealDataProbe/readerByFileAndBlame` on #10640: 30 By file cards for 30 changed files,
+  58 blame labels on http_service.py.
+
 ## 2026-11-01: Diff reader for the Marin viewer (Claude, workstream 1)
 
 Built the viewer's main column under `Sources/Radiology/Viewer/Diff/`: an

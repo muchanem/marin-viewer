@@ -63,6 +63,9 @@ struct DiffReaderView: View {
         if target.cardID.isEmpty {
             proxy.scrollTo(Self.topID, anchor: .top)
             model.scrollTargetHandled(target)
+        } else if target.row != nil, model.mountedBodies.contains(target.cardID) {
+            // The card's body centres the row; scrolling to the card as well would land after
+            // it and leave the card's top in view instead.
         } else {
             proxy.scrollTo(target.cardID, anchor: .top)
             if target.row == nil { model.scrollTargetHandled(target) }

@@ -1,10 +1,9 @@
 import SwiftUI
 import ViewerCore
 
-/// The main view of an open PR until the diff reader (workstream 1, `DiffReaderView`) merges.
-/// It shows what the reader will show from the same store state: By step, the current step's
-/// excerpts; By file, every changed file; plus the reveal target, the focused note and blame.
-/// See plans/shell.md for the seam the reader replaces this through.
+/// The main view of an open PR while its review document loads, or when it fails to load. It
+/// lists the wordbase's excerpts for the same store state: By step, the current step's
+/// excerpts; By file, every changed file; plus the reveal target and the focused note.
 struct ViewerMainPlaceholder: View {
     @Environment(ViewerStore.self) private var store
     @Environment(ViewerWindowModel.self) private var window
@@ -41,7 +40,6 @@ struct ViewerMainPlaceholder: View {
                     Text(viewerInline(l2)).font(ViewerFonts.summary).padding(.top, 4)
                 }
             }
-            seamNote
             ForEach(Array(step.excerpts.enumerated()), id: \.offset) { _, excerpt in
                 excerptCard(excerpt).id("excerpt:\(excerpt.path)")
             }
@@ -74,7 +72,6 @@ struct ViewerMainPlaceholder: View {
     private var filesView: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("ALL CHANGED FILES").font(ViewerFonts.cardTitle).tracking(0.6).foregroundStyle(.secondary)
-            seamNote
             ForEach(store.pr?.changes ?? [], id: \.path) { change in
                 fileCard(path: change.path) {
                     VStack(alignment: .leading, spacing: 3) {

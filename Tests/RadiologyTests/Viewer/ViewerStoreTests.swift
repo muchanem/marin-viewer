@@ -14,7 +14,7 @@ final class NoteWrites: @unchecked Sendable {
 @Suite(.serialized) @MainActor
 struct ViewerStoreTests {
     /// A store on the fixture whose sidecar answers from `script`.
-    private func store(_ fixture: ViewerFixture, writes: NoteWrites = NoteWrites(),
+    private func store(_ fixture: ShellFixture, writes: NoteWrites = NoteWrites(),
                        script: @escaping @Sendable (JSONValue) -> [JSONValue] = ViewerStoreTests.sidecar) throws -> (ViewerStore, ScriptedTransport) {
         let transport = ScriptedTransport(script: script)
         let store = ViewerStore(paths: fixture.paths, sidecar: SidecarClient(makeTransport: { transport }),
@@ -48,7 +48,7 @@ struct ViewerStoreTests {
     }
 
     @Test func openingAPRStartsByStepOnTheFirstStepWithThePanelOpen() throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, _) = try store(fixture)
         #expect(store.isReviewing && store.mode == .byStep && store.focusedStepID == 1)
@@ -60,18 +60,18 @@ struct ViewerStoreTests {
     }
 
     @Test func footersCountWhatTheTabsShow() throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, _) = try store(fixture)
         #expect(store.footer(for: .changes, searchMatches: 0) == "4 of 5 files · tests hidden")
         store.hidesTests = false
         #expect(store.visibleChanges.count == 5 && store.footer(for: .changes, searchMatches: 0) == "5 of 5 files")
         #expect(store.footer(for: .steps, searchMatches: 0) == "3 steps · prepared before your review")
-        #expect(store.draftNotePaths == [ViewerFixture.src + "http_service.py", ViewerFixture.src + "task.py"])
+        #expect(store.draftNotePaths == [ShellFixture.src + "http_service.py", ShellFixture.src + "task.py"])
     }
 
     @Test func stepDiagramsZoomAndTheirBoxesOpenCodeOrSayWhyNot() throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, _) = try store(fixture)
         let window = store.mainWindow
@@ -81,7 +81,7 @@ struct ViewerStoreTests {
 
         store.openStepDiagram(2, in: window)
         #expect(window.zoomedStep == 2 && store.focusedStepID == 2 && store.mode == .byStep)
-        let at = try ViewerFixture.location(ViewerFixture.src + "backends/local/machine.py", function: "LocalMachineFactory.create_task")
+        let at = try ShellFixture.location(ShellFixture.src + "backends/local/machine.py", function: "LocalMachineFactory.create_task")
         store.openCode(of: .init(id: "ct", label: "create_task", at: at, x: 0, y: 0, w: 90, h: 34))
         #expect(store.mode == .byStep && store.revealRequest?.inStep == true && window.zoomedStep == 2)
         store.openCode(of: .init(id: "cl", label: "caller", x: 0, y: 0, w: 90, h: 34))
@@ -91,23 +91,23 @@ struct ViewerStoreTests {
     }
 
     @Test func revealStaysByStepInsideTheStepAndSwitchesByFileOutside() throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, _) = try store(fixture)
         store.focus(step: 3)
-        store.reveal(path: ViewerFixture.src + "task.py", line: 140)
+        store.reveal(path: ShellFixture.src + "task.py", line: 140)
         #expect(store.mode == .byStep && store.revealRequest?.inStep == true && store.revealRequest?.line == 140)
-        store.reveal(path: ViewerFixture.src + "http_service.py", line: 133)
+        store.reveal(path: ShellFixture.src + "http_service.py", line: 133)
         #expect(store.mode == .byFile && store.revealRequest?.inStep == false)
         store.focus(step: 2)
         #expect(store.mode == .byStep && store.revealRequest == nil)
-        store.reveal(path: ViewerFixture.src + "backends/local/machine.py", function: "LocalMachineFactory.create_task")
+        store.reveal(path: ShellFixture.src + "backends/local/machine.py", function: "LocalMachineFactory.create_task")
         #expect(store.mode == .byStep && store.revealRequest?.line == 1029)
         #expect(store.step(after: 2)?.id == 3 && store.step(after: 3) == nil)
     }
 
     @Test func noteFocusOpensTheNotesTabAndTheLocationLinkOpensByFile() throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, _) = try store(fixture)
         store.mainWindow.isPanelPresented = false
@@ -120,14 +120,14 @@ struct ViewerStoreTests {
     }
 
     @Test func approvingSavesAndPostingSendsOnlyTheApprovedNotes() async throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let writes = NoteWrites()
         let (store, transport) = try store(fixture, writes: writes)
         store.apply(.approve, to: "f1")
         #expect(store.notes["f1"]?.status == .approved && writes.last?.contains(#""status":"approved""#) == true)
         #expect(store.notes.postButtonTitle == "Post 1 approved note to GitHub")
-        #expect(store.notes.postConfirmationText.hasPrefix(ViewerFixture.src + "http_service.py:133\n"))
+        #expect(store.notes.postConfirmationText.hasPrefix(ShellFixture.src + "http_service.py:133\n"))
         await store.postApprovedNotes()
         let post = try #require(transport.sent(type: "review.post").first)
         #expect(post["pr"]?.int == 10640 && post["notes"]?.array?.count == 1 && post["notes"]?.array?.first?["id"]?.string == "f1")
@@ -139,17 +139,17 @@ struct ViewerStoreTests {
     }
 
     @Test func aChipOpensTheSessionAndTheFirstSendOpensItInTheWorktree() async throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, transport) = try store(fixture)
         let session = try #require(store.mainSession)
         store.mainWindow.isPanelPresented = false
         store.mainWindow.panelTab = .notes
         let step = try #require(store.pr?.step(3))
-        store.ask(ChipFactory.step(step, commit: ViewerFixture.head))
+        store.ask(ChipFactory.step(step, commit: ShellFixture.head))
         #expect(session.chips.map(\.label) == ["step 3 · Wait for readiness"])
         #expect(store.mainWindow.isPanelPresented && store.mainWindow.panelTab == .session)
-        store.ask(ChipFactory.step(step, commit: ViewerFixture.head))
+        store.ask(ChipFactory.step(step, commit: ShellFixture.head))
         #expect(session.chips.count == 1)
         session.draft = "What waits here?"
         await store.send(session)
@@ -166,7 +166,7 @@ struct ViewerStoreTests {
     }
 
     @Test func aProposedReorderAppliesWithAMovedTagAndUndoes() throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, _) = try store(fixture)
         let session = try #require(store.mainSession)
@@ -183,21 +183,21 @@ struct ViewerStoreTests {
     }
 
     @Test func sessionCommandsOpenLocationsAndDraftNotes() throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let writes = NoteWrites()
         let (store, _) = try store(fixture, writes: writes)
-        store.handleUICommand("open_location", args: ["path": .string(ViewerFixture.src + "http_service.py"), "line": 125], session: store.mainSession)
+        store.handleUICommand("open_location", args: ["path": .string(ShellFixture.src + "http_service.py"), "line": 125], session: store.mainSession)
         #expect(store.mode == .byFile && store.revealRequest?.line == 125)
-        store.handleUICommand("draft_review_note", args: ["path": .string(ViewerFixture.src + "task.py"), "line": 10, "side": "head",
+        store.handleUICommand("draft_review_note", args: ["path": .string(ShellFixture.src + "task.py"), "line": 10, "side": "head",
                                                          "severity": "high", "l1": "Leaks a task."], session: store.mainSession)
         let note = try #require(store.notes.notes.last)
-        #expect(note.status == .draft && note.severity == .high && note.line == 10 && note.commit == ViewerFixture.head)
+        #expect(note.status == .draft && note.severity == .high && note.line == 10 && note.commit == ShellFixture.head)
         #expect(writes.last?.contains("Leaks a task.") == true)
     }
 
     @Test func closingProposesMemoriesAndDoneKeepsTheOnesLeft() async throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, transport) = try store(fixture)
         let session = try #require(store.mainSession)
@@ -215,7 +215,7 @@ struct ViewerStoreTests {
     }
 
     @Test func aNewQuestionKeepsPendingMemoriesFirst() async throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, transport) = try store(fixture)
         let session = try #require(store.mainSession)
@@ -223,14 +223,14 @@ struct ViewerStoreTests {
         await store.send(session)
         await store.closeSession(session)
         #expect(await eventually { session.memories.count == 3 })
-        store.ask(ChipFactory.file(ViewerFixture.src + "task.py", commit: ViewerFixture.head, shortener: store.shortener))
+        store.ask(ChipFactory.file(ShellFixture.src + "task.py", commit: ShellFixture.head, shortener: store.shortener))
         #expect(await eventually { !transport.sent(type: "notes.keep").isEmpty })
         #expect(await eventually { store.toast?.text == "3 notes kept: a new question started." })
         #expect(await eventually { store.mainSession?.chips.map(\.label) == ["file task.py"] })
     }
 
     @Test func promotingAWindowForksTheMainSession() async throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, transport) = try store(fixture) { message in
             if message["type"]?.string == "session.open" {
@@ -241,7 +241,7 @@ struct ViewerStoreTests {
         }
         let window = ViewerWindowModel(kind: .secondary)
         #expect(!window.isPanelPresented)
-        store.ask(ChipFactory.file(ViewerFixture.src + "task.py", commit: "c", shortener: store.shortener), from: window)
+        store.ask(ChipFactory.file(ShellFixture.src + "task.py", commit: "c", shortener: store.shortener), from: window)
         #expect(store.mainSession?.chips.count == 1 && window.ownSession == nil)
         store.promote(window)
         let fork = try #require(window.ownSession)
@@ -254,7 +254,7 @@ struct ViewerStoreTests {
     }
 
     @Test func appRequestsAnswerFromTheMainWindow() async throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, _) = try store(fixture)
         store.focus(step: 2)
@@ -267,13 +267,17 @@ struct ViewerStoreTests {
     }
 
     @Test func layoutsAreRequestedWithMeasuredSizes() async throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         let (store, transport) = try store(fixture)
         await store.layout(.pr)
         let request = try #require(transport.sent(type: "layout").last)
         #expect(request["diagram"]?["nodes"]?.array?.count == 3)
         #expect(request["sizes"]?["spec"]?["h"]?.int == 34 && request["sizes"]?["runtime"]?["h"]?.int == 26)
+        // The fixture's one labelled edge, measured in the app's 8.5 pt font.
+        let probes = try #require(request["edge_labels"]?["probes"])
+        #expect(probes["h"]?.int == 14 && (probes["w"]?.double ?? 0) > 8)
+        #expect(request["edge_labels"]?.object?.count == 1)
         // The scripted answer is not a layout, so the card shows the failure rather than nothing.
         if case .failed = store.layouts[.pr] {} else { Issue.record("expected a failed layout, got \(String(describing: store.layouts[.pr]))") }
     }

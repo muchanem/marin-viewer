@@ -152,6 +152,52 @@ describe("Poller.tick", () => {
     expect((await readEntry(fileEntryPath(config.wordbase, "lib/pkg/src/pkg/a2.py")))!.front.deleted).toBe(git(config.marin, "rev-parse", "HEAD"));
   });
 
+  it("plans without calling a model or changing state on --dry-run, and stops at --describe-to", async () => {
+    writeFileSync(path.join(upstream, "lib/pkg/src/pkg/b.py"), "def b():\n    return 3\n");
+    git(upstream, "commit", "-q", "-am", "third");
+    const third = git(upstream, "rev-parse", "HEAD");
+    writeFileSync(path.join(upstream, "lib/pkg/src/pkg/sub/d.py"), "class D:\n    pass\n");
+    git(upstream, "commit", "-q", "-am", "fourth");
+    const mainFile = path.join(config.state, "main.json");
+    const before = readFileSync(mainFile, "utf8");
+    const dry = new FakeBackend();
+    const poller = (opts: object, backend: Backend) =>
+      new Poller(config, { ...DEFAULTS, ...opts }, { gh: emptyGh(), backend, out: (l) => lines.push(l), checker: async () => ({ ok: true, failures: [], output: "OK" }) });
+    const s = await poller({ dryRun: true }, dry).tick();
+    expect(dry.prompts).toHaveLength(0);
+    expect(s.describedCommits).toBe(2);
+    expect(lines).toContain("  would describe lib/pkg/src/pkg: 1 targets, 0 siblings in context");
+    expect(lines).toContain("  would describe lib/pkg/src/pkg/sub: 1 targets, 0 siblings in context");
+    expect(JSON.parse(readFileSync(mainFile, "utf8")).described).toBe(JSON.parse(before).described);
+    const real = new FakeBackend();
+    const s2 = await poller({ describeTo: third }, real).tick();
+    expect(s2.describedCommits).toBe(1);
+    expect(s2.files).toBe(1);
+    expect(JSON.parse(readFileSync(mainFile, "utf8")).described).toBe(third);
+    await expect(poller({ describeTo: "no-such-rev" }, real).tick().then((x) => x.errors)).resolves.toBe(1);
+  });
+
+  it("stops model work for the tick when the API is out of credit, and queues the files", async () => {
+    writeFileSync(path.join(upstream, "lib/pkg/src/pkg/b.py"), "def b():\n    return 4\n");
+    writeFileSync(path.join(upstream, "lib/pkg/src/pkg/sub/d.py"), "class D:\n    x = 1\n");
+    git(upstream, "commit", "-q", "-am", "fifth");
+    let calls = 0;
+    const broke: Backend = {
+      name: "broke",
+      async complete() {
+        calls++;
+        throw new Error('400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}');
+      },
+    };
+    const before = lines.length;
+    const s = await new Poller(config, { ...DEFAULTS, unitConcurrency: 1 }, { gh: emptyGh(), backend: broke, out: (l) => lines.push(l), checker: async () => ({ ok: true, failures: [], output: "OK" }) }).tick();
+    expect(calls).toBe(1);
+    expect(s.files).toBe(0);
+    expect(lines.slice(before).filter((l) => l.includes("out of credit"))).toHaveLength(1);
+    const queue = JSON.parse(readFileSync(path.join(config.state, "queue.json"), "utf8"));
+    expect(queue.files.map((f: { path: string }) => f.path).sort()).toEqual(["lib/pkg/src/pkg/b.py", "lib/pkg/src/pkg/sub/d.py"]);
+  });
+
   it("reports a gh failure as an error, never as an empty PR list", async () => {
     const gh = new Gh(async () => ({ code: 1, stdout: "", stderr: "HTTP 401: Bad credentials" }));
     const s = await make(gh, new FakeBackend()).tick();

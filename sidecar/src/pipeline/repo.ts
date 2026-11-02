@@ -47,6 +47,15 @@ export class MarinRepo {
     return { before, after: await this.rev("HEAD") };
   }
 
+  async isAncestor(a: string, b: string): Promise<boolean> {
+    try {
+      await this.git(["merge-base", "--is-ancestor", a, b]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async commitCount(from: string, to: string): Promise<number> {
     return Number((await this.git(["rev-list", "--count", `${from}..${to}`])).trim());
   }

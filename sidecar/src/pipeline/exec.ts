@@ -41,6 +41,11 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
   });
 }
 
+/** The Anthropic account is out of API credit. Every later call fails the same way until Mark tops it up. */
+export function isCreditError(message: string): boolean {
+  return /credit balance is too low/i.test(message);
+}
+
 export class CommandError extends Error {
   constructor(
     readonly cmd: string,

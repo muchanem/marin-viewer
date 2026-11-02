@@ -75,6 +75,34 @@ describe("GlmBackend", () => {
     expect(seen).toEqual(["GET /health ", "GET /admin/engines/metrics Bearer admin-test", "POST /v1/chat/completions Bearer bulk-test"]);
   });
 
+  it("streams the completion, asks for usage and sends no max_tokens", async () => {
+    let sent: Record<string, unknown> = {};
+    const sse = [
+      { model: "glm-5.3", choices: [{ delta: { content: "<think>long" } }] },
+      { choices: [{ delta: { content: " plan</think>{\"a\":" } }] },
+      { choices: [{ delta: { content: "2}" }, finish_reason: "stop" }] },
+      { choices: [], usage: { prompt_tokens: 900, completion_tokens: 40 } },
+    ].map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n";
+    const route: Route = (url, init) => {
+      if (!url.endsWith("/v1/chat/completions")) return healthy(url);
+      sent = JSON.parse(String(init?.body));
+      return { status: 200, body: sse };
+    };
+    const g = new GlmBackend({ url: "http://glm", fetchFn: fetcher(route), log: () => {} });
+    const c = await g.complete([{ role: "user", content: "hi" }]);
+    expect(sent.stream).toBe(true);
+    expect(sent.stream_options).toEqual({ include_usage: true });
+    expect("max_tokens" in sent).toBe(false);
+    expect(c).toMatchObject({ text: '{"a":2}', model: "glm-5.3", input_tokens: 900, output_tokens: 40 });
+  });
+
+  it("reports a stream cut by the length limit", async () => {
+    const sse = `data: ${JSON.stringify({ choices: [{ delta: { content: "{" }, finish_reason: "length" }] })}\n\ndata: [DONE]\n\n`;
+    const route: Route = (url) => (url.endsWith("/v1/chat/completions") ? { status: 200, body: sse } : healthy(url));
+    const g = new GlmBackend({ url: "http://glm", fetchFn: fetcher(route), log: () => {} });
+    await expect(g.complete([{ role: "user", content: "hi" }])).rejects.toThrow(/length limit \(remaining context\)/);
+  });
+
   it("holds on a non-200 and on too few workers, then fails with FleetHold", async () => {
     let n = 0;
     const route: Route = (url) => (url.endsWith("/health") ? (n++ % 2 ? { status: 200, body: { workers: { bulk: 0 } } } : { status: 503, body: "relay" }) : healthy(url));

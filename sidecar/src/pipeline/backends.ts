@@ -67,6 +67,8 @@ export class ClaudeBackend implements Backend {
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       output_config: { effort: this.effort },
+      // The rewrite and fix turns resend the whole unit context; the automatic breakpoint lets them read it from cache.
+      cache_control: { type: "ephemeral" },
       ...(opts.system ? { system: opts.system } : {}),
       messages: turns.map((t) => ({ role: t.role, content: t.content })),
     } as Anthropic.Beta.Messages.MessageCreateParamsStreaming);
@@ -251,8 +253,8 @@ export class GlmBackend implements Backend {
     for (;;) {
       const reason = await this.gate();
       if (!reason) return;
-      if (Date.now() > deadline) throw new FleetHold(`GLM-5.3 held for ${Math.round((this.opts.holdMs ?? 600_000) / 1000)} s: ${reason}`);
       this.log(`glm hold: ${reason}`);
+      if (Date.now() >= deadline) throw new FleetHold(`GLM-5.3 held for ${Math.round((this.opts.holdMs ?? 600_000) / 1000)} s: ${reason}`);
       await this.sleep(this.opts.pollMs ?? 30_000);
     }
   }
@@ -266,22 +268,22 @@ export class GlmBackend implements Backend {
       r = await this.fetchFn(`${this.url}/v1/chat/completions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${this.bulkToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: this.name, messages, max_tokens: opts.maxTokens ?? 32_000, stream: false }),
+        // No max_tokens unless asked: the deployed vLLM then allows the remaining context, and reasoning
+        // spends from the same budget (agent-docs/glm53-fleet-log.md, the 2026-10-23 output-length audit).
+        // Streamed, so the headers arrive at once: a non-streaming reply sends them only when generation ends,
+        // and Node's fetch gives up on headers after 300 s.
+        body: JSON.stringify({ model: this.name, messages, ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}), stream: true, stream_options: { include_usage: true } }),
         signal: AbortSignal.timeout(30 * 60_000),
       });
     } catch (e) {
       if ((e as { cause?: { code?: string } }).cause?.code === "ECONNREFUSED") throw new TunnelDown(`connection refused at ${this.url}: the port-forward died`);
       throw e;
     }
-    const body = await r.text();
-    if (r.status !== 200) throw new FleetHold(`chat completion answered ${r.status}: ${body.slice(0, 300)}`);
-    const doc = JSON.parse(body) as {
-      model?: string;
-      choices?: { message?: { content?: string | null }; finish_reason?: string }[];
-      usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
-    };
+    if (r.status !== 200) throw new FleetHold(`chat completion answered ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    const doc = await readCompletion(r);
     const choice = doc.choices?.[0];
-    if (choice?.finish_reason === "length") throw new Error(`glm-5.3 hit max_tokens before finishing`);
+    if (!choice) throw new Error("glm-5.3 returned no choices");
+    if (choice?.finish_reason === "length") throw new Error(`glm-5.3 hit the length limit (${opts.maxTokens ? `max_tokens ${opts.maxTokens}` : "remaining context"}) before finishing`);
     const text = (choice?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
     return {
       text,
@@ -294,4 +296,35 @@ export class GlmBackend implements Backend {
       latency_ms: Date.now() - started,
     };
   }
+}
+
+interface ChatDoc {
+  model?: string;
+  choices?: { message?: { content?: string | null }; finish_reason?: string }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
+}
+
+/** Reads an OpenAI-style chat completion, streamed as server-sent events or as one JSON document. */
+export async function readCompletion(r: Response): Promise<ChatDoc> {
+  const body = await r.text();
+  if (!body.trimStart().startsWith("data:")) return JSON.parse(body) as ChatDoc;
+  let content = "";
+  let finish: string | undefined;
+  let model: string | undefined;
+  let usage: ChatDoc["usage"];
+  let sawChoice = false;
+  for (const line of body.split("\n")) {
+    if (!line.startsWith("data:")) continue;
+    const data = line.slice(5).trim();
+    if (!data || data === "[DONE]") continue;
+    const chunk = JSON.parse(data) as { model?: string; choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[]; usage?: ChatDoc["usage"] };
+    model ??= chunk.model;
+    if (chunk.usage) usage = chunk.usage;
+    for (const c of chunk.choices ?? []) {
+      sawChoice = true;
+      content += c.delta?.content ?? "";
+      if (c.finish_reason) finish = c.finish_reason;
+    }
+  }
+  return { ...(model ? { model } : {}), ...(usage ? { usage } : {}), choices: sawChoice ? [{ message: { content }, ...(finish ? { finish_reason: finish } : {}) }] : [] };
 }

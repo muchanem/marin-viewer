@@ -4,7 +4,9 @@
 // are kept in `describe-comparison.json` beside it, so a later `--models glm` run fills in a model
 // without rerunning the others. Nothing is written to the wordbase.
 //
-//   npm run compare -- [--models sonnet,opus,glm] [--commit <rev>]
+//   npm run compare -- [--models sonnet,opus,glm] [--commit <rev>] [--fresh]
+//
+// A model with earlier results keeps its successful units and reruns the others; --fresh reruns all.
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -55,9 +57,11 @@ interface Results {
   runs: Record<string, ModelRun>;
 }
 
-async function runModel(key: string, units: Unit[], ctxs: Map<string, Awaited<ReturnType<typeof buildContext>>>, config: ReturnType<typeof loadConfig>, ledger: Ledger, commit: string): Promise<ModelRun> {
+async function runModel(key: string, units: Unit[], ctxs: Map<string, Awaited<ReturnType<typeof buildContext>>>, config: ReturnType<typeof loadConfig>, ledger: Ledger, commit: string, prior: ModelRun | undefined): Promise<ModelRun> {
   const m = MODELS[key]!;
-  const run: ModelRun = { model: key, label: m.label, backend: "", at: new Date().toISOString(), commit, ...(key !== "glm" ? { effort: "medium" } : {}), units: [] };
+  // Units that already succeeded for this model are kept; only failed or missing units run again.
+  const kept = (prior?.units ?? []).filter((u) => u.ok && units.some((x) => x.dir === u.unit));
+  const run: ModelRun = { model: key, label: m.label, backend: prior?.backend ?? "", at: new Date().toISOString(), commit, ...(key !== "glm" ? { effort: "medium" } : {}), units: [...kept] };
   let backend: Backend;
   try {
     backend = m.make(config);
@@ -67,6 +71,10 @@ async function runModel(key: string, units: Unit[], ctxs: Map<string, Awaited<Re
     return run;
   }
   for (const u of units) {
+    if (kept.some((k) => k.unit === u.dir)) {
+      process.stderr.write(`compare: ${m.label} on ${u.dir}: kept from ${prior!.at}\n`);
+      continue;
+    }
     const ctx = ctxs.get(u.dir)!;
     process.stderr.write(`compare: ${m.label} on ${u.dir} (${u.targets.length} files, ${ctx.stats.chars} chars)\n`);
     try {
@@ -172,9 +180,11 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   let models = ["sonnet", "opus", "glm"];
   let rev = "HEAD";
+  let fresh = false;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--models") models = (argv[++i] ?? "").split(",").filter(Boolean);
     else if (argv[i] === "--commit") rev = argv[++i] ?? rev;
+    else if (argv[i] === "--fresh") fresh = true;
     else throw new Error(`unknown flag ${argv[i]}`);
   }
   for (const m of models) if (!MODELS[m]) throw new Error(`unknown model ${m}; use ${Object.keys(MODELS).join(", ")}`);
@@ -195,7 +205,7 @@ async function main(): Promise<void> {
   const ctxs = new Map<string, Awaited<ReturnType<typeof buildContext>>>();
   for (const u of units) ctxs.set(u.dir, await buildContext(repo, u, { wordbase: config.wordbase, ignoreExisting: true }));
   const ledger = new Ledger(files.spend);
-  const runs = await Promise.all(models.map((m) => runModel(m, units, ctxs, config, ledger, commit)));
+  const runs = await Promise.all(models.map((m) => runModel(m, units, ctxs, config, ledger, commit, fresh ? undefined : prior?.runs[m])));
   const res: Results = { commit, runs: { ...(prior?.runs ?? {}) } };
   for (const r of runs) res.runs[r.model] = r;
   await mkdir(files.reports, { recursive: true });

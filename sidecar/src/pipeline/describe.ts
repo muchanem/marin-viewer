@@ -3,6 +3,7 @@
 // check fails. A reply that still fails validation is rejected; text that still fails lint is kept
 // with a `lint:` field listing the hits.
 
+import path from "node:path";
 import { z } from "zod";
 import { lint } from "../lint.js";
 import { fileEntryPath, readEntry, saveEntry, type Entry, type Note, type SymbolSection } from "../wordbase.js";
@@ -117,6 +118,8 @@ export interface UnitResult {
   lint: Map<string, string[]>;
   completions: Completion[];
   rewritten: boolean;
+  /** The problems and lint hits that triggered the rewrite. */
+  rewriteReason: string[];
   cost_usd: number;
   latency_ms: number;
 }
@@ -128,8 +131,10 @@ export async function describeUnit(backend: Backend, promptsDir: string, ctx: Un
   let checked = checkOutput(first.text, ctx.unit.targets, existing, ctx.unit.package);
   const completions = [first];
   let rewritten = false;
+  let rewriteReason: string[] = [];
   if (checked.problems.length || checked.lint.size) {
     rewritten = true;
+    rewriteReason = [...checked.problems, ...[...checked.lint].flatMap(([f, hits]) => hits.map((h) => `${path.basename(f)} ${h}`))];
     const second = await backend.complete([
       { role: "user", content: prompt },
       { role: "assistant", content: first.text },
@@ -147,7 +152,7 @@ export async function describeUnit(backend: Backend, promptsDir: string, ctx: Un
     err.cost_usd = cost;
     throw err;
   }
-  return { output: checked.output, lint: checked.lint, completions, rewritten, cost_usd: cost, latency_ms: latency };
+  return { output: checked.output, lint: checked.lint, completions, rewritten, rewriteReason, cost_usd: cost, latency_ms: latency };
 }
 
 // ---------------------------------------------------------------------------

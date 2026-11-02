@@ -120,7 +120,7 @@ describe("writing entries", () => {
     dirs.push(wb);
     const file = fileEntryPath(wb, "lib/s/src/s/a.py");
     await saveEntry(file, { front: { kind: "file", path: "lib/s/src/s/a.py", commit: "old", l1: "Old text.", system: "s" }, preamble: "", symbols: [{ name: "old", fields: { l1: "x" } }], notes: [{ text: "2026-11-01 · abc1234 · session x · `parse`: note" }], other: [{ heading: "Extra", body: "kept" }] });
-    const result = { output: JSON.parse(good.replace('"system":"s","symbols"', '"system":"s","changed_symbols":["parse"],"symbols"')), lint: new Map([["lib/s/src/s/b.py", ['l1: dash "x"']]]), completions: [], rewritten: false, cost_usd: 0, latency_ms: 0 };
+    const result = { output: JSON.parse(good.replace('"system":"s","symbols"', '"system":"s","changed_symbols":["parse"],"symbols"')), lint: new Map([["lib/s/src/s/b.py", ['l1: dash "x"']]]), completions: [], rewritten: false, rewriteReason: [], cost_usd: 0, latency_ms: 0 };
     const w = await writeEntries(wb, result, { commit: "n".repeat(40), by: "fake poll nnnnnnn", now: "2026-11-01T00:00:00Z" });
     expect(w.files).toHaveLength(2);
     expect(w.l1Changed.sort()).toEqual(T);

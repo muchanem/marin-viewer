@@ -9,7 +9,7 @@ import type { Config } from "../config.js";
 import { commitWordbase, fileEntryPath, readEntry, saveEntry, systemEntryPath } from "../wordbase.js";
 import { ClaudeBackend, GlmBackend, type Backend } from "./backends.js";
 import { describeUnit, writeEntries } from "./describe.js";
-import { Gh } from "./exec.js";
+import { Gh, isCreditError } from "./exec.js";
 import { BackgroundSessions, fetchHeads, preparePr, searchPrs, type SearchedPr } from "./prepare.js";
 import { MarinRepo, type Change } from "./repo.js";
 import { refreshSystem } from "./systems.js";
@@ -36,6 +36,10 @@ export interface PollerOptions {
   maxPreps: number;
   unitConcurrency: number;
   user: string;
+  /** Print what the describe step would do and list PRs; call no model and change no state. */
+  dryRun: boolean;
+  /** Describe only through this revision of main (a backfill or a test); null describes through main. */
+  describeTo: string | null;
 }
 
 export const DEFAULTS: PollerOptions = {
@@ -54,6 +58,8 @@ export const DEFAULTS: PollerOptions = {
   maxPreps: 2,
   unitConcurrency: 2,
   user: "muchanem",
+  dryRun: false,
+  describeTo: null,
 };
 
 export interface TickSummary {
@@ -134,6 +140,14 @@ export class Poller {
   readonly ledger: Ledger;
   private backendInstance: Backend | null;
   private sessions: BackgroundSessions | null = null;
+  /** Set when the API reports no credit; the rest of the tick starts no model work. */
+  private creditsOut = false;
+
+  private noteCredit(e: unknown): void {
+    if (this.creditsOut || !isCreditError((e as Error).message ?? String(e))) return;
+    this.creditsOut = true;
+    this.print("ERROR the Anthropic API account is out of credit; this tick starts no more model work. Mark must add credit in the Console.");
+  }
   private readonly out: (line: string) => void;
   private readonly now: () => Date;
 
@@ -164,6 +178,7 @@ export class Poller {
 
   async tick(): Promise<TickSummary> {
     const t0 = this.now();
+    this.creditsOut = false;
     const gh = this.deps.gh ?? new Gh();
     const gh0 = gh.calls;
     const main = await readJson<MainState>(this.files.main, { described: null });
@@ -214,7 +229,13 @@ export class Poller {
     // 2. Describe new commits.
     if (this.opts.describe) {
       try {
-        await this.describe(main, head, s);
+        let target = head;
+        if (this.opts.describeTo) {
+          target = await this.repo.rev(this.opts.describeTo);
+          if (!(await this.repo.isAncestor(target, head))) throw new Error(`--describe-to ${this.opts.describeTo} is not on main`);
+          if (target !== head) this.print(`describe: stopping at ${target.slice(0, 7)} (--describe-to ${this.opts.describeTo}), ${await this.repo.commitCount(target, head)} commits short of main`);
+        }
+        await this.describe(main, target, s);
       } catch (e) {
         error("describing new commits", e);
       }
@@ -253,11 +274,22 @@ export class Poller {
     if (from === head && !queue.files.length) return;
 
     const readStarted = new Date().toISOString();
-    main.in_progress = { from, to: head, read_started: readStarted };
-    await writeJson(this.files.main, main);
+    if (!this.opts.dryRun) {
+      main.in_progress = { from, to: head, read_started: readStarted };
+      await writeJson(this.files.main, main);
+    }
     s.describedCommits = from === head ? 0 : await this.repo.commitCount(from, head);
     const changes: Change[] = from === head ? [] : await this.repo.changedPython(from, head);
     if (changes.length || s.describedCommits) this.print(`describe: ${s.describedCommits} commits ${from.slice(0, 7)}..${head.slice(0, 7)} change ${changes.length} Python files under lib/`);
+    if (this.opts.dryRun) {
+      for (const c of changes) this.print(`  ${c.status}: ${c.from ? `${c.from} -> ` : ""}${c.path}`);
+      const planned = groupByDirectory([...new Set([...queue.files.map((q) => q.path), ...changes.filter((c) => c.status !== "deleted").map((c) => c.path)])], head);
+      for (const u of planned) {
+        const l = await loadUnit(this.repo, u);
+        this.print(`  would describe ${l.dir}: ${l.targets.length} targets, ${l.files.length - l.targets.length} siblings in context`);
+      }
+      return;
+    }
     const touched = new Set<string>();
     const systems = new Set<string>();
 
@@ -309,7 +341,7 @@ export class Poller {
     }
     let tickCost = 0;
     const results = await pool(loaded, this.opts.unitConcurrency, async (unit) => {
-      if (tickCost >= this.opts.maxTickUsd) {
+      if (tickCost >= this.opts.maxTickUsd || this.creditsOut) {
         deferred.push(...unit.targets);
         return null;
       }
@@ -332,7 +364,7 @@ export class Poller {
         if (w.l1Changed.length) systems.add(unit.package);
         for (const f of w.files) if (!existsSync(systemEntryPath(this.config.wordbase, unit.package))) systems.add(unit.package);
         this.print(
-          `  unit ${unit.dir}: ${w.files.length} written, ${w.kept.length} kept, ${unit.files.length - unit.targets.length} siblings in context, ${ctx.stats.chars} chars, ${r.rewritten ? "rewritten once, " : ""}lint ${w.lintHits}, $${r.cost_usd.toFixed(3)}, ${(r.latency_ms / 1000).toFixed(0)} s`,
+          `  unit ${unit.dir}: ${w.files.length} written, ${w.kept.length} kept, ${unit.files.length - unit.targets.length} siblings in context, ${ctx.stats.chars} chars, ${r.rewritten ? `rewritten once (${r.rewriteReason.slice(0, 3).join("; ")}${r.rewriteReason.length > 3 ? `; +${r.rewriteReason.length - 3}` : ""}), ` : ""}lint ${w.lintHits}, $${r.cost_usd.toFixed(3)}, ${(r.latency_ms / 1000).toFixed(0)} s`,
         );
         s.units++;
         s.files += w.files.length;
@@ -342,6 +374,7 @@ export class Poller {
         tickCost += (e as { cost_usd?: number }).cost_usd ?? 0;
         s.errors++;
         this.print(`ERROR unit ${unit.dir}: ${(e as Error).message}`);
+        this.noteCredit(e);
         deferred.push(...unit.targets);
         return null;
       }
@@ -350,6 +383,7 @@ export class Poller {
 
     // Subsystem pages, once each, at the end of the tick.
     for (const system of [...systems].sort()) {
+      if (this.creditsOut) break;
       try {
         const r = await refreshSystem({ repo: this.repo, commit: head, wordbase: this.config.wordbase, prompts: this.config.prompts, backend: this.backend, system, by: `${this.backend.name} poll ${head.slice(0, 7)}` });
         s.costUsd += r.cost_usd;
@@ -426,9 +460,10 @@ export class Poller {
       const why = this.opts.onlyPrs.length ? "not named with --pr" : `over --max-preps ${this.opts.maxPreps} for this tick`;
       this.print(`  waiting (${why}): ${waiting.map((p) => `#${p.number}@${heads.get(p.number)!.slice(0, 7)}`).join(", ")}`);
     }
-    if (!selected.length) return;
+    if (!selected.length || this.opts.dryRun) return;
     this.sessions ??= new BackgroundSessions(this.config);
     await pool(selected, this.opts.prepConcurrency, async (p) => {
+      if (this.creditsOut) return;
       const head = heads.get(p.number)!;
       const prior = state.prs[p.number];
       this.print(`  pr #${p.number}: ${prior?.status === "prepared" ? "update" : "prepare"} at ${head.slice(0, 7)} (${p.reasons.join(", ")})`);
@@ -456,6 +491,7 @@ export class Poller {
       else {
         s.prsFailed++;
         s.errors++;
+        if (r.record.error) this.noteCredit(new Error(r.record.error));
       }
       const v = r.validation;
       this.print(

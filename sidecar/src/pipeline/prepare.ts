@@ -15,7 +15,7 @@ import type { SidecarMessage } from "../protocol.js";
 import { isReadOnlyCommand, readOnlyPolicy, SessionManager } from "../sessions.js";
 import { SERVER_NAME } from "../tools.js";
 import { commitWordbase, parseEntry, prDir, writeEntry } from "../wordbase.js";
-import { Gh, gitIn } from "./exec.js";
+import { Gh, gitIn, isCreditError } from "./exec.js";
 import { inputBlock, renderPrompt } from "./prompts.js";
 import type { MarinRepo } from "./repo.js";
 import type { Ledger, PrRecord } from "./state.js";
@@ -406,7 +406,8 @@ export async function preparePr(d: PrepDeps, listed: SearchedPr, head: string, p
       await d.ledger.add({ at: new Date().toISOString(), kind: "prepare", run: `pr ${n} ${name}`, model: PREP_MODEL, cost_usd: t.cost_usd });
       log(`turn ${name}: ${t.subtype}${t.is_error ? " (error)" : ""}, $${t.cost_usd.toFixed(3)}`);
       d.log(`  pr #${n} turn ${name}: ${t.subtype}, $${t.cost_usd.toFixed(2)}`);
-      if (t.is_error) throw new Error(`turn ${name} ended with ${t.subtype}`);
+      // A failed API call ends the turn with subtype success, is_error set and the API's message as the text.
+      if (t.is_error) throw new Error(`turn ${name} failed: ${t.text.trim().slice(0, 300) || t.subtype}`);
       return t;
     };
 
@@ -475,6 +476,10 @@ export async function preparePr(d: PrepDeps, listed: SearchedPr, head: string, p
       const entry = parseEntry(await readFile(path.join(outDir, "pr.md"), "utf8"));
       if (v.lint.length) entry.front.lint = v.lint;
       else delete entry.front.lint;
+      // The model does not know the time; it has written local times marked Z. The poller's clock is the record.
+      const now = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+      entry.front.updated = now;
+      if (!isUpdate || !entry.front.prepared_at) entry.front.prepared_at = now;
       await writeFile(path.join(outDir, "pr.md"), writeEntry(entry), "utf8");
     }
     const cost = turns.reduce((s, t) => s + t.cost_usd, 0);
@@ -511,7 +516,7 @@ export async function preparePr(d: PrepDeps, listed: SearchedPr, head: string, p
     log(`failed: ${(e as Error).message}`);
     await flush();
     return {
-      record: { ...(prior ?? {}), number: n, title: pr.title, author: pr.author, reasons: pr.reasons, status: "failed", failed_head: head, error: (e as Error).message.slice(0, 500), cost_usd: turns.reduce((s, t) => s + t.cost_usd, 0) },
+      record: { ...(prior ?? {}), number: n, title: pr.title, author: pr.author, reasons: pr.reasons, status: "failed", ...(isCreditError((e as Error).message) ? {} : { failed_head: head }), error: (e as Error).message.slice(0, 500), cost_usd: turns.reduce((s, t) => s + t.cost_usd, 0) },
       validation: null,
       checker: [],
       gaps: [],

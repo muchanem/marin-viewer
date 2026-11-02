@@ -507,7 +507,7 @@ def main() -> None:
         pr_dirs = [p for p in pr_dirs if p.name in wanted]
     heads = []
     for pr_dir in pr_dirs:
-        parsed = front_matter(pr_dir / "pr.md")
+        parsed = front_matter(pr_dir / "pr.md") if (pr_dir / "pr.md").exists() else None
         if parsed:
             heads.append(parsed[0].get("head", ""))
     # Use the first checkout that holds every PR head; a fresh clone of main may lack merged PR heads.

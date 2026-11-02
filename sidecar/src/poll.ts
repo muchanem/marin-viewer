@@ -8,7 +8,9 @@
 //   --backend claude|glm     description backend (default claude)
 //   --model <id>             Claude model for descriptions (default claude-sonnet-5-5)
 //   --pr <n>                 prepare only this PR (repeatable); a PR missing from the search is prepared anyway
-//   --max-preps <n>          start at most n preparation runs this tick (0 lists PRs only)
+//   --describe-to <rev>     describe only through <rev>, an ancestor of main
+//   --dry-run                print what the describe step would do; call no model, change no state
+//   --max-preps <n>         start at most n preparation runs this tick (0 lists PRs only)
 //   --no-prs, --no-describe  skip a step
 //   --prep-budget <usd>      per-run cap for a preparation session (default 8)
 //   --prep-effort <level>    effort for the preparation session (default high)
@@ -56,6 +58,12 @@ function parseArgs(argv: string[]): { opts: PollerOptions; once: boolean; resetD
         break;
       case "--pr":
         opts.onlyPrs.push(num(v(), a));
+        break;
+      case "--describe-to":
+        opts.describeTo = v() ?? null;
+        break;
+      case "--dry-run":
+        opts.dryRun = true;
         break;
       case "--max-preps":
         opts.maxPreps = num(v(), a);

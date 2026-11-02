@@ -9,7 +9,7 @@ import { lint } from "../lint.js";
 import { fileEntryPath, readEntry, saveEntry, type Entry, type Note, type SymbolSection } from "../wordbase.js";
 import type { Backend, Completion } from "./backends.js";
 import { renderPrompt } from "./prompts.js";
-import type { UnitContext } from "./units.js";
+import { unitKind, unitLabel, type UnitContext } from "./units.js";
 
 export const SymbolOut = z.object({ name: z.string().min(1), l1: z.string().min(1), l2: z.string().min(1).optional() });
 export const EntryOut = z.object({
@@ -22,19 +22,24 @@ export const EntryOut = z.object({
 });
 export const KeepOut = z.object({ keep: z.literal(true) }).strict();
 export const UnitOutput = z.record(z.string(), z.union([KeepOut, EntryOut]));
+/** The `tests` map: one sentence per test file the unit owns. */
+export const TestsOut = z.record(z.string(), z.object({ l1: z.string().min(1) }));
 export type EntryOut = z.infer<typeof EntryOut>;
 export type UnitOutput = z.infer<typeof UnitOutput>;
+export type TestsOut = z.infer<typeof TestsOut>;
 
 // The same single-sentence test as prompts/check_fixture.py.
 const SENTENCE_BREAK = /(?<!\be\.g)(?<!\bi\.e)[.!?]\s+[A-Z`]/;
 
 export async function renderDescribePrompt(promptsDir: string, ctx: UnitContext): Promise<string> {
-  const text = await renderPrompt(promptsDir, "describe-unit.md", {
-    unit: ctx.unit.dir,
-    commit: ctx.unit.commit,
-    package: ctx.unit.package,
-    unit_kind: "a single directory",
-  });
+  const text =
+    ctx.header ??
+    (await renderPrompt(promptsDir, "describe-unit.md", {
+      unit: ctx.unit.dir,
+      commit: ctx.unit.commit,
+      package: ctx.unit.package,
+      unit_kind: unitKind(ctx.unit),
+    }));
   return `${text}\n\n${ctx.inputs}`;
 }
 
@@ -53,6 +58,8 @@ export function extractJson(text: string): unknown {
 
 export interface Checked {
   output: UnitOutput | null;
+  /** Test `l1` lines by path. */
+  tests: TestsOut;
   /** Validation problems: a reply with any is rejected. */
   problems: string[];
   /** Lint hits by path, as `field: rule "match"`. */
@@ -70,19 +77,30 @@ export function lintEntry(e: EntryOut): string[] {
   return fields.flatMap(([f, t]) => lint(t).map((h) => `${f}: ${h.rule} "${h.match}"`));
 }
 
-export function checkOutput(text: string, targets: string[], existing: Set<string>, pkg: string): Checked {
+export function checkOutput(text: string, targets: string[], existing: Set<string>, pkg: string, testTargets: string[] = []): Checked {
   const problems: string[] = [];
   const lintHits = new Map<string, string[]>();
   let raw: unknown;
   try {
     raw = extractJson(text);
   } catch (e) {
-    return { output: null, problems: [`the reply is not a JSON object: ${(e as Error).message}`], lint: lintHits };
+    return { output: null, tests: {}, problems: [`the reply is not a JSON object: ${(e as Error).message}`], lint: lintHits };
+  }
+  let tests: TestsOut = {};
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && "tests" in raw) {
+    const { tests: rawTests, ...rest } = raw as Record<string, unknown>;
+    raw = rest;
+    const t = TestsOut.safeParse(rawTests);
+    if (!t.success) {
+      const issues = t.error.issues.slice(0, 8).map((i) => `tests.${i.path.join(".")}: ${i.message}`);
+      return { output: null, tests: {}, problems: [`the tests map does not match its schema: ${issues.join("; ")}`], lint: lintHits };
+    }
+    tests = t.data;
   }
   const parsed = UnitOutput.safeParse(raw);
   if (!parsed.success) {
     const issues = parsed.error.issues.slice(0, 8).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
-    return { output: null, problems: [`the JSON does not match the entry schema: ${issues.join("; ")}`], lint: lintHits };
+    return { output: null, tests, problems: [`the JSON does not match the entry schema: ${issues.join("; ")}`], lint: lintHits };
   }
   const out = parsed.data;
   const keys = new Set(Object.keys(out));
@@ -90,6 +108,10 @@ export function checkOutput(text: string, targets: string[], existing: Set<strin
   const extra = [...keys].filter((k) => !targets.includes(k));
   if (missing.length) problems.push(`entries missing for ${missing.join(", ")}`);
   if (extra.length) problems.push(`keys that are not targets: ${extra.join(", ")}`);
+  const testsMissing = testTargets.filter((t) => !(t in tests));
+  const testsExtra = Object.keys(tests).filter((k) => !testTargets.includes(k));
+  if (testsMissing.length) problems.push(`tests missing an l1: ${testsMissing.join(", ")}`);
+  if (testsExtra.length) problems.push(`tests that are not test targets: ${testsExtra.join(", ")}`);
   for (const [p, v] of Object.entries(out)) {
     if ("keep" in v) {
       if (!existing.has(p)) problems.push(`${p}: keep given to a file without an existing entry`);
@@ -100,7 +122,12 @@ export function checkOutput(text: string, targets: string[], existing: Set<strin
     const hits = lintEntry(v);
     if (hits.length) lintHits.set(p, hits);
   }
-  return { output: out, problems, lint: lintHits };
+  for (const [p, v] of Object.entries(tests)) {
+    if (SENTENCE_BREAK.test(v.l1)) problems.push(`tests.${p}: l1 must be a single sentence`);
+    const hits = lint(v.l1).map((h) => `l1: ${h.rule} "${h.match}"`);
+    if (hits.length) lintHits.set(p, hits);
+  }
+  return { output: out, tests, problems, lint: lintHits };
 }
 
 export function rewriteRequest(c: Checked): string {
@@ -115,6 +142,8 @@ export function rewriteRequest(c: Checked): string {
 
 export interface UnitResult {
   output: UnitOutput;
+  /** Test `l1` lines by path. */
+  tests: TestsOut;
   lint: Map<string, string[]>;
   completions: Completion[];
   rewritten: boolean;
@@ -128,7 +157,8 @@ export async function describeUnit(backend: Backend, promptsDir: string, ctx: Un
   const prompt = await renderDescribePrompt(promptsDir, ctx);
   const existing = new Set(ctx.existing.keys());
   const first = await backend.complete([{ role: "user", content: prompt }]);
-  let checked = checkOutput(first.text, ctx.unit.targets, existing, ctx.unit.package);
+  const testTargets = ctx.unit.testTargets ?? [];
+  let checked = checkOutput(first.text, ctx.unit.targets, existing, ctx.unit.package, testTargets);
   const completions = [first];
   let rewritten = false;
   let rewriteReason: string[] = [];
@@ -141,18 +171,18 @@ export async function describeUnit(backend: Backend, promptsDir: string, ctx: Un
       { role: "user", content: rewriteRequest(checked) },
     ]);
     completions.push(second);
-    const again = checkOutput(second.text, ctx.unit.targets, existing, ctx.unit.package);
+    const again = checkOutput(second.text, ctx.unit.targets, existing, ctx.unit.package, testTargets);
     // Keep the first reply's valid entries when the rewrite breaks the JSON.
     checked = again.output || !checked.output ? again : { ...checked, problems: [...checked.problems, ...again.problems] };
   }
   const cost = completions.reduce((s, c) => s + c.cost_usd, 0);
   const latency = completions.reduce((s, c) => s + c.latency_ms, 0);
   if (!checked.output || checked.problems.length) {
-    const err = new Error(`${backend.name} output for ${ctx.unit.dir} failed validation after one rewrite: ${checked.problems.join("; ")}`) as Error & { cost_usd?: number };
+    const err = new Error(`${backend.name} output for ${unitLabel(ctx.unit)} failed validation after one rewrite: ${checked.problems.join("; ")}`) as Error & { cost_usd?: number };
     err.cost_usd = cost;
     throw err;
   }
-  return { output: checked.output, lint: checked.lint, completions, rewritten, rewriteReason, cost_usd: cost, latency_ms: latency };
+  return { output: checked.output, tests: checked.tests, lint: checked.lint, completions, rewritten, rewriteReason, cost_usd: cost, latency_ms: latency };
 }
 
 // ---------------------------------------------------------------------------
@@ -185,17 +215,28 @@ export function buildEntry(prev: Entry | null, repoPath: string, out: EntryOut, 
   return { front, preamble: prev?.preamble ?? "", symbols, notes, other: prev?.other ?? [] };
 }
 
+/**
+ * A test file's entry: the `l1` sentence alone. Tests are not systems, so the entry has no `l2`,
+ * `l3` or symbols; `system` names the package so the file still lists under it, and notes are kept.
+ */
+export function buildTestEntry(prev: Entry | null, repoPath: string, l1: string, meta: { commit: string; by: string; now: string; lint?: string[] }): Entry {
+  const front: Entry["front"] = { kind: "file", path: repoPath, commit: meta.commit, updated: meta.now, by: meta.by, l1, system: repoPath.split("/")[1] ?? "", test: true, ...(meta.lint?.length ? { lint: meta.lint } : {}) };
+  return { front, preamble: prev?.preamble ?? "", symbols: [], notes: prev?.notes ?? [], other: prev?.other ?? [] };
+}
+
 export interface Written {
   files: string[];
   /** Repository paths whose `l1` changed or that are new, for the subsystem refresh. */
   l1Changed: string[];
   kept: string[];
+  /** Test files given an `l1`. */
+  tests: string[];
   lintHits: number;
 }
 
 export async function writeEntries(wordbase: string, result: UnitResult, meta: { commit: string; by: string; now?: string }): Promise<Written> {
   const now = meta.now ?? new Date().toISOString().replace(/\.\d+Z$/, "Z");
-  const w: Written = { files: [], l1Changed: [], kept: [], lintHits: 0 };
+  const w: Written = { files: [], l1Changed: [], kept: [], tests: [], lintHits: 0 };
   for (const [repoPath, v] of Object.entries(result.output)) {
     if ("keep" in v) {
       w.kept.push(repoPath);
@@ -208,6 +249,15 @@ export async function writeEntries(wordbase: string, result: UnitResult, meta: {
     await saveEntry(file, buildEntry(prev, repoPath, v, { commit: meta.commit, by: meta.by, now, lint: hits }));
     w.files.push(file);
     if (!prev || prev.front.l1 !== v.l1) w.l1Changed.push(repoPath);
+  }
+  for (const [repoPath, v] of Object.entries(result.tests ?? {})) {
+    const file = fileEntryPath(wordbase, repoPath);
+    const prev = await readEntry(file);
+    const hits = result.lint.get(repoPath) ?? [];
+    w.lintHits += hits.length;
+    await saveEntry(file, buildTestEntry(prev, repoPath, v.l1, { commit: meta.commit, by: meta.by, now, lint: hits }));
+    w.files.push(file);
+    w.tests.push(repoPath);
   }
   return w;
 }

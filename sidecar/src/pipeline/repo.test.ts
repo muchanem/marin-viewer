@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ModuleIndex, moduleOf, packageName, parseImport, parseNameStatus, signatures } from "./repo.js";
+import { contextPackage, isTestPath, ModuleIndex, moduleOf, packageName, parseImport, parseNameStatus, signatures } from "./repo.js";
 import { groupByDirectory } from "./units.js";
 
 describe("name-status parsing", () => {
@@ -21,6 +21,27 @@ describe("modules", () => {
     expect(moduleOf("lib/shellbox/tests/test_task.py")).toBe("tests.test_task");
     expect(moduleOf("README.md")).toBeNull();
     expect(packageName("lib/iris/src/iris/actor")).toBe("iris");
+  });
+
+  it("names modules outside lib/ from the repository root, and classes test files and packages", () => {
+    expect(moduleOf("experiments/grug/base.py")).toBe("experiments.grug.base");
+    expect(moduleOf("scripts/iris/__init__.py")).toBe("scripts.iris");
+    expect(contextPackage("lib/iris/src/iris/actor/client.py")).toBe("iris");
+    expect(contextPackage("experiments/grug/base.py")).toBe("experiments");
+    expect(contextPackage("tests/execution/test_x.py")).toBe("tests");
+    for (const p of ["lib/a/tests/x.py", "tests/foo.py", "lib/a/src/a/test_b.py", "lib/a/src/a/b_test.py", "lib/a/conftest.py"]) expect(isTestPath(p)).toBe(true);
+    for (const p of ["lib/a/src/a/testing/util.py", "lib/a/src/a/contest.py", "experiments/attest.py"]) expect(isTestPath(p)).toBe(false);
+  });
+
+  it("resolves a module name two packages share to the importer's own, and counts imported names", () => {
+    const idx = new ModuleIndex(["lib/a/tests/conftest.py", "lib/b/tests/conftest.py", "lib/s/src/s/__init__.py", "lib/s/src/s/task.py"]);
+    expect(idx.resolve({ module: "tests.conftest", names: ["fx"] }, "lib/b/tests/test_y.py")).toEqual(["lib/b/tests/conftest.py"]);
+    expect(idx.resolve({ module: "tests.conftest", names: ["fx"] }, "lib/a/tests/test_y.py")).toEqual(["lib/a/tests/conftest.py"]);
+    expect([...idx.resolveNames({ module: "s", names: ["task", "A", "B"] })]).toEqual([
+      ["lib/s/src/s/task.py", 1],
+      ["lib/s/src/s/__init__.py", 2],
+    ]);
+    expect([...idx.resolveNames({ module: "s.task", names: [] })]).toEqual([["lib/s/src/s/task.py", 1]]);
   });
 
   it("parses absolute and relative imports", () => {

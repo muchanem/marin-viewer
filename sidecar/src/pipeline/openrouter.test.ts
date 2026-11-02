@@ -165,7 +165,7 @@ describe("cost estimates", () => {
 
   it("adds Terra's column, its tier and cost source, and the flex and full-pass estimates", () => {
     const md = renderReport({ commit: "c".repeat(40), runs: { sonnet, terra } }, [{ dir: "lib/x", package: "x", commit: "c", files: ["lib/x/a.py", "lib/x/b.py"], targets: ["lib/x/a.py", "lib/x/b.py"] }], { units: [{ chars: 120_000, files: 2 }], files: 2 });
-    expect(MODEL_ORDER.at(-1)).toBe("terra");
+    expect(MODEL_ORDER.slice(-2)).toEqual(["terra", "terra-full"]);
     expect(md).toMatch(/\| GPT-6\.1 Terra \| `openai\/gpt-6\.1-terra` \(effort medium, tier priority requested, priority served\) \| 1 of 1 \|/);
     expect(md).toMatch(/- GPT-6\.1 Terra: OpenRouter's reported cost .*The 2 calls recorded usage\.cost, and reported 3000 reasoning tokens\./);
     expect(md).toMatch(/\| Unit \| Sonnet 5\.5 cost \/ latency \/ lint \| GPT-6\.1 Terra cost \/ latency \/ lint \|/);

@@ -87,6 +87,19 @@ export class MarinRepo {
     return out.split("\n").filter(Boolean);
   }
 
+  /** The paths the clone's ignore rules match, tracked or not (`git check-ignore --no-index`). */
+  async ignored(paths: string[]): Promise<string[]> {
+    if (!paths.length) return [];
+    try {
+      const out = await this.git(["check-ignore", "--no-index", "--stdin"], { input: paths.join("\n") + "\n" });
+      return out.split("\n").filter(Boolean);
+    } catch (e) {
+      const r = (e as { result?: { code: number; stderr: string } }).result;
+      if (r && r.code === 1 && !r.stderr.trim()) return [];
+      throw e;
+    }
+  }
+
   /** Blob sizes for every file under `prefix`, from one `ls-tree -l`. */
   async sizes(commit: string, prefix: string): Promise<Map<string, number>> {
     const out = await this.git(["ls-tree", "-r", "-l", commit, "--", prefix]);
@@ -143,12 +156,27 @@ export function parseNameStatus(out: string): Change[] {
 // ---------------------------------------------------------------------------
 // Modules and imports
 
-/** `lib/shellbox/src/shellbox/task.py` -> `shellbox.task`; `.../pkg/__init__.py` -> `pkg`. */
+/**
+ * Trees left out of the import graph: `vendor/` holds upstream projects (evalchemy, harbor, skyrl)
+ * that Marin's own linters and type checker exclude too.
+ */
+export const EXCLUDED_TREES = ["vendor/"];
+
+/**
+ * The module name a file is imported by. Under `lib/` the src layout applies:
+ * `lib/shellbox/src/shellbox/task.py` -> `shellbox.task`, and a package without `src/` drops its
+ * first two parts (`lib/levanter/tests/x.py` -> `tests.x`). Elsewhere the repository root is on the
+ * path: `experiments/grug/base.py` -> `experiments.grug.base`. `.../pkg/__init__.py` -> `pkg`.
+ */
 export function moduleOf(path: string): string | null {
-  if (!path.startsWith("lib/") || !path.endsWith(".py")) return null;
+  if (!path.endsWith(".py")) return null;
   const parts = path.split("/");
-  const src = parts.indexOf("src");
-  const rest = src >= 0 ? parts.slice(src + 1) : parts.slice(2);
+  let rest: string[];
+  if (parts[0] === "lib") {
+    const src = parts.indexOf("src");
+    rest = src >= 0 ? parts.slice(src + 1) : parts.slice(2);
+  } else rest = parts;
+  rest = [...rest];
   if (!rest.length) return null;
   rest[rest.length - 1] = rest[rest.length - 1]!.replace(/\.py$/, "");
   if (rest[rest.length - 1] === "__init__") rest.pop();
@@ -166,6 +194,22 @@ function packageOf(path: string): string[] {
 /** `lib/shellbox/...` -> `shellbox`. */
 export function packageName(path: string): string {
   return path.split("/")[1] ?? "";
+}
+
+/**
+ * The package a file counts toward when neighbours are chosen for diversity: the package name under
+ * `lib/`, else the top-level tree (`experiments`, `scripts`, `tests`, `infra`, ...).
+ */
+export function contextPackage(path: string): string {
+  const parts = path.split("/");
+  return parts[0] === "lib" ? (parts[1] ?? "lib") : parts.length > 1 ? parts[0]! : "(root)";
+}
+
+/** A test file: under a `tests` or `test` directory, or named `test_*.py`, `*_test.py` or `conftest.py`. */
+export function isTestPath(path: string): boolean {
+  const parts = path.split("/");
+  const base = parts.at(-1) ?? "";
+  return parts.slice(0, -1).some((p) => p === "tests" || p === "test") || /^test_.*\.py$/.test(base) || /_test\.py$/.test(base) || base === "conftest.py";
 }
 
 export interface ImportLine {
@@ -202,62 +246,119 @@ export function parseImport(path: string, text: string): ImportLine | null {
   return null;
 }
 
-/** Maps module names to repository paths for every Python file under `lib/` at one commit. */
+/**
+ * Maps module names to repository paths. Two files can claim one name (`tests.conftest` in several
+ * packages without a src layout); an import then resolves to the one in the importer's own package.
+ */
 export class ModuleIndex {
-  private byModule = new Map<string, string>();
+  private byModule = new Map<string, string[]>();
 
   constructor(paths: string[]) {
     for (const p of paths) {
       const mod = moduleOf(p);
-      if (mod && !this.byModule.has(mod)) this.byModule.set(mod, p);
+      if (!mod) continue;
+      const list = this.byModule.get(mod);
+      if (list) list.push(p);
+      else this.byModule.set(mod, [p]);
     }
   }
 
-  path(module: string): string | undefined {
-    return this.byModule.get(module);
+  private pick(module: string, from?: string): string | undefined {
+    const list = this.byModule.get(module);
+    if (!list) return undefined;
+    if (list.length === 1 || !from) return list[0];
+    const home = contextPackage(from);
+    return list.find((p) => contextPackage(p) === home) ?? list[0];
+  }
+
+  path(module: string, from?: string): string | undefined {
+    return this.pick(module, from);
   }
 
   /** The files an import refers to: submodules named in `from X import a`, else X or its longest known prefix. */
-  resolve(imp: ImportLine): string[] {
-    const out = new Set<string>();
+  resolve(imp: ImportLine, from?: string): string[] {
+    return [...this.resolveNames(imp, from).keys()];
+  }
+
+  /**
+   * The same files, each with the number of imported names it supplies: a named submodule counts
+   * one, each other name counts one toward the module itself, and a bare `import X` counts one.
+   */
+  resolveNames(imp: ImportLine, from?: string): Map<string, number> {
+    const out = new Map<string, number>();
+    let rest = 0;
     for (const n of imp.names) {
-      const sub = this.byModule.get(`${imp.module}.${n}`);
-      if (sub) out.add(sub);
+      const sub = this.pick(`${imp.module}.${n}`, from);
+      if (sub) out.set(sub, (out.get(sub) ?? 0) + 1);
+      else rest++;
     }
-    if (out.size < Math.max(1, imp.names.length)) {
+    if (rest || !imp.names.length) {
       const parts = imp.module.split(".");
       for (let i = parts.length; i > 0; i--) {
-        const p = this.byModule.get(parts.slice(0, i).join("."));
+        const p = this.pick(parts.slice(0, i).join("."), from);
         if (p) {
-          out.add(p);
+          out.set(p, (out.get(p) ?? 0) + Math.max(1, rest));
           break;
         }
       }
     }
-    return [...out];
+    return out;
   }
 }
 
-/** Every import edge among Python files under `lib/` at `commit`, from one `git grep`. */
-export async function importGraph(repo: MarinRepo, commit: string): Promise<{ index: ModuleIndex; imports: Map<string, Set<string>>; importers: Map<string, Set<string>> }> {
-  const files = (await repo.lsTree(commit, "lib/")).filter((p) => p.endsWith(".py"));
+/** Whether a path is in a tree the import graph leaves out. */
+export function excludedPath(path: string): boolean {
+  return EXCLUDED_TREES.some((t) => path.startsWith(t));
+}
+
+/**
+ * Every tracked `.py` file in the checkout at `commit` that the graph covers: `lib/`, `experiments/`,
+ * `scripts/`, `tests/`, `infra/` and the rest, less `EXCLUDED_TREES` and anything the clone's ignore
+ * rules match (a force-added file).
+ */
+export async function graphFiles(repo: MarinRepo, commit: string): Promise<string[]> {
+  const files = (await repo.lsTree(commit, ".")).filter((p) => p.endsWith(".py") && !excludedPath(p));
+  const ignored = new Set(await repo.ignored(files));
+  return files.filter((p) => !ignored.has(p));
+}
+
+export interface ImportGraph {
+  index: ModuleIndex;
+  /** Every file the graph covers. */
+  files: string[];
+  imports: Map<string, Set<string>>;
+  importers: Map<string, Set<string>>;
+  /** Imported names per edge: importer -> imported file -> count. */
+  names: Map<string, Map<string, number>>;
+}
+
+/** Every import edge among the files `graphFiles` lists, from one `git grep`. */
+export async function importGraph(repo: MarinRepo, commit: string): Promise<ImportGraph> {
+  const files = await graphFiles(repo, commit);
+  const covered = new Set(files);
   const index = new ModuleIndex(files);
-  const hits = await repo.grep(commit, "^[[:space:]]*(from|import)[[:space:]]", ["lib/*.py"]);
+  const hits = await repo.grep(commit, "^[[:space:]]*(from|import)[[:space:]]", ["*.py", ...EXCLUDED_TREES.map((t) => `:(exclude)${t}`)]);
   const imports = new Map<string, Set<string>>();
   const importers = new Map<string, Set<string>>();
+  const names = new Map<string, Map<string, number>>();
   for (const h of hits) {
+    if (!covered.has(h.path)) continue;
     const imp = parseImport(h.path, h.text);
     if (!imp) continue;
-    for (const target of index.resolve(imp)) {
+    for (const [target, n] of index.resolveNames(imp, h.path)) {
       if (target === h.path) continue;
       if (!imports.has(h.path)) imports.set(h.path, new Set());
       imports.get(h.path)!.add(target);
       if (!importers.has(target)) importers.set(target, new Set());
       importers.get(target)!.add(h.path);
+      if (!names.has(h.path)) names.set(h.path, new Map());
+      const m = names.get(h.path)!;
+      m.set(target, (m.get(target) ?? 0) + n);
     }
   }
-  return { index, imports, importers };
+  return { index, files, imports, importers, names };
 }
+
 
 /** First lines of class and function definitions, at module level and one level in. */
 export function signatures(source: string, maxLines = 40): string[] {

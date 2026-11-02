@@ -60,17 +60,23 @@ struct ViewerPill: View {
     }
 }
 
+/// `ViewerCard`'s padding and the gap under its header, which the strip sizes itself from.
+enum ViewerCardMetrics {
+    static let padding: CGFloat = 10
+    static let spacing: CGFloat = 6
+}
+
 /// The viewer's card container in the top strip.
 struct ViewerCard<Header: View, Content: View>: View {
     @ViewBuilder var header: Header
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: ViewerCardMetrics.spacing) {
             header
             content
         }
-        .padding(10)
+        .padding(ViewerCardMetrics.padding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.background, in: .rect(cornerRadius: 8))
         .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(Color.viewerRule) }

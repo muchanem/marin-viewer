@@ -88,7 +88,7 @@ struct ViewerRealDataProbe {
 
         let session = try #require(store.mainSession)
         session.addChip(ChipFactory.step(try #require(store.pr?.step(3)), commit: store.pr?.head ?? ""))
-        session.addChip(ChipFactory.file(ViewerFixture.src + "http_service.py", commit: store.pr?.head ?? "", shortener: store.shortener))
+        session.addChip(ChipFactory.file(ShellFixture.src + "http_service.py", commit: store.pr?.head ?? "", shortener: store.shortener))
         session.draft = "If the handler hangs, what does the guest see?"
         try await capture(window, to: output.appending(path: "app-3-session-chips.png"))
 
@@ -116,6 +116,26 @@ struct ViewerRealDataProbe {
         store.sidecar.stop()
     }
 
+    /// The smoke table's By file and blame rows, on the store's own reader: the cards By file
+    /// and the blame labels on http_service.py.
+    @Test func readerByFileAndBlame() async throws {
+        guard Self.enabled else { return }
+        let store = try await openStore()
+        _ = await eventuallyLong { store.diffReader != nil || store.documentError != nil }
+        let reader = try #require(store.diffReader, "document: \(store.documentError ?? "none")")
+        let http = ShellFixture.src + "http_service.py"
+        store.open(path: http)
+        store.blame = true
+        await reader.loadBlames()
+        let card = try #require(reader.cards.first { $0.path == http })
+        let labels = reader.rows(for: card).blameLabels
+        print("probe reader: mode \(reader.mode), \(reader.cards.count) By file cards of \(store.pr?.changes.count ?? 0) changed files, "
+              + "\(labels.count) blame labels on http_service.py, errors \(reader.blameErrors)")
+        #expect(reader.mode == .byFile && reader.cards.count == store.pr?.changes.count)
+        #expect(!labels.isEmpty && reader.blameErrors.isEmpty)
+        store.sidecar.stop()
+    }
+
     @Test func liveTurn() async throws {
         guard Self.enabled, Self.environment["MARIN_VIEWER_LIVE"] == "1" else {
             return print("live turn skipped (set MARIN_VIEWER_PROBE=1 and MARIN_VIEWER_LIVE=1)")
@@ -124,7 +144,7 @@ struct ViewerRealDataProbe {
         let session = try #require(store.mainSession)
         let pump = try #require(store.pr?.step(6))
         store.ask(ChipFactory.step(pump, commit: store.pr?.head ?? ""))
-        store.ask(ChipFactory.code(path: ViewerFixture.src + "http_service.py", lines: 125...147, symbol: "_pump",
+        store.ask(ChipFactory.code(path: ShellFixture.src + "http_service.py", lines: 125...147, symbol: "_pump",
                                    commit: store.pr?.head ?? "", shortener: store.shortener))
         session.draft = Self.environment["MARIN_VIEWER_LIVE_QUESTION"]
             ?? "If the host handler hangs, what does the guest see, and does anything else stall? Answer in three sentences."

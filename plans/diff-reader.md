@@ -51,6 +51,11 @@ The reader is SwiftUI on the outside and one TextKit view per card body:
   one line, gap bars 25 points, notes their wrapped height). The text view sets
   each paragraph to exactly that height and the gutter draws from the same
   numbers, so the two columns cannot drift.
+- A scroll to a row has two parts. `DiffReaderView` scrolls the card into view
+  with the `ScrollViewReader`, and the card body then centres the row. When
+  the card's body is already mounted (`model.mountedBodies`), the reader skips
+  its own scroll, because SwiftUI applies it after the body's and leaves the
+  card's top in view. `DiffReaderScrollTests` covers both cases.
 - Gap bars and open notes are empty paragraphs in the text, drawn in
   `drawBackground`; their buttons are hit rects, so selection runs straight
   across them and copying skips them.
@@ -72,7 +77,7 @@ that the gutter painted over the code in offscreen renders.
 - **By step:** kicker "STEP N OF M", title, the step's layered summary (More,
   Full description, Less), then one card per excerpt and a "Next: title" link.
   Excerpt cards show the excerpt plus 3 lines of context; the hidden part is a
-  gap bar "N hidden lines at the top, M changed" with Show 15 above, Show 15
+  gap bar such as "124 added lines at the top" or "40 lines, 12 changed" with Show 15 above, Show 15
   below and Show all. Deletion runs next to an excerpt edge are shown.
 - **By file:** source files, then tests, then other paths, each a card with
   every change and 3 lines of context.
@@ -109,6 +114,9 @@ model.onGoToDefinition = { request in ... }         // DiffDefinitionRequest
 model.onOpenInNewWindow = { target in ... }         // DiffCodeTarget
 model.onNoteSelected = { note in ... }
 model.definitionLookup = { symbol, origin in ... }  // optional, e.g. SCIP
+model.setStepOrder([3, 1, 2])   // a session's reorder; stepPosition and nextStep follow it
+model.selection                 // the last code selection: card, path, head lines, text
+model.onSelectionChanged = { selection in ... }
 DiffReaderView(model: model)
 DiffReaderControls(model: model)                    // By step / By file and Blame for a toolbar
 ```
@@ -141,7 +149,8 @@ test file and are skipped when either is missing.
 - The old-number column is always present; the demo hides it because its
   `--blame-w` variable is never set, which also hides blame.
 - Excerpts start at decorators (step 1 starts at line 44, the demo at 45).
-- Gap labels say "hidden" and count changes they hide (ViewerCore change
-  d6de5b8); the demo says "unchanged" even when the gap holds additions.
+- A gap that hides changes names them: "124 added lines at the top" when
+  every hidden row is one kind, "40 lines, 12 changed" otherwise. The demo
+  says "unchanged" even when the gap holds additions.
 - An open note wraps to the visible width; the demo's note runs past the card.
 - The noted row is tinted amber with a bar while its note is open.

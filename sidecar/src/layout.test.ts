@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CARD, DEFAULT_MIN_SCALE, clip, layoutDiagram, measureNode, type Box, type LayoutResult } from "./layout.js";
+import { CARD, DEFAULT_MIN_SCALE, clip, layoutDiagram, measureEdgeLabel, measureNode, type Box, type LayoutResult } from "./layout.js";
 import { Diagram, type DiagramInput } from "./protocol.js";
 
 // STEP_DIA[6] from demo/index.html in the section 6 Diagram format: the demo's coordinates are
@@ -243,6 +243,36 @@ describe("grid table sizing", () => {
     expect(measured.warnings).toEqual(['sizes names unknown node "zz"']);
     const auto = await layoutDiagram({ nodes: [{ id: "a", label: "x" }, { id: "b", label: "y" }], edges: [["a", "b"]] }, { sizes: { a: { w: 150, h: 40 } } });
     expect([auto.nodes[0]!.w, auto.nodes[0]!.h]).toEqual([150, 40]);
+  });
+
+  it("widens the gap a labelled edge crosses so its measured label clears both boxes", async () => {
+    // The PR map's Primary -> Runtime "loopback" edge inside one group: the fixed 32 px gap is
+    // narrower than the label, which then covered the boxes.
+    const diagram: DiagramInput = {
+      layout: { mode: "grid" },
+      nodes: [box("a", "Primary", 0, 0), box("b", "Runtime", 1, 0), box("c", "Below", 0, 1)],
+      edges: [["a", "b", "loopback"], ["a", "c", "probes"]],
+      groups: [{ label: "G", members: ["a", "b", "c"] }],
+    };
+    const plain = await layoutDiagram({ ...diagram, edges: [["a", "b"], ["a", "c"]] }, { sizes });
+    const out = await layoutDiagram(diagram, { sizes, edgeLabels: { loopback: { w: 50, h: 13 }, probes: { w: 40, h: 13 }, unused: { w: 1, h: 1 } } });
+    const n = Object.fromEntries(out.nodes.map((x) => [x.id, x]));
+    const gap = (n.b!.x - (n.a!.x + n.a!.w)) / out.scale;
+    expect(gap).toBeCloseTo(50 + 12, 1);
+    expect(out.natural.width).toBeCloseTo(plain.natural.width + (50 + 12 - 32), 1);
+    const loopback = out.edges.find((e) => e.label === "loopback")!.label_box!;
+    expect(loopback.w).toBeCloseTo(50 * out.scale, 1);
+    expect(loopback.x).toBeGreaterThanOrEqual(n.a!.x + n.a!.w);
+    expect(loopback.x + loopback.w).toBeLessThanOrEqual(n.b!.x);
+    // A vertical edge's label sits beside the line, clear of both boxes.
+    const probes = out.edges.find((e) => e.label === "probes")!.label_box!;
+    expect(probes.y).toBeGreaterThanOrEqual(n.a!.y + n.a!.h);
+    expect(probes.y + probes.h).toBeLessThanOrEqual(n.c!.y);
+    expect(out.warnings).toContain('edgeLabels names unknown label "unused"');
+  });
+
+  it("estimates an edge label from the demo's 8.5 px font when the app sends no size", async () => {
+    expect(measureEdgeLabel("loopback")).toEqual({ w: 47, h: 14 });
   });
 
   it("never shrinks below minScale: a too-wide diagram overflows at minScale", async () => {

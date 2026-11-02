@@ -86,7 +86,7 @@ struct DiffReaderModelTests {
         // The first excerpt of step 6 hides the 124 added lines above `_pump`.
         let card = model.cards[0]
         guard case .gap(let top) = model.segments(for: card).first else { Issue.record("no top gap"); return }
-        #expect(top.label == "124 hidden lines at the top, 124 changed")
+        #expect(top.label == "124 added lines at the top")
         #expect(top.expanders.map(\.title) == ["Show 15 above", "Show all"])
         model.expand(top.expanders[0], in: card)
         guard case .gap(let smaller) = model.segments(for: card).first else { Issue.record("no top gap"); return }

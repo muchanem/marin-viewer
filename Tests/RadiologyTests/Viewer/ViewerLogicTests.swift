@@ -23,7 +23,7 @@ import ViewerCore
             .map { $0.title(label: session.label) } == ["Ask About ProcessSession", "Go to Step 4", "Open Step Diagram"])
         let spec = DiagramLayoutResult.Node(id: "spec", label: "TaskSpec", step: 1, x: 0, y: 0, w: 90, h: 34)
         #expect(DiagramBoxAction.actions(for: spec, in: .pr, hasStepDiagram: hasDiagram) == [.ask, .goToStep(1)])
-        let at = try ViewerFixture.location("lib/shellbox/src/shellbox/http_service.py", function: "_pump")
+        let at = try ShellFixture.location("lib/shellbox/src/shellbox/http_service.py", function: "_pump")
         let pump = DiagramLayoutResult.Node(id: "pu", label: "_pump", step: 6, at: at, x: 0, y: 0, w: 90, h: 34)
         #expect(DiagramBoxAction.actions(for: pump, in: .step(6), hasStepDiagram: hasDiagram)
             == [.ask, .openCode(at), .openCodeInNewWindow(path: at.path), .goToStep(6)])
@@ -31,7 +31,7 @@ import ViewerCore
 
     @Test func chipLabelsMatchTheDemo() throws {
         let shortener = PathShortener(system: SystemPage(name: "shellbox", layers: nil, members: ["lib/shellbox/"], diagram: nil))
-        let src = ViewerFixture.src
+        let src = ShellFixture.src
         #expect(ChipFactory.file(src + "http_service.py", commit: "c", shortener: shortener).label == "file http_service.py")
         #expect(ChipFactory.file("lib/rolloutengine/x.py", commit: "c", shortener: shortener).label == "file lib/rolloutengine/x.py")
         let at = try JSONDecoder().decode(CodeLocation.self, from: Data(#"{"path":"lib/shellbox/src/shellbox/http_service.py","function":"_pump"}"#.utf8))
@@ -78,7 +78,7 @@ import ViewerCore
     }
 
     @Test func preparedPRsListOnlyDirectoriesWithAPRPage() throws {
-        let fixture = try ViewerFixture.make()
+        let fixture = try ShellFixture.make()
         defer { fixture.remove() }
         #expect(fixture.paths.preparedPRs() == [10640])
     }
@@ -94,8 +94,8 @@ import ViewerCore
     }
 
     @Test func focusedTreeShowsChangedFoldersFirstAndCollapsesTests() throws {
-        let src = ViewerFixture.src
-        let tree = FocusedTree(root: "lib/shellbox/", headFiles: ViewerFixture.headFiles, changes: ViewerFixture.changes,
+        let src = ShellFixture.src
+        let tree = FocusedTree(root: "lib/shellbox/", headFiles: ShellFixture.headFiles, changes: ShellFixture.changes,
                                stepsByPath: [src + "task.py": [1, 3]], draftPaths: [src + "task.py"], toggled: [])
         let ids = tree.rows.map(\.id)
         #expect(ids.first == "root:lib/shellbox/")
@@ -112,7 +112,7 @@ import ViewerCore
         // backends/qemu holds no change.
         #expect(tree.rows.contains { if case .unchangedFolders(let count, let names) = $0 { count == 1 && names == ["src/shellbox/backends/qemu"] } else { false } })
         #expect(ids.contains("elsewhere") && ids.contains("else:lib/rolloutengine/src/rolloutengine/rollout.py"))
-        let opened = FocusedTree(root: "lib/shellbox/", headFiles: ViewerFixture.headFiles, changes: ViewerFixture.changes,
+        let opened = FocusedTree(root: "lib/shellbox/", headFiles: ShellFixture.headFiles, changes: ShellFixture.changes,
                                  stepsByPath: [:], draftPaths: [], toggled: ["t:tests", "q:src/shellbox"])
         #expect(opened.rows.map(\.id).contains("file:lib/shellbox/tests/test_task.py"))
         #expect(opened.rows.map(\.id).contains("quiet:\(src)machine.py"))

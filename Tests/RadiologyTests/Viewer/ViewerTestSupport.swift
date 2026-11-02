@@ -71,14 +71,14 @@ final class ScriptedTransport: SidecarTransport, @unchecked Sendable {
 
 /// A small prepared PR in the wordbase layout, written to a temporary directory: three steps,
 /// a PR map with a diagram for step 2, a subsystem page and three notes.
-struct ViewerFixture {
+struct ShellFixture {
     let root: URL
     var paths: ViewerPaths { ViewerPaths(root: root) }
     static let head = "01a8bb8f0bea2dde1de90274ed695c25147b9f06"
     static let base = "8a92f90382559206b03ead1afbbd32c35f68fcff"
     static let src = "lib/shellbox/src/shellbox/"
 
-    static func make() throws -> ViewerFixture {
+    static func make() throws -> ShellFixture {
         let root = FileManager.default.temporaryDirectory.appending(path: "viewer-fixture-\(UUID().uuidString)", directoryHint: .isDirectory)
         let pr = root.appending(path: "wordbase/prs/10640", directoryHint: .isDirectory)
         let systems = root.appending(path: "wordbase/systems", directoryHint: .isDirectory)
@@ -91,7 +91,7 @@ struct ViewerFixture {
         try "{}".write(to: pr.appending(path: "files.json"), atomically: true, encoding: .utf8)
         try Self.notes.write(to: pr.appending(path: "notes.jsonl"), atomically: true, encoding: .utf8)
         try Self.system.write(to: systems.appending(path: "shellbox.md"), atomically: true, encoding: .utf8)
-        return ViewerFixture(root: root)
+        return ShellFixture(root: root)
     }
 
     func remove() { try? FileManager.default.removeItem(at: root) }
@@ -124,6 +124,42 @@ struct ViewerFixture {
         let changes = Self.changes
         return ViewerPR(number: 10640, directory: directory, wordbase: try PRWordbase(directory: directory), changes: changes,
                         system: ViewerPRLoader.system(covering: changes.map(\.path), in: paths.wordbase), headFiles: Self.headFiles)
+    }
+
+    /// A review document for `pr` without git: task.py and http_service.py are new files,
+    /// machine.py changes lines 1040...1049 of 1100, and the steps' excerpts resolve to their
+    /// recorded lines. Each file declares the functions the code path and diagrams name.
+    static func document(for pr: ViewerPR) -> PRReviewDocument {
+        func added(_ count: Int) -> [DiffRow] {
+            (1...count).map { DiffRow(kind: .added, oldLine: nil, newLine: $0, text: "line \($0)") }
+        }
+        let machineRows = (1...1100).map { line in
+            let isAdded = (1040...1049).contains(line)
+            return DiffRow(kind: isAdded ? .added : .context, oldLine: isAdded ? nil : (line < 1040 ? line : line - 10),
+                           newLine: line, text: "line \(line)")
+        }
+        func declaration(_ qualified: String, _ lines: ClosedRange<Int>) -> DiffDeclaration {
+            DiffDeclaration(name: String(qualified.split(separator: ".").last ?? ""), qualifiedName: qualified, kind: "function",
+                            lines: lines, nameLine: lines.lowerBound)
+        }
+        func file(_ path: String, _ status: FileChangeStatus, _ rows: [DiffRow], _ declarations: [DiffDeclaration]) -> PRFileReview {
+            PRFileReview(diff: FileDiff(oldPath: status == .added ? nil : path, newPath: path, status: status, rows: rows),
+                         description: nil, headText: rows.map(\.text).joined(separator: "\n"), languageName: "python",
+                         headHighlights: [], baseHighlights: [], declarations: declarations, isTest: false)
+        }
+        let files = [
+            file(src + "task.py", .added, added(160), [declaration("TaskSpec", 45...111), declaration("Task.wait_ready", 137...145),
+                                                         declaration("Task.close", 146...151)]),
+            file(src + "backends/local/machine.py", .modified, machineRows, [declaration("LocalMachineFactory.create_task", 1029...1091)]),
+            file(src + "http_service.py", .added, added(223), [declaration("_pump", 125...147)]),
+        ]
+        let steps = pr.wordbase.codePath.map { step in
+            ResolvedStep(step: step, excerpts: step.excerpts.map {
+                ResolvedExcerpt(excerpt: $0, lines: $0.lineRange ?? 1...1, source: .lines, problem: nil)
+            })
+        }
+        return PRReviewDocument(number: pr.number, title: pr.header.title, base: base, head: head, repository: URL(filePath: "/nonexistent"),
+                                description: pr.header.layers, files: files, steps: steps, notes: pr.wordbase.notes)
     }
 
     static let prMarkdown = """

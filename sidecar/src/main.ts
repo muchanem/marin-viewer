@@ -45,7 +45,7 @@ export function createRouter(p: { config: Config; send: (m: SidecarMessage) => v
         reply(m.id, await sessions.keepNotes(m.session, m.notes));
         return;
       case "layout":
-        reply(m.id, await layoutDiagram(m.diagram, { ...(m.options ?? {}), sizes: m.sizes }));
+        reply(m.id, await layoutDiagram(m.diagram, { ...(m.options ?? {}), sizes: m.sizes, edgeLabels: m.edge_labels }));
         return;
       case "review.post": {
         const result = await postReview({ pr: m.pr, notes: m.notes, repo: m.repo, body: m.body, ...(p.gh ? { gh: p.gh } : {}) });

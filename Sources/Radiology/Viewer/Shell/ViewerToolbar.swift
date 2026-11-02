@@ -20,18 +20,22 @@ struct ViewerToolbar: ToolbarContent {
             PRCrumb()
         }
         ToolbarItem(placement: .principal) {
+            // By step / By file and Blame sit together, as in DESIGN.md §2 and the demo.
             @Bindable var store = store
-            Picker("Main view", selection: $store.mode) {
-                ForEach(ViewerMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
+            HStack(spacing: 8) {
+                Picker("Main view", selection: $store.mode) {
+                    ForEach(ViewerMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .help("Read one step's code, or every changed file (⌥⌘3, ⌥⌘4)")
+                Toggle("Blame", isOn: $store.blame)
+                    .toggleStyle(.button)
+                    .fixedSize()
+                    .help("Show who last changed each line")
             }
-            .pickerStyle(.segmented)
-            .fixedSize()
-            .help("Read one step's code, or every changed file")
         }
         ToolbarItemGroup(placement: .primaryAction) {
-            @Bindable var store = store
-            Toggle("Blame", systemImage: "person.text.rectangle", isOn: $store.blame)
-                .help("Show who last changed each line")
             Button(isPanelPresented ? "Hide Session Panel" : "Show Session Panel", systemImage: "sidebar.right") {
                 isPanelPresented.toggle()
             }

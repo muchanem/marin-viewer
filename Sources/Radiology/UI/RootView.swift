@@ -14,11 +14,14 @@ struct RootView: View {
         let viewerPR = viewer?.isReviewing == true
         let isPanelPresented = panelBinding
         NavigationSplitView(columnVisibility: $sidebarVisibility) {
+            // The column width must be the sidebar's outermost modifier: after it,
+            // `.toolbar(removing:)` hides the width from the split view, which then opens the
+            // sidebar at 144 points.
             RepositorySidebar()
-                .navigationSplitViewColumnWidth(min: Theme.sidebarMinWidth, ideal: Theme.sidebarIdealWidth, max: Theme.sidebarMaxWidth)
                 .toolbar(removing: .sidebarToggle)
+                .navigationSplitViewColumnWidth(min: Theme.sidebarMinWidth, ideal: Theme.sidebarIdealWidth, max: Theme.sidebarMaxWidth)
         } detail: {
-            Group { if viewerPR { ViewerMainPlaceholder() } else { ReaderDetail() } }
+            Group { if viewerPR { ViewerMainView() } else { ReaderDetail() } }
                 .navigationTitle(model.attachedRoot?.lastPathComponent ?? model.repository?.root.lastPathComponent ?? "Radiology")
                 .modifier(ReaderToolbarTitleVisibility())
                 .toolbar(removing: .sidebarToggle)

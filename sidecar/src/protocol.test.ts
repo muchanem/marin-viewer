@@ -32,6 +32,13 @@ const appMessages: AppMessageT[] = [
   { type: "session.close", session: "s1", propose_notes: true },
   { type: "notes.keep", session: "s1", notes: [{ target: "lib/a.py#f", text: "learned", commit: "01a8bb8" }] },
   { type: "layout", id: 7, diagram: { nodes: [{ id: "a", label: "A" }, { id: "b", label: "B", sub: "b", step: 2, at: { path: "x.py", function: "f" } }], edges: [["a", "b"], ["b", "a", "back"]], groups: [{ label: "G", members: ["a"] }] } },
+  {
+    type: "layout",
+    id: 10,
+    diagram: { nodes: [{ id: "a", label: "A" }, { id: "b", label: "B" }], edges: [["a", "b", "loopback"]], groups: [] },
+    sizes: { a: { w: 60, h: 26 } },
+    edge_labels: { loopback: { w: 46, h: 13 } },
+  },
   { type: "review.post", id: 8, pr: 10640, notes: [{ ...note }] },
   {
     type: "layout",

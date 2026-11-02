@@ -149,6 +149,20 @@ enum DiagramMetrics {
         return false
     }
 
+    /// An edge label's box as `layout.ts` sizes it: the text plus 4 points on each side, 14 high.
+    static func edgeLabelSize(_ label: String) -> CGSize {
+        CGSize(width: (width(of: label, font: edgeFont()) + 8).rounded(.up), height: 14)
+    }
+
+    /// The `edge_labels` field of a `layout` request, by label text.
+    static func edgeLabels(for diagram: Diagram) -> JSONValue {
+        let labels = Set(diagram.edges.compactMap(\.label).filter { !$0.isEmpty })
+        return .object(Dictionary(uniqueKeysWithValues: labels.map { label in
+            let size = edgeLabelSize(label)
+            return (label, JSONValue.object(["w": .number(size.width), "h": .number(size.height)]))
+        }))
+    }
+
     /// The `sizes` field of a `layout` request.
     /// `extra` widens a box, as the PR map does for the "+" of a step with its own diagram.
     static func sizes(for diagram: Diagram, key: DiagramKey, extra: (DiagramNode) -> CGFloat = { _ in 0 }) -> JSONValue {

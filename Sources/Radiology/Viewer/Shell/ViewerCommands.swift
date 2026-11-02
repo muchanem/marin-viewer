@@ -30,13 +30,13 @@ struct ViewerCommands: Commands {
                 .keyboardShortcut("3", modifiers: [.command, .option]).disabled(!store.isReviewing)
             Button("By File") { store.mode = .byFile }
                 .keyboardShortcut("4", modifiers: [.command, .option]).disabled(!store.isReviewing)
-            Toggle("Blame", isOn: Bindable(store).blame).disabled(!store.isReviewing)
         }
     }
 }
 
-/// ⌘>: a chip from the reader's selection or caret in a code window, else the file, step, box or
-/// note last clicked, else the step on screen.
+/// ⌘> from the menu: a chip from the reader's selection or caret in a code window, else the
+/// file, step, box or note last clicked or the diff reader's code selection, whichever came
+/// later, else the step on screen. In the diff reader itself, the text view answers ⌘> first.
 enum ViewerAsk {
     @MainActor static func ask(store: ViewerStore, window: ViewerWindowModel) {
         if let chip = chip(store: store, window: window) {
@@ -48,7 +48,10 @@ enum ViewerAsk {
 
     @MainActor static func chip(store: ViewerStore, window: ViewerWindowModel) -> Chip? {
         if window.kind == .secondary, let reader = window.reader, let chip = readerChip(reader, store: store) { return chip }
+        // A click on a file, step, box or note clears with each new code selection, so the newer
+        // of the two wins.
         if let target = window.lastAskTarget { return target }
+        if window.kind == .main, let chip = store.diffReader?.selectionAskChip { return chip }
         if store.mode == .byStep, let step = store.focusedStep { return ChipFactory.step(step, commit: store.pr?.head ?? "") }
         return nil
     }

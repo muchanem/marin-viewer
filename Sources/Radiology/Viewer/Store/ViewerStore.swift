@@ -26,31 +26,63 @@ final class ViewerStore {
     private(set) var headWorktree: URL?
     private(set) var worktreeError: String?
 
-    // MARK: Seam: the PR view state the diff reader observes
+    // MARK: Seam: the PR view state the diff reader shows
+
+    /// The PR's review document: whole-file diffs, highlights and resolved excerpts. Loaded once
+    /// per open PR and shared by every reader on it.
+    private(set) var document: PRReviewDocument?
+    /// Why the document did not load; the main view then lists the steps' excerpts instead.
+    private(set) var documentError: String?
+    /// The main window's diff reader, once the document has loaded. While it exists, the view
+    /// state below reads from it and the seam actions drive it, so the sidebar, strip, toolbar
+    /// and panel follow what the reader shows.
+    private(set) var diffReader: DiffReaderModel?
+
+    private var storedMode: ViewerMode = .byStep
+    private var storedStepID: Int?
+    private var storedBlame = false
+    private var storedNoteID: String?
+    private var storedWholeFiles: Set<String> = []
 
     /// By step or by file.
-    var mode: ViewerMode = .byStep
+    var mode: ViewerMode {
+        get { diffReader.map { $0.mode == .byStep ? .byStep : .byFile } ?? storedMode }
+        set {
+            storedMode = newValue
+            diffReader?.mode = newValue == .byStep ? .byStep : .byFile
+        }
+    }
     /// The step the main view shows in By step mode.
-    private(set) var focusedStepID: Int?
+    var focusedStepID: Int? { diffReader?.stepID ?? storedStepID }
     /// The latest request to scroll the main view to code.
     private(set) var revealRequest: RevealRequest?
     /// The blame gutter.
-    var blame = false
+    var blame: Bool {
+        get { diffReader?.showBlame ?? storedBlame }
+        set {
+            storedBlame = newValue
+            diffReader?.showBlame = newValue
+        }
+    }
     /// The Changes tab's "Hide tests"; on by default, as in the demo, and separate from
     /// Radiology's saved Hide Tests preference.
     var hidesTests = true
     /// The review note shown inline below its line and focused in the panel.
-    private(set) var focusedNoteID: String?
-    /// Files the reader should show whole, from "Show Whole File".
-    private(set) var wholeFilePaths: Set<String> = []
+    var focusedNoteID: String? { diffReader.map { $0.expandedNoteID } ?? storedNoteID }
+    /// Files the reader shows whole, from "Show Whole File".
+    var wholeFilePaths: Set<String> { diffReader?.wholeFile ?? storedWholeFiles }
     /// The code path's order, which a session's proposal can change.
-    private(set) var stepOrder: [Int] = []
+    private(set) var stepOrder: [Int] = [] {
+        didSet { if !stepOrder.isEmpty { diffReader?.setStepOrder(stepOrder) } }
+    }
     /// Steps a session's applied proposal moved; they carry a "moved by session" tag.
     private(set) var movedSteps: Set<Int> = []
 
     // MARK: Notes, layouts, sessions
 
-    private(set) var notes = ReviewNotes(notes: [])
+    private(set) var notes = ReviewNotes(notes: []) {
+        didSet { diffReader?.notes = notes }
+    }
     var notesError: String?
     private(set) var isPosting = false
     private(set) var layouts: [DiagramKey: DiagramLayoutPhase] = [:]
@@ -71,6 +103,7 @@ final class ViewerStore {
     @ObservationIgnored private let makeLoader: @Sendable (ViewerPaths) throws -> ViewerPRLoader
     @ObservationIgnored private var loader: ViewerPRLoader?
     @ObservationIgnored private var worktreeTask: Task<URL?, Never>?
+    @ObservationIgnored private var documentTask: Task<Void, Never>?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var revealRevision = 0
     @ObservationIgnored private let resolver = ViewerLocationResolver()
@@ -124,6 +157,7 @@ final class ViewerStore {
             guard loadingPR == number else { return }
             install(loaded)
             startWorktree(loader: loader, head: loaded.head)
+            startDocument(number: number)
             requestLayouts(for: loaded)
         } catch {
             if loadingPR == number { loadError = error.localizedDescription }
@@ -136,14 +170,18 @@ final class ViewerStore {
         if let session = mainSession, session.phase == .memories {
             keepInBackground(session, reason: "another PR opened")
         }
+        documentTask?.cancel()
+        diffReader = nil
+        document = nil
+        documentError = nil
         pr = loaded
         notes = loaded.wordbase.notes
         stepOrder = loaded.wordbase.codePath.map(\.id)
         movedSteps = []
-        focusedStepID = stepOrder.first
-        focusedNoteID = nil
+        storedStepID = stepOrder.first
+        storedNoteID = nil
         revealRequest = nil
-        wholeFilePaths = []
+        storedWholeFiles = []
         mode = .byStep
         blame = false
         layouts = [:]
@@ -167,10 +205,108 @@ final class ViewerStore {
         if let session = mainSession, session.phase == .memories {
             keepInBackground(session, reason: "the PR closed")
         }
+        documentTask?.cancel()
+        diffReader = nil
+        document = nil
+        documentError = nil
         pr = nil
         mainSession = nil
         layouts = [:]
         if let reader = mainReader, reader.mode == .steps { reader.mode = .files }
+    }
+
+    // MARK: - The diff reader
+
+    /// Loads the PR's review document off the main actor, then gives the main window its reader.
+    private func startDocument(number: Int) {
+        documentTask?.cancel()
+        let paths = paths
+        documentTask = Task { [weak self] in
+            do {
+                let document = try await PRReviewLoader().load(prDirectory: paths.prDirectory(number), wordbaseRoot: paths.wordbase,
+                                                               repository: paths.marin)
+                guard let self, !Task.isCancelled, self.pr?.number == number else { return }
+                self.install(document: document)
+            } catch {
+                guard let self, !Task.isCancelled, self.pr?.number == number else { return }
+                self.documentError = error.localizedDescription
+            }
+        }
+    }
+
+    /// Makes `document` the open PR's and builds the main window's reader on it, carrying over
+    /// whatever the shell showed while it loaded. Public for tests and snapshots.
+    func install(document: PRReviewDocument) {
+        self.document = document
+        let reader = makeReader(for: mainWindow)
+        reader.notes = notes
+        reader.setStepOrder(stepOrder)
+        if let step = storedStepID { reader.focus(step: step) }
+        reader.mode = storedMode == .byStep ? .byStep : .byFile
+        reader.showBlame = storedBlame
+        for path in storedWholeFiles { reader.showWholeFile(path) }
+        diffReader = reader
+        if let note = storedNoteID { reader.focus(note: note) }
+        if let reveal = revealRequest, let line = reveal.line { reader.reveal(path: reveal.path, line: line) }
+    }
+
+    /// A reader on the open PR's document whose questions, definitions, new windows and notes
+    /// go to `window` and the store.
+    func makeReader(for window: ViewerWindowModel) -> DiffReaderModel {
+        guard let document else { preconditionFailure("makeReader needs a loaded document") }
+        let reader = DiffReaderModel(document: document)
+        reader.onAsk = { [weak self, weak window] chip in self?.ask(chip, from: window) }
+        reader.onOpenInNewWindow = { [weak self] target in self?.openInNewWindow(path: target.path, line: target.line) }
+        reader.onNoteSelected = { [weak self, weak window] note in self?.noteSelected(note.id, in: window) }
+        reader.onGoToDefinition = { [weak self, weak reader] request in
+            guard let self, let reader else { return }
+            self.goToDefinition(request, in: reader)
+        }
+        reader.onSelectionChanged = { [weak window] selection in
+            // A newer code selection is what the menu's ⌘> asks about.
+            if selection != nil { window?.lastAskTarget = nil }
+        }
+        reader.definitionLookup = { [weak self] symbol, _ in self?.indexDefinition(of: symbol) }
+        return reader
+    }
+
+    /// Go to Definition from the reader: a declaration in the PR's changed files scrolls the
+    /// reader; anything else opens Radiology's reader at it in a code window.
+    func goToDefinition(_ request: DiffDefinitionRequest, in reader: DiffReaderModel) {
+        guard let destination = request.destination ?? reader.definition(of: request.symbol, at: request.origin) else {
+            showToast("No definition of \(request.symbol) in this PR's files or the checkout's index.")
+            return
+        }
+        if reader.document.file(destination.path) != nil {
+            reader.reveal(destination)
+        } else {
+            openInNewWindow(path: destination.path, line: destination.line)
+        }
+    }
+
+    /// The definition of `symbol` in the main reader's SCIP index, for names the PR's changed
+    /// files do not declare.
+    func indexDefinition(of symbol: String) -> DiffCodeTarget? {
+        guard let reader = mainReader else { return nil }
+        let last = symbol.split(whereSeparator: { $0 == "." || $0 == ":" }).last.map(String.init) ?? symbol
+        let entry = reader.semantics.index.searchEntries.first { ($0.name == symbol || $0.name == last) && $0.definitionCount > 0 }
+        return entry.map { DiffCodeTarget(path: $0.position.path, line: $0.position.range.startLine + 1, symbol: symbol) }
+    }
+
+    /// A note opened in a reader: focus its card in that window's panel.
+    private func noteSelected(_ id: String, in window: ViewerWindowModel?) {
+        storedNoteID = id
+        let window = window ?? mainWindow
+        window.isPanelPresented = true
+        window.panelTab = .notes
+    }
+
+    /// The line a step's `function` names, from the review document's declarations.
+    private func documentLine(path: String, function: String?) -> Int? {
+        guard let function, let file = document?.file(path) else { return nil }
+        let match = file.declarations.first { $0.qualifiedName == function }
+            ?? file.declarations.first { $0.qualifiedName.hasSuffix("." + function) || $0.name == function }
+        return match?.nameLine
     }
 
     private func startWorktree(loader: ViewerPRLoader, head: String) {
@@ -247,6 +383,7 @@ final class ViewerStore {
                 "sizes": DiagramMetrics.sizes(for: diagram, key: key) { node in
                     key == .pr && self.hasStepDiagram(node.step) ? DiagramMetrics.plusWidth : 0
                 },
+                "edge_labels": DiagramMetrics.edgeLabels(for: diagram),
             ])
             guard pr?.number == number else { return }
             layouts[key] = .ready(try result.decode(DiagramLayoutResult.self))
@@ -264,9 +401,10 @@ final class ViewerStore {
     /// Shows step `id` By step and drops any reveal into the previous step.
     func focus(step id: Int) {
         guard pr?.step(id) != nil else { return }
-        focusedStepID = id
+        storedStepID = id
         mode = .byStep
         revealRequest = nil
+        diffReader?.focus(step: id)
     }
 
     /// The step after `id` in the current order, for the main view's "Next" link.
@@ -278,7 +416,32 @@ final class ViewerStore {
     /// Scrolls the main view to code. By step, a location inside the current step's excerpts
     /// stays in the step; anything else switches to By file. A `function` without a line is
     /// resolved against the head checkout, then against the code path's fallback lines.
+    ///
+    /// With the diff reader loaded, a function resolves against the document's declarations, the
+    /// reader decides between step and file, and code outside the PR's changed files opens in a
+    /// code window.
     func reveal(path: String, line: Int? = nil, function: String? = nil) {
+        if let reader = diffReader {
+            let resolved = line ?? documentLine(path: path, function: function) ?? fallbackLine(path: path, function: function)
+            guard reader.document.file(path) != nil else {
+                openInNewWindow(path: path, line: resolved)
+                return
+            }
+            if let resolved { reader.reveal(path: path, line: resolved) } else { reader.revealFile(path) }
+            revealRevision += 1
+            let revision = revealRevision
+            revealRequest = RevealRequest(path: path, line: resolved, function: function, inStep: reader.mode == .byStep,
+                                          revision: revision)
+            guard resolved == nil, let function else { return }
+            Task {
+                let root = headWorktree ?? paths.marin
+                guard let line = await resolver.line(of: function, path: path, root: root),
+                      revealRequest?.revision == revision, diffReader === reader else { return }
+                reader.reveal(path: path, line: line)
+                revealRequest = RevealRequest(path: path, line: line, function: function, inStep: reader.mode == .byStep, revision: revision)
+            }
+            return
+        }
         let inStep = mode == .byStep && (focusedStep?.covers(path: path, line: line, function: function) ?? false)
         if !inStep { mode = .byFile }
         revealRevision += 1
@@ -295,22 +458,38 @@ final class ViewerStore {
     }
 
     /// Opens a file By file, as a Changes row, a search hit or a note's location link does.
+    /// A file outside the PR's changes opens in a code window instead.
     func open(path: String, line: Int? = nil) {
+        if let reader = diffReader, reader.document.file(path) == nil {
+            openInNewWindow(path: path, line: line)
+            return
+        }
         mode = .byFile
         revealRevision += 1
         revealRequest = RevealRequest(path: path, line: line, function: nil, inStep: false, revision: revealRevision)
+        guard let reader = diffReader else { return }
+        if let line { reader.reveal(path: path, line: line) } else { reader.revealFile(path) }
     }
 
     func toggleWholeFile(_ path: String) {
-        if wholeFilePaths.contains(path) { wholeFilePaths.remove(path) } else { wholeFilePaths.insert(path) }
+        if storedWholeFiles.contains(path) { storedWholeFiles.remove(path) } else { storedWholeFiles.insert(path) }
+        diffReader?.toggleWholeFile(path)
     }
 
-    func showWholeFile(_ path: String) { wholeFilePaths.insert(path) }
+    func showWholeFile(_ path: String) {
+        storedWholeFiles.insert(path)
+        diffReader?.showWholeFile(path)
+    }
 
-    /// Shows a note inline and focuses its card in the panel; nil clears the focus.
+    /// Shows a note inline and focuses its card in the panel; the focused note again, or nil,
+    /// clears the focus.
     func focus(note id: String?) {
-        focusedNoteID = focusedNoteID == id ? nil : id
-        guard id != nil else { return }
+        let next = focusedNoteID == id ? nil : id
+        storedNoteID = next
+        if let reader = diffReader {
+            if let next { reader.focus(note: next) } else { reader.closeNote() }
+        }
+        guard next != nil else { return }
         mainWindow.isPanelPresented = true
         mainWindow.panelTab = .notes
     }
@@ -318,8 +497,9 @@ final class ViewerStore {
     /// The note card's location link: focus the note and open its line By file.
     func revealNote(_ id: String) {
         guard let note = notes[id] else { return }
-        focusedNoteID = id
+        storedNoteID = id
         open(path: note.path, line: note.line)
+        diffReader?.focus(note: id)
     }
 
     /// Adds `chip` to the session `window` asks into: its own when promoted, else the PR's main
@@ -701,6 +881,13 @@ extension ViewerStore: SidecarClientDelegate {
         if let note = focusedNote { context["note"] = .object(["id": .string(note.id), "path": .string(note.path), "line": .number(Double(note.line))]) }
         if let reveal = revealRequest {
             context["location"] = .object(["path": .string(reveal.path), "line": reveal.line.map { .number(Double($0)) } ?? .null])
+        }
+        if let selection = diffReader?.selection {
+            context["selection"] = .object([
+                "path": .string(selection.path),
+                "lines": selection.lines.map { .array([.number(Double($0.lowerBound)), .number(Double($0.upperBound))]) } ?? .null,
+                "text": .string(selection.text),
+            ])
         }
         context["chips"] = (try? JSONValue.encoding(mainSession?.chips ?? [])) ?? .array([])
         return .object(context)

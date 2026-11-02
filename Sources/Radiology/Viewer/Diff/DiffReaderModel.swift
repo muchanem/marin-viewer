@@ -58,6 +58,9 @@ final class DiffReaderModel {
     private(set) var wholeFile: Set<String> = []
     private(set) var collapsed: Set<String> = []
     private(set) var scrollTarget: ScrollTarget?
+    /// Cards whose body view exists. A row in one of them is centred by the body alone: a
+    /// SwiftUI scroll to the card lands after the body's scroll and undoes it.
+    @ObservationIgnored var mountedBodies: Set<String> = []
     /// Layer shown per description key (`s:<step>`, `f:<path>`): 1, 2 or 3.
     private var layerLevels: [String: Int] = [:]
     /// Revealed rows per card; a card without an entry shows its base set.
@@ -77,6 +80,8 @@ final class DiffReaderModel {
     var onOpenInNewWindow: ((DiffCodeTarget) -> Void)?
     /// A note dot was clicked, or `focus(note:)` opened a note.
     var onNoteSelected: ((ReviewNote) -> Void)?
+    /// The code selection settled on a new value, or cleared.
+    var onSelectionChanged: ((Selection?) -> Void)?
     /// Extra definition lookup for names the PR's own files do not declare,
     /// such as a SCIP index. Consulted after the document's declarations.
     var definitionLookup: ((String, DiffCodeTarget) -> DiffCodeTarget?)?
@@ -92,15 +97,58 @@ final class DiffReaderModel {
 
     var step: ResolvedStep? { document.step(stepID) }
 
+    /// Step ids in reading order: the document's, until a session reorders them.
+    private(set) var stepOrder: [Int] = []
+
+    /// The steps in reading order.
+    var orderedSteps: [ResolvedStep] { (stepOrder.isEmpty ? document.steps.map(\.id) : stepOrder).compactMap(document.step) }
+
+    /// Reorders the steps, as a session's proposed reorder does. Unknown ids are dropped and
+    /// steps the order leaves out keep their place after it, so every step stays reachable.
+    func setStepOrder(_ order: [Int]) {
+        let known = Set(document.steps.map(\.id))
+        var seen = Set<Int>()
+        let kept = order.filter { known.contains($0) && seen.insert($0).inserted }
+        stepOrder = kept + document.steps.map(\.id).filter { !seen.contains($0) }
+    }
+
     var stepPosition: (index: Int, count: Int)? {
-        guard let index = document.steps.firstIndex(where: { $0.id == stepID }) else { return nil }
-        return (index + 1, document.steps.count)
+        let steps = orderedSteps
+        guard let index = steps.firstIndex(where: { $0.id == stepID }) else { return nil }
+        return (index + 1, steps.count)
     }
 
     var nextStep: ResolvedStep? {
-        guard let index = document.steps.firstIndex(where: { $0.id == stepID }),
-              index + 1 < document.steps.count else { return nil }
-        return document.steps[index + 1]
+        let steps = orderedSteps
+        guard let index = steps.firstIndex(where: { $0.id == stepID }), index + 1 < steps.count else { return nil }
+        return steps[index + 1]
+    }
+
+    // MARK: Selection
+
+    /// Code selected in one card: its path, the head lines it covers (nil when only deleted
+    /// rows are selected) and the selected code text.
+    struct Selection: Equatable, Sendable {
+        let cardID: String
+        let path: String
+        let lines: ClosedRange<Int>?
+        let text: String
+    }
+
+    /// The last non-empty code selection, for ⌘> from the menu and for the session's
+    /// `selection_context`. Cleared when that card's selection collapses.
+    private(set) var selection: Selection?
+
+    /// Called by a card's text view when its selection settles.
+    func selectionChanged(_ selection: Selection?, in cardID: String) {
+        let old = self.selection
+        if let selection { self.selection = selection } else if self.selection?.cardID == cardID { self.selection = nil }
+        if self.selection != old { onSelectionChanged?(self.selection) }
+    }
+
+    /// The chip ⌘> would add for the current selection.
+    var selectionAskChip: Chip? {
+        selection.map { selectionChip(path: $0.path, lines: $0.lines) }
     }
 
     /// Shows a step in By step mode, scrolled to its top.

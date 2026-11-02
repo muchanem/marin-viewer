@@ -146,6 +146,8 @@ export const LayoutOptions = z
   .strict();
 /** Box sizes the app measured with its own font, by node id, at scale 1. */
 export const NodeSizes = z.record(z.string().min(1), z.object({ w: z.number().positive(), h: z.number().positive() }).strict());
+/** Edge label sizes the app measured with its own font, by label text, at scale 1. */
+export const EdgeLabelSizes = z.record(z.string().min(1), z.object({ w: z.number().positive(), h: z.number().positive() }).strict());
 
 // code-path.json (section 6)
 export const Excerpt = z
@@ -223,7 +225,14 @@ export const NotesKeep = z
   .strict();
 
 export const LayoutRequest = z
-  .object({ type: z.literal("layout"), id: RequestId, diagram: Diagram, sizes: NodeSizes.optional(), options: LayoutOptions.optional() })
+  .object({
+    type: z.literal("layout"),
+    id: RequestId,
+    diagram: Diagram,
+    sizes: NodeSizes.optional(),
+    edge_labels: EdgeLabelSizes.optional(),
+    options: LayoutOptions.optional(),
+  })
   .strict();
 
 export const ReviewPost = z

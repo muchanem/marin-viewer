@@ -168,6 +168,18 @@ final class DiffCodeTextView: NSTextView {
         return first...last
     }
 
+    /// Publishes a settled selection to the model, so ⌘> from the menu and the session's
+    /// selection context see it while another view has focus.
+    override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
+        super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
+        guard !stillSelecting, let content, let model else { return }
+        let selection = hasCodeSelection
+            ? DiffReaderModel.Selection(cardID: content.card.id, path: content.card.path, lines: selectedHeadLines(),
+                                        text: String(selectedCodeText().prefix(4000)))
+            : nil
+        model.selectionChanged(selection, in: content.card.id)
+    }
+
     var hasCodeSelection: Bool {
         guard let content else { return false }
         return selectedRange().length > 0

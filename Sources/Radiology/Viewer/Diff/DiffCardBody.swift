@@ -39,9 +39,19 @@ final class DiffCardBodyView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     func apply(_ content: DiffBodyContent) {
+        if self.content?.card.id != content.card.id {
+            unmount()
+            text.model?.mountedBodies.insert(content.card.id)
+        }
         self.content = content
         needsLayout = true
         layoutContent()
+    }
+
+    /// Tells the model this body no longer shows its card, so the reader scrolls to the card
+    /// itself before the body can centre a row in it.
+    func unmount() {
+        if let id = content?.card.id { text.model?.mountedBodies.remove(id) }
     }
 
     override func layout() {
@@ -96,8 +106,7 @@ final class DiffCardBodyView: NSView {
                 let maxY = max(0, document.bounds.height - clip.bounds.height)
                 let y = min(maxY, max(0, inDocument.midY - clip.bounds.height / 2))
                 clip.scroll(to: NSPoint(x: clip.bounds.minX, y: y))
-                outer.reflectScrolledClipView(clip)
-            } else {
+                outer.reflectScrolledClipView(clip)            } else {
                 self.scrollToVisible(rect)
             }
             if target.flash { self.text.flash(line: index) }
@@ -132,6 +141,8 @@ struct DiffCardBody: NSViewRepresentable {
         view.apply(content)
         if let scrollTarget, scrollTarget.cardID == content.card.id { view.scroll(to: scrollTarget, model: model) }
     }
+
+    static func dismantleNSView(_ view: DiffCardBodyView, coordinator: ()) { view.unmount() }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: DiffCardBodyView, context: Context) -> CGSize? {
         let width = proposal.width ?? 640

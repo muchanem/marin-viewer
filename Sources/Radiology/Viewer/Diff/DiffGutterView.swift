@@ -25,7 +25,11 @@ final class DiffGutterView: NSView, NSViewToolTipOwner {
     }
 
     private var blameWidth: CGFloat { content?.showBlame == true ? DiffReaderStyle.blameColumnWidth : 0 }
-    private var markerX: CGFloat { blameWidth + 2 * DiffReaderStyle.numberColumnWidth }
+    private var numberWidth: CGFloat {
+        guard let content else { return DiffReaderStyle.numberColumnWidth() }
+        return DiffReaderStyle.numberColumnWidth(digits: content.numberDigits, fontSize: content.fontSize)
+    }
+    private var markerX: CGFloat { blameWidth + numberWidth }
 
     // MARK: - Drawing
 
@@ -49,26 +53,23 @@ final class DiffGutterView: NSView, NSViewToolTipOwner {
 
     private func drawCode(row: Int, in box: NSRect, content: DiffBodyContent, numberFont: NSFont) {
         let diffRow = content.diffRows[row]
-        let numbers = NSRect(x: blameWidth, y: box.minY, width: 2 * DiffReaderStyle.numberColumnWidth, height: box.height)
         var numberColor = DiffReaderStyle.lineNumber
         switch diffRow.kind {
         case .added:
-            DiffReaderStyle.added.setFill(); box.fill()
-            DiffReaderStyle.addedStrong.setFill(); numbers.fill()
+            DiffReaderStyle.addedBar.setFill()
+            changeBar(in: box).fill()
             numberColor = DiffReaderStyle.addedNumber
         case .deleted:
-            DiffReaderStyle.deleted.setFill(); box.fill()
-            DiffReaderStyle.deletedStrong.setFill(); numbers.fill()
+            DiffReaderStyle.deletedBar.setFill()
+            changeBar(in: box).fill()
             numberColor = DiffReaderStyle.deletedNumber
         case .context:
             break
         }
         let baseline = box.minY + codeBaseline
-        let attributes: [NSAttributedString.Key: Any] = [.font: numberFont, .foregroundColor: numberColor]
-        for (column, number) in [diffRow.oldLine, diffRow.newLine].enumerated() {
-            guard let number else { continue }
-            let text = NSAttributedString(string: "\(number)", attributes: attributes)
-            let right = blameWidth + CGFloat(column + 1) * DiffReaderStyle.numberColumnWidth - DiffReaderStyle.numberTrailingPadding
+        if let number = diffRow.kind == .deleted ? diffRow.oldLine : diffRow.newLine {
+            let text = NSAttributedString(string: "\(number)", attributes: [.font: numberFont, .foregroundColor: numberColor])
+            let right = blameWidth + numberWidth - DiffReaderStyle.numberTrailingPadding
             text.draw(at: NSPoint(x: right - text.size().width, y: baseline - numberFont.ascender))
         }
         if content.showBlame {
@@ -78,18 +79,16 @@ final class DiffGutterView: NSView, NSViewToolTipOwner {
         }
         if let note = content.rows.dots[row] {
             let diameter = DiffReaderStyle.noteDotDiameter
-            let dot = NSRect(x: markerX + (DiffReaderStyle.markerColumnWidth - diameter) / 2,
-                             y: box.midY - diameter / 2, width: diameter, height: diameter)
+            let lane = DiffReaderStyle.markerColumnWidth - DiffReaderStyle.changeBarWidth
+            let dot = NSRect(x: markerX + (lane - diameter) / 2, y: box.midY - diameter / 2, width: diameter, height: diameter)
             Self.color(of: note).setFill()
             NSBezierPath(ovalIn: dot).fill()
-        } else if diffRow.kind != .context {
-            let marker = NSAttributedString(string: diffRow.kind == .added ? "+" : "−", attributes: [
-                .font: DiffReaderStyle.codeFont(size: content.fontSize), .foregroundColor: DiffReaderStyle.muted,
-            ])
-            let size = marker.size()
-            let font = DiffReaderStyle.codeFont(size: content.fontSize)
-            marker.draw(at: NSPoint(x: markerX + (DiffReaderStyle.markerColumnWidth - size.width) / 2, y: baseline - font.ascender))
         }
+    }
+
+    /// The thin bar at the gutter's trailing edge that marks an added or deleted row.
+    private func changeBar(in box: NSRect) -> NSRect {
+        NSRect(x: bounds.width - DiffReaderStyle.changeBarWidth, y: box.minY, width: DiffReaderStyle.changeBarWidth, height: box.height)
     }
 
     /// "97704d9 Russell · 61d": the SHA in the accent's monospaced face, the

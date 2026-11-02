@@ -1,5 +1,20 @@
 # Progress
 
+## 2026-11-02 — First UI fit-and-finish pass (branch `mark/ui-polish-1`)
+
+A walk of every viewer surface on the Retina screen at 1180, 1440 and 1492 pt wide, on #10640, #10330 and outside PR review. [plans/shell.md](plans/shell.md) "Diagrams" (toolbar, strip sizing, reading strip, `systems:`) and [plans/diff-reader.md](plans/diff-reader.md) "Behaviour" (gutter) have the details.
+
+- Toolbar: the PR is now the window's title and subtitle, so at 1180 pt By step / By file, Blame and the panel toggle stay in the toolbar instead of the » menu. Blame is a native button-style toggle with an icon.
+- Strip: the row now follows the window when it narrows. Before, it kept its widest width and was clipped on both sides. The cards are sized by the maps' text: labels draw at 0.85 to 1.0 of 10.5 pt, against about 7 pt before, and a map that cannot fit scrolls with Open Larger. The description gets the rest of the row, at least a fifth of it. A card that only holds a message keeps 150 pt.
+- Reading strip: outside PR review, a file under a subsystem page shows that page in the strip. The cards are its description, the packages that use it and that it uses (each opens its page), and its map with the open file's box marked.
+- `systems:` boxes are marked here or touched through the packages they stand for, in the In Marin map and in subsystem maps.
+- Diff gutter: one number column of at least four digits with a 3 pt change bar, instead of two 44 pt columns washed green.
+- Smaller fixes: the sidebar's tabs no longer jump to mid-column on Search (upstream bug), the Files footer fits on one line, and a review note's location sits on its own line instead of wrapping beside the pills.
+- `tools/viewer-ui.swift`: `snap`, `click`, `scroll`, `type`, `menu` and `quit`. `type` goes through the HID tap with a pause between keys, because filtering fields dropped keys sent faster.
+- Upstream Radiology files edited: `Sources/Radiology/UI/RootView.swift` (the title modifier) and `Sources/Radiology/UI/RepositorySidebar.swift` (tab content top-aligned).
+- `make check` passes. `make test`: 404 tests in 88 suites, 1 failure, the known flaky `FilesSidebarRevealTests.nativeFilesListTracksBookmarksAndSearchAndPreservesTheirCaret`. Run alone, it failed 3 of 4 times with this branch and 5 of 6 times with the sidebar change reverted. The ViewerCore package passes 42 tests in 8 suites. New tests cover `systems:` marks, reading marks, `StripPlan`, `SystemPage.covering` and the gutter width.
+- Left: #10330 was still loading its diff 30 s after launch, at 106% CPU in tree-sitter highlighting (`sample`), and had loaded by 3 min. The exact time was not measured. Edge labels in some subsystem maps (iris, zephyr) overlap boxes, which comes from the sidecar's layout. The Context tab doesn't follow the diff reader. Search results are not grouped by file. The ⌘K picker ranks `test_coordinator_history.py` above `coordinator.py` for "zephyr/coordinator.py" (upstream).
+
 ## 2026-11-02 — The app is called Marin Viewer and has the Marin Viewer icon (branch `mark/app-identity`)
 
 The app launched as "Radiology" with upstream's icon. It is now `build/Marin Viewer.app`, with executable `Marin Viewer` and bundle id `com.muchanem.marin-viewer`. The app menu, About panel, window title fallback, Help and the messages that name the app all say Marin Viewer. `build.sh` reads the bundle and executable names from Info.plist. The SwiftPM target, module, entitlements and the `Radiology/` cache and Application Support paths keep upstream's name. [plans/build-system.md](plans/build-system.md) "App identity" lists both sides, the state the bundle id keys and the `defaults export | import` line that carries the old window and session state over.

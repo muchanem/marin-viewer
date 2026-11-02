@@ -7,6 +7,7 @@ import SwiftUI
 struct ViewerWindowChrome: ViewModifier {
     @Environment(ViewerStore.self) private var store: ViewerStore?
     @Environment(ViewerWindowModel.self) private var window: ViewerWindowModel?
+    @Environment(AppModel.self) private var model: AppModel?
     @Environment(\.openWindow) private var openWindow
 
     func body(content: Content) -> some View {
@@ -20,8 +21,13 @@ struct ViewerWindowChrome: ViewModifier {
     private func chrome(_ content: Content, store: ViewerStore, window: ViewerWindowModel) -> some View {
         @Bindable var window = window
         let reviewing = store.isReviewing && window.kind == .main
+        let reading = !store.isReviewing && window.kind == .main && store.readingPath != nil ? store.readingSystem : nil
         return VStack(spacing: 0) {
-            if reviewing { ViewerStrip() }
+            if reviewing {
+                ViewerStrip()
+            } else if let reading {
+                ViewerReadingStrip(page: reading)
+            }
             HStack(spacing: 0) {
                 content
                 if reviewing, !window.isPanelPresented { OpenSessionStrip() }
@@ -53,9 +59,23 @@ struct ViewerWindowChrome: ViewModifier {
             guard window.kind == .main else { return }
             store.openCodeWindow = { request in openWindow(id: CodeWindowView.sceneID, value: request) }
         }
+        .task {
+            guard window.kind == .main else { return }
+            await store.loadSystemPages()
+        }
+        .onChange(of: OpenFile(path: model?.source?.path, root: model?.attachedRoot), initial: true) { _, file in
+            guard window.kind == .main else { return }
+            store.followOpenFile(file.path, root: file.root)
+        }
         .onDisappear {
             guard window.kind == .main else { return }
             Task { await store.keepAllPendingMemories(reason: "the window closed") }
         }
     }
+}
+
+/// The main reader's open file, which the reading strip follows.
+private struct OpenFile: Equatable {
+    var path: String?
+    var root: URL?
 }

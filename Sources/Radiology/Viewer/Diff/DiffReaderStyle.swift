@@ -20,14 +20,27 @@ enum DiffReaderStyle {
 
     // MARK: Gutter
 
-    static let numberColumnWidth: CGFloat = 44
-    static let markerColumnWidth: CGFloat = 16
-    static let numberTrailingPadding: CGFloat = 8
+    // One line-number column, as in Xcode's and Radiology's own gutters: a deleted row shows its
+    // old number and every other row its new one. Changes are marked by a thin bar at the
+    // gutter's edge and the wash on the code, so the gutter itself stays white.
+    static let numberLeadingPadding: CGFloat = 6
+    static let numberTrailingPadding: CGFloat = 4
+    /// Room for the note dot, and the change bar at the gutter's trailing edge.
+    static let markerColumnWidth: CGFloat = 14
+    static let changeBarWidth: CGFloat = 3
     static let blameColumnWidth: CGFloat = 156
     static let blameHorizontalPadding: CGFloat = 8
-    static let noteDotDiameter: CGFloat = 9
-    static func gutterWidth(blame: Bool) -> CGFloat {
-        (blame ? blameColumnWidth : 0) + numberColumnWidth * 2 + markerColumnWidth
+    static let noteDotDiameter: CGFloat = 8
+
+    /// The number column for line numbers of `digits` digits, at least four, so cards of
+    /// ordinary files line their code up.
+    static func numberColumnWidth(digits: Int = 4, fontSize: CGFloat = codeFontSize) -> CGFloat {
+        let digit = ("0" as NSString).size(withAttributes: [.font: numberFont(size: fontSize)]).width
+        return (numberLeadingPadding + CGFloat(max(4, digits)) * digit + numberTrailingPadding).rounded(.up)
+    }
+
+    static func gutterWidth(blame: Bool, digits: Int = 4, fontSize: CGFloat = codeFontSize) -> CGFloat {
+        (blame ? blameColumnWidth : 0) + numberColumnWidth(digits: digits, fontSize: fontSize) + markerColumnWidth
     }
 
     // MARK: Gap bars and inline notes
@@ -66,6 +79,8 @@ enum DiffReaderStyle {
     static let added = rgb(0xE7F5EA)
     static let addedStrong = rgb(0xC9EBD1)
     static let addedNumber = rgb(0x4F7D59)
+    static let addedBar = rgb(0x6DBF82)
+    static let deletedBar = rgb(0xE08A8A)
     static let deleted = rgb(0xFBEAEA)
     static let deletedStrong = rgb(0xF3CCCC)
     static let deletedNumber = rgb(0x95595A)

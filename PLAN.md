@@ -4,6 +4,15 @@ Radiology is a native, read-only macOS repository browser. The active implementa
 
 ## Current accepted state
 
+**Viewer UI polish, first pass (2026-11-02, branch `mark/ui-polish-1`):** the PR
+is the window's native title and subtitle, so the toolbar fits at 1180 pt; Blame
+is a native toggle; the strip sizes its cards by the maps' text (labels at least
+0.9 of 10.5 pt) and no longer clips when the window narrows; the diff gutter has
+one number column and a change bar; diagram boxes honour `systems:`; and reading
+a file covered by a subsystem page shows that page in the strip.
+[Toolbar, strip sizing, the reading strip](plans/shell.md) ("Diagrams"),
+[gutter](plans/diff-reader.md) ("Behaviour").
+
 **App identity (2026-11-02, branch `mark/app-identity`):** the bundle is
 `build/Marin Viewer.app`, bundle id `com.muchanem.marin-viewer`, and its icon is
 the Marin Viewer logo laid out on the macOS squircle (rendered by rsvg-convert).

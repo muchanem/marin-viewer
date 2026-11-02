@@ -44,7 +44,7 @@ The reader is SwiftUI on the outside and one TextKit view per card body:
   headers kept at the top while their card scrolls (`pinnedViews`). Each card
   is one section: a SwiftUI `DiffFileHeader` and a `DiffCardBody`.
 - `DiffCardBody` wraps an AppKit view with two parts: `DiffGutterView` (blame,
-  old and new numbers, `+`/`−` or a note dot) and `DiffCodeTextView` (a TextKit
+  one line-number column, a note dot and a 3 pt change bar) and `DiffCodeTextView` (a TextKit
   1 `NSTextView` inside a scroll view that moves only sideways and passes
   vertical scrolling to the reader).
 - `DiffCardLayout` gives every display line a fixed top and height (code rows
@@ -84,11 +84,14 @@ that the gutter painted over the code in offscreen renders.
 - **Card header:** chevron collapses the card; directory in the muted colour and
   file name in ink; the file's one-sentence change description with an inline
   More; "lines a to b" in By step; `+a −d`; Whole file / Diff only.
-- **Rows:** deletions in red with old numbers, additions in green with new
-  numbers, highlighted from the base and head parses respectively.
+- **Rows:** deletions in red with their old number, additions and context with
+  their new number, in one column of at least four digits, as in Xcode. A
+  3-point bar at the gutter's trailing edge marks each added (green) or deleted
+  (red) row, and the gutter itself stays white. Rows are highlighted from the
+  base and head parses.
 - **Blame:** a 156-point column with short SHA, first name and age on the first
   row of each run (and after every gap); the tooltip is the commit summary.
-- **Notes:** a dot replaces the `+`/`−` marker: amber for drafts, blue for the
+- **Notes:** a dot in the gutter's marker lane: amber for drafts, blue for the
   user's posted notes, grey once resolved. Clicking a dot opens the note card
   under its row and tints the row; clicking again closes it.
 - **Context menu on code:** Go to Definition of X, Open Definition in New
@@ -146,8 +149,9 @@ test file and are skipped when either is missing.
 
 - Syntax colours and the code font follow Radiology (SF Mono, `Theme`), so
   there are no ligatures and decorators and strings take Radiology's colours.
-- The old-number column is always present; the demo hides it because its
-  `--blame-w` variable is never set, which also hides blame.
+- One number column and a change bar instead of the demo's two number columns,
+  green-washed gutter and `+`/`−` glyphs (the demo's old column is hidden anyway,
+  by an unset `--blame-w`).
 - Excerpts start at decorators (step 1 starts at line 44, the demo at 45).
 - A gap that hides changes names them: "124 added lines at the top" when
   every hidden row is one kind, "40 lines, 12 changed" otherwise. The demo

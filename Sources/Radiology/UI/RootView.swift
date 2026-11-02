@@ -22,8 +22,8 @@ struct RootView: View {
                 .navigationSplitViewColumnWidth(min: Theme.sidebarMinWidth, ideal: Theme.sidebarIdealWidth, max: Theme.sidebarMaxWidth)
         } detail: {
             Group { if viewerPR { ViewerMainView() } else { ReaderDetail() } }
-                .navigationTitle(model.attachedRoot?.lastPathComponent ?? model.repository?.root.lastPathComponent ?? "Marin Viewer")
-                .modifier(ReaderToolbarTitleVisibility())
+                .modifier(ViewerTitleOrReaderTitle(pr: viewerPR ? viewer?.pr : nil,
+                                                   readerTitle: model.attachedRoot?.lastPathComponent ?? model.repository?.root.lastPathComponent ?? "Marin Viewer"))
                 .toolbar(removing: .sidebarToggle)
                 .toolbar {
                     if viewerPR {

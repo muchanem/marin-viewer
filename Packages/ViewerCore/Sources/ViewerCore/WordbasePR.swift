@@ -120,13 +120,33 @@ public struct DiagramNode: Codable, Hashable, Sendable, Identifiable {
     /// The files the box stands for. The app marks the box touched when the
     /// PR changes one of them and dims it when the PR changes none.
     public var paths: [String]?
+    /// Subsystem maps only: the packages one box stands for when it stands
+    /// for several neighbours (DESIGN.md §6).
+    public var systems: [String]?
     public var grid: GridCell?
 
     /// Whether the PR touches this box, or nil when it names no paths. A
-    /// path ending in `/` covers everything under it.
+    /// path ending in `/` covers everything under it. A package listed under
+    /// `systems` counts with its `lib/<name>/`, so a box that stands for
+    /// several packages is touched even when its `paths` leave one out.
     public func isTouched(byChangedPaths changed: some Collection<String>) -> Bool? {
-        guard let paths, !paths.isEmpty else { return nil }
-        return changed.contains { path in paths.contains { $0.hasSuffix("/") ? path.hasPrefix($0) : path == $0 } }
+        let covered = coveredPaths
+        guard !covered.isEmpty else { return nil }
+        return changed.contains { path in covered.contains { $0.hasSuffix("/") ? path.hasPrefix($0) : path == $0 } }
+    }
+
+    /// `paths` plus `lib/<name>/` for every package under `systems`.
+    public var coveredPaths: [String] {
+        var covered = paths ?? []
+        for name in systems ?? [] where !covered.contains("lib/\(name)/") { covered.append("lib/\(name)/") }
+        return covered
+    }
+
+    /// Whether this box is subsystem `name`'s own box: its id, or one of the
+    /// packages it stands for.
+    public func standsFor(system name: String) -> Bool {
+        id.caseInsensitiveCompare(name) == .orderedSame
+            || (systems ?? []).contains { $0.caseInsensitiveCompare(name) == .orderedSame }
     }
 }
 

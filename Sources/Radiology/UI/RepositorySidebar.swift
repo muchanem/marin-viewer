@@ -10,15 +10,20 @@ struct RepositorySidebar: View {
         VStack(spacing: 0) {
             if let repository = model.repository {
                 SidebarModeTabs(modes: BrowserMode.available(reviewing: model.isReviewing, viewerPR: viewerPR), selection: $model.mode)
-                switch model.mode {
-                case .changes:
-                    if viewerPR { ViewerChangesView() } else { ReviewChangesView() }
-                case .files:
-                    if viewerPR { ViewerFocusedFilesView() } else { RepositoryFilesView(repository: repository) }
-                case .codePaths: CodePathsSidebar()
-                case .search: RepositorySearchView()
-                case .steps: ViewerCodePathSidebar()
+                // Every tab fills the column from the top; Search's short content otherwise
+                // centred the whole sidebar, tabs and footer included.
+                VStack(spacing: 0) {
+                    switch model.mode {
+                    case .changes:
+                        if viewerPR { ViewerChangesView() } else { ReviewChangesView() }
+                    case .files:
+                        if viewerPR { ViewerFocusedFilesView() } else { RepositoryFilesView(repository: repository) }
+                    case .codePaths: CodePathsSidebar()
+                    case .search: RepositorySearchView()
+                    case .steps: ViewerCodePathSidebar()
+                    }
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
                 Divider()
                 if viewerPR {
                     ViewerSidebarFooter(mode: model.mode, searchMatches: model.matches.count)

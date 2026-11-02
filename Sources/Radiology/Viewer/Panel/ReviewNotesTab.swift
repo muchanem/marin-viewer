@@ -57,12 +57,17 @@ struct ReviewNoteCard: View {
                 ViewerPill(text: note.status.rawValue, fill: Self.fill(note.status), ink: Self.ink(note.status))
                     .strikethrough(note.status == .rejected)
                 ViewerPill(text: note.severity.rawValue, fill: .viewerSoft, ink: Color(red: 0x4a / 255, green: 0x53 / 255, blue: 0x61 / 255))
-                Button(String("\(store.shortener.short(note.path)):\(note.line)")) { store.revealNote(note.id) }
-                    .buttonStyle(.link).font(ViewerFonts.mono)
-                    .help("Open \(note.path) at line \(note.line)")
+                Spacer(minLength: 4)
                 Text(note.who).font(ViewerFonts.meta).foregroundStyle(.secondary).lineLimit(1)
-                Spacer(minLength: 0)
             }
+            // The location gets its own line: a path outside the PR's subsystem keeps its
+            // directories, and beside the pills it wrapped to three or four lines.
+            Button { store.revealNote(note.id) } label: {
+                Text(verbatim: "\(store.shortener.short(note.path)):\(note.line)")
+                    .lineLimit(1).truncationMode(.middle)
+            }
+            .buttonStyle(.link).font(ViewerFonts.mono)
+            .help("Open \(note.path) at line \(note.line)")
             Text(viewerInline(note.l1)).font(ViewerFonts.body).fixedSize(horizontal: false, vertical: true)
             if !note.l2.isEmpty {
                 if expanded {

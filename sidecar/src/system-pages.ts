@@ -3,7 +3,7 @@
 // go in dependency waves, so a page sees the fresh `l1` of every package it uses.
 //
 //   npm run system-pages -- [--dry-run] [--only a,b] [--redo a,b] [--cap <usd>] [--concurrency <n>]
-//                           [--budget <tokens>] [--excerpt-budget <tokens>]
+//                           [--budget <tokens>] [--excerpt-budget <tokens>] [--excerpt-full-max <tokens>]
 //
 // --dry-run builds every prompt, counts it with the API's token counter and prints the estimate,
 // calling no model. A page whose `by:` names no model run (the #10640 fixture's shellbox page) is
@@ -41,10 +41,11 @@ interface Args {
   concurrency: number;
   budget: number;
   excerptBudget: number | null;
+  excerptFullMax: number | null;
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, only: null, redo: [], capUsd: 25, concurrency: 4, budget: SYSTEM_BUDGET, excerptBudget: null };
+  const a: Args = { dryRun: false, only: null, redo: [], capUsd: 25, concurrency: 4, budget: SYSTEM_BUDGET, excerptBudget: null, excerptFullMax: null };
   const num = (v: string | undefined, flag: string) => {
     const n = Number(v);
     if (!Number.isFinite(n) || n <= 0) throw new Error(`${flag} needs a positive number`);
@@ -60,6 +61,7 @@ function parseArgs(argv: string[]): Args {
     else if (f === "--concurrency") a.concurrency = num(v(), f);
     else if (f === "--budget") a.budget = num(v(), f);
     else if (f === "--excerpt-budget") a.excerptBudget = num(v(), f);
+    else if (f === "--excerpt-full-max") a.excerptFullMax = num(v(), f);
     else throw new Error(`unknown flag ${f}`);
   }
   return a;
@@ -77,6 +79,8 @@ interface PageState {
   gapsBefore: number | null;
   gapsAfter: number | null;
   gaps?: { before: unknown[] | null; after: unknown[] | null };
+  /** After a rewrite, which version was saved. */
+  kept?: "draft" | "rewrite" | null;
   lint: string[];
   problems: string[];
   coldErrors: string[];
@@ -156,7 +160,7 @@ async function main(): Promise<void> {
   log(`plan: import graph over ${imports.files.length} files in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   const neighbourL1 = neighbourLookup(repo, commit, config.wordbase);
   const build = (system: string) =>
-    systemInputs({ repo, commit, wordbase: config.wordbase, prompts: config.prompts, system, graph, imports, neighbourL1, budget: args.budget, ...(args.excerptBudget ? { excerptBudget: args.excerptBudget } : {}) });
+    systemInputs({ repo, commit, wordbase: config.wordbase, prompts: config.prompts, system, graph, imports, neighbourL1, budget: args.budget, ...(args.excerptBudget ? { excerptBudget: args.excerptBudget } : {}), ...(args.excerptFullMax ? { excerptFullMax: args.excerptFullMax } : {}) });
 
   const client = new Anthropic({ apiKey: apiKey(config), maxRetries: 3 });
   const claudeTokens = async (system: string, inputs: SystemInputs) => {
@@ -252,13 +256,14 @@ async function main(): Promise<void> {
         gapsBefore: r.gapsBefore?.length ?? null,
         gapsAfter: r.gapsAfter?.length ?? (r.rewritten ? null : (r.gapsBefore?.length ?? null)),
         gaps: { before: r.gapsBefore, after: r.gapsAfter },
+        kept: r.kept,
         lint: r.lint,
         problems: r.problems,
         coldErrors: r.coldErrors,
       };
       await writeJson(stateFile, state);
       log(
-        `page ${p} written to ${path.relative(config.wordbase, file)}: cold reader ${r.gapsBefore?.length ?? "failed"} gaps before, ${r.rewritten ? `${r.gapsAfter?.length ?? "failed"} after the rewrite` : "no rewrite"} · lint ${r.lint.length} · problems ${r.problems.length}${r.diagramDropped ? " (map dropped)" : ""}${r.coldErrors.length ? ` · ERROR cold reader: ${r.coldErrors.join("; ")}` : ""} · $${r.cost_usd.toFixed(2)} (${Object.entries(r.costByModel).map(([m, c]) => `${m} $${c.toFixed(2)}`).join(", ")}) · ${((Date.now() - t) / 1000).toFixed(0)} s`,
+        `page ${p} written to ${path.relative(config.wordbase, file)}: cold reader ${r.gapsBefore?.length ?? "failed"} gaps before, ${r.rewritten ? `${r.gapsAfter?.length ?? "failed"} after the rewrite${r.kept === "draft" ? " (kept the first draft)" : ""}` : "no rewrite"} · lint ${r.lint.length} · problems ${r.problems.length}${r.diagramDropped ? " (map dropped)" : ""}${r.coldErrors.length ? ` · ERROR cold reader: ${r.coldErrors.join("; ")}` : ""} · $${r.cost_usd.toFixed(2)} (${Object.entries(r.costByModel).map(([m, c]) => `${m} $${c.toFixed(2)}`).join(", ")}) · ${((Date.now() - t) / 1000).toFixed(0)} s`,
       );
       log(`page ${p} l1: ${r.page.l1}`);
     } catch (e) {

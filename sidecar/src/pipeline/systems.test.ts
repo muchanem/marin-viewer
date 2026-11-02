@@ -165,6 +165,30 @@ describe("writing a page", () => {
     expect(failed.coldErrors).toEqual(["cold-before: overloaded"]);
   });
 
+  it("keeps a clean first draft when the rewrite reads worse, and records both counts", async () => {
+    const gap = (w: string) => ({ where: w, claim: "c", problem: "p" });
+    const r = await writeSystemPage({
+      inputs,
+      prompts,
+      writer: scripted("writer", [page("Runs jobs."), page("Runs jobs and more.")]),
+      reader: scripted("reader", [JSON.stringify({ gaps: [gap("l1")] }), JSON.stringify({ gaps: [gap("l1"), gap("l2"), gap("l2")] })]),
+    });
+    expect(r.kept).toBe("draft");
+    expect(r.page.l1).toBe("Runs jobs.");
+    expect(r.gapsBefore).toHaveLength(1);
+    expect(r.gapsAfter).toHaveLength(3);
+
+    // A draft with a map problem is never kept over the rewrite.
+    const bad = await writeSystemPage({
+      inputs,
+      prompts,
+      writer: scripted("writer", [page("Runs jobs.", { nodes: [box("iris", 0, 1)], edges: [] }), page("Runs jobs and more.")]),
+      reader: scripted("reader", [JSON.stringify({ gaps: [] }), JSON.stringify({ gaps: [gap("l1")] })]),
+    });
+    expect(bad.kept).toBe("rewrite");
+    expect(bad.page.l1).toBe("Runs jobs and more.");
+  });
+
   it("drops a map that still fails after the rewrite and keeps the reason", async () => {
     const bad = { nodes: [box("iris", 0, 1)], edges: [] };
     const r = await writeSystemPage({ inputs, prompts, writer: scripted("writer", [page("Runs jobs.", bad), page("Runs jobs.", bad)]), reader: scripted("reader", ['{"gaps": []}', '{"gaps": []}']) });

@@ -1,0 +1,2 @@
+# SCIP indexes are protobuf fixtures; preserve their exact binary bytes.
+*.scip binary

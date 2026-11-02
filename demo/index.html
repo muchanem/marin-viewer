@@ -1,0 +1,958 @@
+<title>Marin Viewer Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an editor window. A strip of three cards (description, Marin context map, PR map) over a
+   three-column work area: code path + focused file tree, diffs-first code, Claude session panel. Light only. */
+:root {
+  --bg: #f4f6f8;
+  --pane: #ffffff;
+  --ink: #1b2129;
+  --muted: #677180;
+  --rule: #dfe3e8;
+  --soft: #eef1f5;
+  --accent: #1f56a8;
+  --accent-soft: #e6eefb;
+  --add: #e7f5ea;
+  --add-strong: #c9ebd1;
+  --del: #fbeaea;
+  --del-strong: #f3cccc;
+  --note: #a8650b;
+  --note-soft: #fdf3e2;
+  --ok: #2f7a3d;
+  --bad: #b03a3a;
+  --font-ui: "IBM Plex Sans", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-head: "IBM Plex Sans Condensed", "IBM Plex Sans", -apple-system, Arial, sans-serif;
+  --font-code: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 13px; }
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+code, .mono { font-family: var(--font-code); font-size: 12px; }
+p code, li code, .l1 code, .l2 code, .l3 code, .msg code { background: var(--soft); padding: 0 3px; border-radius: 3px; font-size: 11.5px; }
+
+#app { height: 100%; display: grid; grid-template-rows: auto auto 1fr; padding-left: max(0px, env(safe-area-inset-left, 0px)); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
+
+.bar { display: flex; align-items: center; gap: 14px; padding: 8px max(16px, env(safe-area-inset-left, 0px)) 8px max(16px, env(safe-area-inset-left, 0px)); background: var(--pane); border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.bar .crumb { font-family: var(--font-head); font-weight: 600; font-size: 15px; }
+.bar .crumb span { color: var(--muted); font-weight: 500; }
+.bar .meta { color: var(--muted); }
+.bar .state { background: #ece6f8; color: #5b3a9a; border-radius: 10px; padding: 1px 8px; font-size: 11px; font-weight: 600; letter-spacing: .03em; }
+.bar .spacer { flex: 1; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { padding: 3px 10px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.toggle { border: 1px solid var(--rule); border-radius: 6px; padding: 3px 10px; color: var(--muted); }
+.toggle[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: #c4d5f1; }
+.demo-note { font-size: 11px; color: var(--note); background: var(--note-soft); border-radius: 4px; padding: 2px 8px; }
+
+.strip { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--rule); }
+.card { background: var(--pane); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; min-width: 0; display: flex; flex-direction: column; }
+.card h3 { margin: 0 0 6px; font-family: var(--font-head); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.card h3 small { text-transform: none; letter-spacing: 0; font-weight: 400; font-family: var(--font-ui); }
+.desc { max-height: 230px; overflow: auto; }
+.l1 { margin: 0; font-size: 14px; line-height: 1.45; text-wrap: pretty; }
+.l2, .l3 p { margin: 8px 0 0; line-height: 1.55; color: #2c3440; max-width: 72ch; }
+.more { color: var(--accent); font-size: 12px; margin-top: 6px; }
+.more:hover { text-decoration: underline; }
+.map svg { width: 100%; height: auto; display: block; max-height: 196px; }
+.node rect { fill: var(--pane); stroke: #b9c2ce; stroke-width: 1; rx: 5; }
+.node text { fill: var(--ink); font-family: var(--font-ui); font-size: 10.5px; }
+.node .sub { fill: var(--muted); font-size: 9px; }
+.node { cursor: pointer; }
+.node:hover rect { stroke: var(--accent); }
+.node.here rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+.node.on rect { fill: #fff6e5; stroke: var(--note); stroke-width: 1.5; }
+.node.dim rect { fill: var(--soft); stroke: var(--rule); }
+.node.dim text { fill: var(--muted); }
+.edge { stroke: #9aa5b3; stroke-width: 1; fill: none; }
+.edge-label { fill: var(--muted); font-size: 8.5px; font-family: var(--font-ui); }
+.group rect { fill: #f7f9fb; stroke: #b9c2ce; stroke-dasharray: 4 3; rx: 8; }
+.group text { fill: var(--muted); font-size: 9px; font-family: var(--font-ui); }
+
+.work { display: grid; grid-template-columns: 270px minmax(0, 1fr) 390px; min-height: 0; }
+.work.panel-closed { grid-template-columns: 270px minmax(0, 1fr) 36px; }
+.left, #main, #panel { min-height: 0; overflow: auto; }
+.left { background: var(--pane); border-right: 1px solid var(--rule); padding: 10px 0 24px; }
+.left h4 { margin: 8px 14px 6px; font-family: var(--font-head); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; display: flex; justify-content: space-between; }
+.steps { list-style: none; margin: 0; padding: 0; }
+.step { padding: 7px 14px 7px 12px; border-left: 3px solid transparent; cursor: pointer; display: grid; grid-template-columns: 20px 1fr; gap: 2px 6px; }
+.step:hover { background: var(--soft); }
+.step.on { background: var(--accent-soft); border-left-color: var(--accent); }
+.step .n { font-family: var(--font-code); color: var(--muted); font-size: 11px; padding-top: 1px; }
+.step .t { font-weight: 600; }
+.step .s { grid-column: 2; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.step.moved .t::after { content: "moved by session"; margin-left: 6px; font-size: 10px; font-weight: 500; color: var(--note); background: var(--note-soft); padding: 0 5px; border-radius: 3px; }
+
+.tree { font-size: 12px; padding: 0 6px 0 10px; }
+.tree .row { display: flex; align-items: center; gap: 5px; padding: 2px 4px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tree .row:hover { background: var(--soft); }
+.tree .dir { color: var(--muted); font-family: var(--font-code); font-size: 11px; }
+.tree .file.changed { font-weight: 500; }
+.tree .file.quiet { color: var(--muted); }
+.tree .hidden-count { color: var(--muted); font-size: 11px; font-style: italic; }
+.tree .badge { font-family: var(--font-code); font-size: 9.5px; color: var(--accent); background: var(--accent-soft); border-radius: 3px; padding: 0 3px; }
+.tree .stat { margin-left: auto; font-family: var(--font-code); font-size: 10px; color: var(--muted); }
+.tree .fileflag { width: 6px; height: 6px; border-radius: 50%; background: var(--note); flex: none; }
+
+#main { padding: 12px 16px 80px; }
+.step-head { margin: 4px 0 10px; }
+.step-head h2 { margin: 0; font-family: var(--font-head); font-size: 17px; font-weight: 600; text-wrap: balance; }
+.step-head .kicker { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; font-family: var(--font-head); }
+.fcard { background: var(--pane); border: 1px solid var(--rule); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+.fhead { display: flex; align-items: flex-start; gap: 8px; padding: 7px 10px; background: #fafbfc; border-bottom: 1px solid var(--rule); position: sticky; top: 0; z-index: 2; }
+.fhead .chev { width: 16px; color: var(--muted); padding-top: 1px; }
+.fhead .path { font-family: var(--font-code); font-size: 12px; }
+.fhead .path .d { color: var(--muted); }
+.fhead .fdesc { color: #3a4350; font-size: 12px; margin-top: 2px; }
+.fhead .fdesc .more { font-size: 11px; margin: 0 0 0 4px; }
+.fhead .grow { flex: 1; min-width: 0; }
+.fhead .counts { font-family: var(--font-code); font-size: 11px; white-space: nowrap; padding-top: 1px; }
+.counts .a { color: var(--ok); } .counts .r { color: var(--bad); }
+.fhead .act { font-size: 11px; color: var(--muted); border: 1px solid var(--rule); border-radius: 5px; padding: 1px 7px; white-space: nowrap; background: var(--pane); }
+.fhead .act:hover { color: var(--accent); border-color: #c4d5f1; }
+.fbody { overflow-x: auto; }
+.fbody .placeholder { padding: 10px 14px; color: var(--muted); font-size: 12px; }
+.excerpt-label { padding: 4px 12px; font-size: 11px; color: var(--muted); background: var(--soft); border-top: 1px solid var(--rule); font-family: var(--font-code); }
+.lines { min-width: max-content; }
+.ln { display: grid; grid-template-columns: var(--blame-w, 0px) 44px 44px 16px auto; font-family: var(--font-code); font-size: 12px; line-height: 19px; }
+.ln .no { color: #a0a8b3; text-align: right; padding-right: 8px; user-select: none; font-size: 11px; }
+.ln .mk { user-select: none; text-align: center; color: var(--muted); }
+.ln code { white-space: pre; padding-right: 24px; font-size: 12px; }
+.ln.a { background: var(--add); } .ln.a .no { background: var(--add-strong); color: #4f7d59; }
+.ln.d { background: var(--del); } .ln.d .no { background: var(--del-strong); color: #95595a; }
+.ln.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { 0% { box-shadow: inset 4px 0 0 var(--note); background: #fff1cf; } 100% { box-shadow: inset 4px 0 0 transparent; } }
+.ln .bl { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); font-size: 10.5px; padding: 0 8px; border-right: 1px solid var(--rule); font-family: var(--font-ui); user-select: none; }
+.ln .bl b { font-family: var(--font-code); font-weight: 400; color: var(--accent); }
+.ln .mk.has { cursor: pointer; }
+.ln .mk.has::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--note); margin-top: 5px; }
+.ln .mk.has.resolved::before { background: #9aa5b3; }
+.ln .mk.has.mine::before { background: var(--accent); }
+.gap { display: flex; gap: 12px; align-items: center; padding: 3px 12px 3px 104px; background: #f1f5fb; color: var(--accent); font-size: 11.5px; border-block: 1px solid #e3eaf5; user-select: none; }
+.gap button { color: var(--accent); }
+.gap button:hover { text-decoration: underline; }
+.gap .count { color: var(--muted); }
+.inline-note { margin: 4px 12px 8px 104px; border: 1px solid #f0d7ab; background: var(--note-soft); border-radius: 6px; padding: 7px 10px; font-family: var(--font-ui); font-size: 12px; max-width: 760px; }
+.inline-note .who { font-size: 11px; color: var(--muted); }
+
+.hljs-keyword, .hljs-built_in.hljs-keyword { color: #8a3ab9; }
+.hljs-string, .hljs-subst .hljs-string { color: #2a7a3b; }
+.hljs-comment { color: #7d8792; font-style: italic; }
+.hljs-number, .hljs-literal { color: #b0510a; }
+.hljs-title, .hljs-title.function_, .hljs-title.class_ { color: #1f56a8; }
+.hljs-built_in { color: #8a5a00; }
+.hljs-meta { color: #8a5a00; }
+.hljs-params { color: #2b3340; }
+.hljs-section { color: #1f56a8; font-weight: 600; }
+.hljs-bullet, .hljs-code { color: #8a3ab9; }
+
+#panel { background: var(--pane); border-left: 1px solid var(--rule); display: flex; flex-direction: column; overflow: hidden; }
+.phead { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+.phead .ttl { font-weight: 600; }
+.phead .sub { color: var(--muted); font-size: 11px; }
+.phead .x { margin-left: auto; color: var(--muted); font-size: 16px; width: 24px; height: 24px; border-radius: 4px; }
+.phead .x:hover { background: var(--soft); color: var(--ink); }
+.ptabs { display: flex; border-bottom: 1px solid var(--rule); }
+.ptabs button { flex: 1; padding: 7px; color: var(--muted); border-bottom: 2px solid transparent; }
+.ptabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 500; }
+.pbody { flex: 1; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+.msg { line-height: 1.5; }
+.msg.user { align-self: flex-end; background: var(--accent-soft); border-radius: 8px; padding: 7px 10px; max-width: 92%; }
+.msg.agent p { margin: 0 0 7px; }
+.msg.sys { color: var(--muted); font-size: 12px; border: 1px dashed var(--rule); border-radius: 6px; padding: 6px 9px; }
+.msg.sys summary { cursor: pointer; }
+.msg.sys ul { margin: 6px 0 0; padding-left: 18px; }
+.action { display: flex; gap: 8px; align-items: center; border: 1px solid #f0d7ab; background: var(--note-soft); border-radius: 6px; padding: 6px 9px; font-size: 12px; }
+.action button { margin-left: auto; color: var(--accent); font-weight: 500; white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: 5px; background: var(--pane); border: 1px solid #c4d5f1; color: var(--accent); border-radius: 4px; padding: 1px 6px; font-family: var(--font-code); font-size: 11px; margin: 0 4px 4px 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip button { color: var(--muted); }
+.pfoot { border-top: 1px solid var(--rule); padding: 8px 12px 10px; }
+.pfoot textarea { width: 100%; min-height: 56px; resize: vertical; border: 1px solid var(--rule); border-radius: 6px; padding: 7px 9px; font: inherit; color: var(--ink); background: var(--pane); }
+.pfoot .row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.pfoot .hint { color: var(--muted); font-size: 11px; }
+.btn { background: var(--accent); color: #fff; border-radius: 6px; padding: 4px 12px; font-weight: 500; }
+.btn.ghost { background: var(--pane); color: var(--ink); border: 1px solid var(--rule); }
+.btn:disabled { opacity: .45; cursor: default; }
+.finding { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; }
+.finding.focus { border-color: var(--note); box-shadow: 0 0 0 2px #f6e2bd; }
+.finding .top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.finding .loc { font-family: var(--font-code); color: var(--accent); cursor: pointer; }
+.finding .loc:hover { text-decoration: underline; }
+.pill { border-radius: 9px; padding: 0 7px; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; }
+.pill.draft { background: var(--note-soft); color: var(--note); }
+.pill.approved { background: #e3f3e6; color: var(--ok); }
+.pill.rejected { background: var(--soft); color: var(--muted); text-decoration: line-through; }
+.pill.posted { background: var(--accent-soft); color: var(--accent); }
+.pill.resolved { background: var(--soft); color: var(--muted); }
+.pill.sev { background: var(--soft); color: #4a5361; font-weight: 500; }
+.finding .l1 { font-size: 13px; margin-top: 4px; }
+.finding .acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.finding .acts button { border: 1px solid var(--rule); border-radius: 5px; padding: 2px 9px; font-size: 12px; }
+.finding .acts button:hover { border-color: var(--accent); color: var(--accent); }
+.postbar { position: sticky; bottom: 0; background: var(--pane); border-top: 1px solid var(--rule); padding: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.confirm { border: 1px solid #c4d5f1; background: #f5f8fe; border-radius: 6px; padding: 8px 10px; font-size: 12px; }
+.confirm pre { white-space: pre-wrap; font-family: var(--font-code); font-size: 11px; background: var(--pane); border: 1px solid var(--rule); border-radius: 4px; padding: 6px; max-height: 160px; overflow: auto; }
+.memory { border: 1px solid #c4d5f1; background: #f5f8fe; border-radius: 8px; padding: 10px; }
+.memory h5 { margin: 0 0 6px; font-size: 12px; }
+.memory .mem { background: var(--pane); border: 1px solid var(--rule); border-radius: 6px; padding: 7px 9px; margin-top: 6px; font-size: 12px; line-height: 1.45; }
+.memory .mem .target { font-family: var(--font-code); font-size: 10.5px; color: var(--accent); display: block; margin-bottom: 3px; }
+.reopen { writing-mode: vertical-rl; transform: rotate(180deg); padding: 12px 0; width: 36px; color: var(--accent); font-weight: 500; }
+
+.left { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.ltabs { display: flex; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--pane); z-index: 3; }
+.ltabs button { flex: 1; padding: 8px 4px 7px; color: var(--muted); border-bottom: 2px solid transparent; font-size: 12px; }
+.ltabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 500; }
+.lbody { flex: 1; overflow: auto; padding: 6px 0 12px; }
+.lfoot { border-top: 1px solid var(--rule); padding: 6px 12px; color: var(--muted); font-size: 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lfoot label { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+.crow { display: grid; grid-template-columns: 14px 1fr auto; gap: 0 6px; padding: 5px 12px; cursor: pointer; border-left: 3px solid transparent; }
+.crow:hover { background: var(--soft); }
+.crow.on { border-left-color: var(--accent); background: var(--accent-soft); }
+.crow .st { color: var(--muted); font-size: 10px; font-weight: 600; padding-top: 2px; }
+.crow .nm { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crow .pt { grid-column: 2; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.crow .ct { font-family: var(--font-code); font-size: 10.5px; font-variant-numeric: tabular-nums; text-align: right; }
+.search { padding: 4px 12px 8px; }
+.search input { width: 100%; border: 1px solid var(--rule); border-radius: 6px; padding: 5px 8px; font: inherit; color: var(--ink); background: var(--pane); }
+.sres .sf { padding: 6px 12px 2px; font-family: var(--font-code); font-size: 11px; color: var(--muted); }
+.sres .sl { padding: 2px 12px 2px 20px; font-family: var(--font-code); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.sres .sl:hover { background: var(--soft); }
+.sres .sl b { color: var(--muted); font-weight: 400; margin-right: 6px; }
+.sres mark { background: #ffe9a8; color: inherit; }
+[data-kbd]:focus-visible, .row:focus-visible, .crow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bc { display: flex; gap: 6px; align-items: center; font-size: 11px; color: var(--muted); }
+.bc button { color: var(--accent); }
+.bc button:hover { text-decoration: underline; }
+.node.hasdia rect { stroke-width: 1.5; }
+.node .dia { fill: var(--accent); font-size: 9px; }
+.node.code rect { fill: #fbfcfe; }
+.node.code text:first-of-type { font-family: var(--font-code); font-size: 9.5px; }
+#ctx { position: fixed; z-index: 21; background: var(--pane); border: 1px solid var(--rule); border-radius: 7px; box-shadow: 0 8px 24px rgba(20, 30, 50, .18); padding: 4px; min-width: 230px; }
+#ctx button { display: flex; justify-content: space-between; gap: 16px; width: 100%; text-align: left; padding: 5px 9px; border-radius: 4px; }
+#ctx button:hover { background: var(--accent-soft); }
+#ctx button kbd { color: var(--muted); font-family: var(--font-ui); font-size: 11px; }
+#ctx .sep { height: 1px; background: var(--rule); margin: 3px 0; }
+#ctx .head { padding: 4px 9px; font-family: var(--font-code); font-size: 11px; color: var(--muted); }
+#toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 7px 14px; border-radius: 7px; font-size: 12px; z-index: 30; max-width: min(560px, calc(100vw - 32px)); }
+
+@media (max-width: 1100px) {
+  .strip { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .strip .desc { grid-column: 1 / -1; }
+  .work { grid-template-columns: 230px minmax(0, 1fr); }
+  .work.panel-closed { grid-template-columns: 230px minmax(0, 1fr); }
+  #panel { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--rule); max-height: 70vh; }
+  #app { height: auto; }
+  .left, #main { max-height: 80vh; }
+}
+@media (max-width: 700px) {
+  .strip { grid-template-columns: minmax(0, 1fr); }
+  .work, .work.panel-closed { grid-template-columns: minmax(0, 1fr); }
+  .left { border-right: 0; border-bottom: 1px solid var(--rule); max-height: 50vh; }
+  .gap, .inline-note { padding-left: 12px; margin-left: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .ln.flash { animation: none; background: #fff1cf; } }
+</style>
+
+<div id="app">
+  <header class="bar">
+    <div class="crumb">marin <span>/</span> #10640 <span>Add persistent container tasks and host capabilities</span></div>
+    <span class="state">MERGED</span>
+    <span class="meta">rjpower · 30 files · +4882 −388 · base 8a92f90 · head 01a8bb8</span>
+    <span class="spacer"></span>
+    <div class="seg" role="group" aria-label="Main view">
+      <button id="modeSteps" aria-pressed="true">By step</button>
+      <button id="modeFiles" aria-pressed="false">By file</button>
+    </div>
+    <button class="toggle" id="blameBtn" aria-pressed="false">Blame</button>
+    <span class="demo-note">Demo: static data from the real PR, no model connected</span>
+  </header>
+
+  <section class="strip">
+    <div class="card desc" id="prDesc"></div>
+    <div class="card map"><h3>In Marin <small>click a box to open its page</small></h3><svg id="ctxMap" viewBox="0 0 420 190" role="img" aria-label="Where Shellbox sits in Marin"></svg></div>
+    <div class="card map"><h3 id="subHead"></h3><svg id="subMap" viewBox="0 0 460 196" role="img" aria-label="Components changed by the PR"></svg></div>
+  </section>
+
+  <div class="work" id="work">
+    <nav class="left" aria-label="Code path, changes, files and search">
+      <div class="ltabs" role="tablist">
+        <button role="tab" data-ltab="path" aria-selected="true">Code path</button>
+        <button role="tab" data-ltab="changes" aria-selected="false">Changes</button>
+        <button role="tab" data-ltab="files" aria-selected="false">Files</button>
+        <button role="tab" data-ltab="search" aria-selected="false">Search</button>
+      </div>
+      <div class="lbody" id="lbody"></div>
+      <div class="lfoot" id="lfoot"></div>
+    </nav>
+    <main id="main" aria-live="polite"></main>
+    <aside id="panel" aria-label="Claude session"></aside>
+  </div>
+</div>
+<div id="ctx" hidden></div>
+<div id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+"use strict";
+const SRC = "lib/shellbox/src/shellbox/";
+
+/* ---------------- Wordbase content for this PR (hand-written for the demo) ---------------- */
+const PR = {
+  l1: "Shellbox can start a task as a group of named containers on one private loopback network, and a handler on the host can answer HTTP requests made inside a sandbox that has no external network.",
+  l2: "A caller lists containers in a `TaskSpec` and marks one as primary; the single-machine `create` call now builds a one-container task through the same path. The local backend starts each member under bubblewrap, puts every member after the primary into the primary's network namespace, and writes the container names into each member's `/etc/hosts`. Backends gain a persistent process session with binary stdin and stdout: local and Docker use subprocess pipes, and Daytona carries base64 lines over its command-log websocket. `serve_http` runs a small standard-library listener in the primary and relays each request over that session to a trusted handler on the host, so model and judge credentials stay out of the sandbox.",
+  l3: [
+    "Local machines also accept prepared OCI images. `image.py` verifies a digest-pinned layout, and `backends/local/images.py` unpacks it with `umoci` into a private writable root. When the worker delegates a cgroup v2 parent, each machine gets a child cgroup whose CPU and memory limits cover all of its descendants. A spec that declares limits fails on a worker without delegation unless the caller sets an explicit ignore policy.",
+    "The relay accepts complete requests and responses of at most 4 MiB, with 16 pending at a time and a 600 s timeout per request. It has no streaming and passes no caller headers. QEMU, ShellSim and the existing Iris backend keep their command and file-transfer interfaces and gain no process sessions.",
+    "Harbor's Compose import (#10628) builds on these types. Native Iris container groups and endpoint authorization moved to draft #10822, so this PR needs no Iris controller rollout. Your first review covered an earlier revision that still contained the Iris changes; six of your ten inline comments point at code that is no longer in the diff."
+  ]
+};
+
+const FILES = {
+  "task.py": { l1: "Describes a task as named containers with endpoints and readiness probes, and closes the containers together.", l2: "`TaskSpec.__post_init__` rejects duplicate names, a missing primary, mixed network policies and repeated ports, since every member binds on the same loopback. `Task.close` memoizes one closing future, so concurrent callers wait on the same teardown." },
+  "process_session.py": { l1: "Gives every backend the same persistent pipe session, with serialized reads and writes, a bounded stderr tail and teardown that finishes even when the caller is cancelled.", l2: "Backends pass four callables (a reader, write, wait and stop). `own_cleanup` keeps cleanup tasks in a module-level set so the event loop cannot drop them, and `await_cleanup` waits for them before re-raising the caller's cancellation." },
+  "process_framing.py": { l1: "Encodes binary chunks of up to 64 KiB as one-letter-tagged base64 lines for transports that carry only text.", l2: "The module imports only the standard library because Daytona's bridge executes its source inside provider images that do not have Shellbox installed." },
+  "http_service.py": { l1: "Runs a loopback HTTP listener inside a machine and relays each request over a process session to a handler on the host.", l2: "Frames are newline-delimited JSON checked by strict Pydantic models on the host. `_pump` keeps up to 16 handler tasks in flight and writes each response as its task finishes." },
+  "http_service_guest.py": { l1: "The guest half of the relay: a standard-library HTTP server that turns each request into a JSON line on stdout and waits for the matching response on stdin.", l2: "A non-blocking semaphore admits 16 requests at once and drops further connections without a response. Each handler thread waits at most `REQUEST_TIMEOUT` (600 s) and then answers 504." },
+  "machine.py": { l1: "Adds the `ProcessSession` and `ProcessMachine` protocols to the common machine API.", l2: "" },
+  "image.py": { l1: "Resolves registry images and Dockerfiles into digest-pinned OCI layouts and reads their entrypoint and arguments.", l2: "" },
+  "backends/local/machine.py": { l1: "Starts bubblewrap machines and multi-container tasks on the local host, now with OCI roots, cgroup limits and process sessions.", l2: "This file holds a third of the PR's source changes. `create_task` starts members in order, and `_start_keeper` builds the bubblewrap arguments that decide which namespaces a member shares with the primary." },
+  "backends/local/launch.py": { l1: "The launcher script that enters a machine's pinned namespaces, applies resource limits and drops privileges before executing the guest command.", l2: "" },
+  "backends/local/cgroup.py": { l1: "Creates a child cgroup per machine under a delegated cgroup v2 parent, kills it on close and removes it.", l2: "" },
+  "backends/local/images.py": { l1: "Unpacks a prepared OCI image with `umoci` into a private writable root filesystem.", l2: "" },
+  "backends/local/transfers.py": { l1: "Copies files between host and guest through tar streams while refusing symlinked destinations and guest-chosen names.", l2: "" },
+  "backends/daytona/process.py": { l1: "Implements a process session over a Daytona command-log websocket using the shared frame codec.", l2: "" },
+  "backends/daytona/bridge.py": { l1: "The guest-side bridge that converts Daytona's text session into binary stdin, stdout and stderr streams.", l2: "" },
+  "backends/daytona/machine.py": { l1: "Adds `open_process` to Daytona machines and closes their provider sessions on shutdown.", l2: "" },
+  "backends/docker/machine.py": { l1: "Adds `open_process` to Docker machines through `docker exec -i` pipes.", l2: "" }
+};
+
+const STEPS = [
+  { id: 1, node: "spec", title: "Describe the task", s: "A caller lists containers, endpoints and probes, and `TaskSpec` validates names, network policy and ports.",
+    l2: "`single_container_task` wraps a plain `MachineSpec` under the name `task`; `LocalMachineFactory.create` uses it to reach `create_task`, so single machines and groups start through the same code.",
+    ex: [["task.py", 45, 111]] },
+  { id: 2, node: "group", title: "Start the members", s: "The local factory starts the primary first, then starts every other member inside the primary's network namespace.",
+    l2: "`create_task` refuses multi-member tasks with an ALLOW network policy, names outside lowercase DNS labels and startup overrides on the primary. Each supporting member runs its image ENTRYPOINT and CMD under a monitor task, and `_companion_finished` closes the whole task when any monitor finishes. A TTL task calls the same close.",
+    ex: [["backends/local/machine.py", 1029, 1091], ["backends/local/machine.py", 446, 494], ["backends/local/machine.py", 1224, 1242]] },
+  { id: 3, node: "runtime", title: "Wait for readiness", s: "`Task.wait_ready` runs each declared probe in order and closes the group if one fails or the budget runs out.",
+    l2: "A probe with its own timeout runs inside `_TIMED_PROBE`, a short Python wrapper that kills the probe's process group in the guest. A machine-level command timeout can destroy the machine on some backends, and a slow health check should only fail that check.",
+    ex: [["task.py", 137, 151], ["task.py", 159, 183], ["task.py", 22, 42]] },
+  { id: 4, node: "session", title: "Open a persistent process", s: "`open_process` returns a session whose stdin and stdout stay open, and `StreamProcessSession` serializes access and cleans up.",
+    l2: "The local backend starts the process in the machine's pinned namespaces through `launch.py` and kills its process group on stop. If the process outlives `PROCESS_STOP_TIMEOUT`, the backend closes the whole machine, because a detached child may still hold the pipes.",
+    ex: [["machine.py", 251, 276], ["process_session.py", 123, 196], ["backends/local/machine.py", 639, 691]] },
+  { id: 5, node: "daytona", title: "Carry bytes over Daytona", s: "Daytona's websocket carries only text, so host and guest exchange tagged base64 lines of at most 64 KiB.",
+    l2: "`BRIDGE_SOURCE` builds a stand-in `shellbox` package in the guest and executes `process_framing.py` into it, which lets the bridge import the codec in images without Shellbox. `BoundedByteBuffer` turns pushed websocket output into a reader with backpressure.",
+    ex: [["process_framing.py", 1, 54], ["backends/daytona/process.py", 1, 60], ["process_session.py", 80, 121]] },
+  { id: 6, node: "relay", title: "Relay HTTP to the host", s: "`serve_http` starts the guest listener, and `_pump` forwards each request to the host handler and writes the response back.",
+    l2: "A handler exception becomes a generic 502 body, which keeps provider error text and headers on the host. When the helper exits while the `async with` body runs, the done callback cancels the body, and cleanup replaces that cancellation with the helper's own error.",
+    ex: [["http_service.py", 125, 223], ["http_service_guest.py", 26, 133], ["http_service.py", 86, 98]] },
+  { id: 7, node: "teardown", title: "Tear down", s: "Cleanup runs in tasks held in a module-level set, so a caller cancelled twice still waits for cleanup before its cancellation propagates.",
+    l2: "`finish_owned` loops on `asyncio.shield` until the owned task finishes, swallowing the caller's cancellations, and returns or raises the owned task's result. Callers re-raise their original error afterwards.",
+    ex: [["process_session.py", 21, 74], ["task.py", 147, 151], ["backends/local/machine.py", 847, 898]] },
+  { id: 8, node: "limits", title: "Images and resource limits", s: "Local machines can boot from verified OCI layouts, and each machine gets its own cgroup under a delegated parent.",
+    l2: "",
+    ex: [["backends/local/cgroup.py", 1, 73], ["backends/local/images.py", 1, 70]] }
+];
+
+const FINDINGS = [
+  { id: "f1", path: "http_service.py", line: 133, sev: "medium", status: "draft", who: "review session", mine: false,
+    l1: "When all 16 handlers hang, a client retry after the guest's 504 can arrive while the host still counts 16 pending, and `_pump` raises and ends the service.",
+    l2: "The guest starts its 600 s timer when it emits the request frame; the host starts its timer when `_response` begins, one transport hop later. In that gap the guest answers 504 and releases its semaphore slot, so a retry can send a 17th frame while `pending` still holds 16 tasks. `_pump` treats that as a protocol violation and raises `ValueError`, the done callback cancels the `serve_http` body, and the trial fails. A stuck model endpoint is the likely trigger. Starting the host timeout a little earlier than the guest's, or letting the host reply 503 to frames over the limit, would keep the service alive." },
+  { id: "f2", path: "task.py", line: 133, sev: "low", status: "draft", who: "review session", mine: false,
+    l1: "`Task.endpoint` with a misspelled container or endpoint name raises a bare `StopIteration`, which reaches async callers as `RuntimeError: coroutine raised StopIteration`.",
+    l2: "Both lookups use `next()` without a default. Raising `KeyError` with the requested names would give the caller a readable error." },
+  { id: "f3", path: "http_service.py", line: 5, sev: "design", status: "posted", who: "you", mine: true,
+    l1: "This transport has been a bottleneck before: the pump is serial per `serve_http`, each request costs a controller round trip, and nothing records in-flight count, queue depth or drops.",
+    l2: "Posted 2026-10-30. Robert replied and you approved later that day, treating this as follow-up work. The pump now runs handlers concurrently (up to 16), which addresses the first point. Instrumentation is still absent at head." },
+  { id: "f4", path: "backends/local/transfers.py", line: 115, sev: "high", status: "resolved", who: "you (agent draft)", mine: true,
+    l1: "A guest that controls its own `tar` could pick the host file name when the download target is a directory.",
+    l2: "Resolved at head: `unpack_local_archive` now takes `source_name` from the caller and ignores the name in the guest's stream." },
+  { id: "f5", path: "backends/local/machine.py", line: 327, sev: "medium", status: "resolved", who: "you (agent draft)", mine: true,
+    l1: "`RLIMIT_CPU` applied to every process a command leaves behind, so preserved background servers died with SIGXCPU.",
+    l2: "Resolved at head: `_resource_limits` sets only NPROC, FSIZE and CORE limits." }
+];
+
+const CTX = {
+  nodes: [
+    { id: "taskforge", x: 16, y: 10, w: 110, h: 30, label: "Taskforge", sub: "task construction" },
+    { id: "rollout", x: 155, y: 10, w: 110, h: 30, label: "RolloutEngine", sub: "agent rollouts" },
+    { id: "compendium", x: 294, y: 10, w: 110, h: 30, label: "TaskCompendium", sub: "graders" },
+    { id: "harbor", x: 16, y: 78, w: 96, h: 30, label: "Harbor", sub: "vendored host app" },
+    { id: "shellbox", x: 160, y: 74, w: 120, h: 38, label: "Shellbox", sub: "machines, tasks", here: true },
+    { id: "iris", x: 318, y: 78, w: 86, h: 30, label: "Iris", sub: "cluster jobs" },
+    { id: "b-local", x: 16, y: 146, w: 72, h: 30, label: "Local", sub: "bubblewrap", on: true },
+    { id: "b-docker", x: 98, y: 146, w: 72, h: 30, label: "Docker", sub: "gVisor too", on: true },
+    { id: "b-daytona", x: 180, y: 146, w: 72, h: 30, label: "Daytona", sub: "provider", on: true },
+    { id: "b-iris", x: 262, y: 146, w: 64, h: 30, label: "Iris", sub: "sandbox", dim: true },
+    { id: "b-qemu", x: 336, y: 146, w: 68, h: 30, label: "QEMU", sub: "ShellSim", dim: true }
+  ],
+  edges: [["taskforge", "shellbox"], ["rollout", "shellbox"], ["compendium", "shellbox"], ["harbor", "shellbox"], ["shellbox", "b-local"], ["shellbox", "b-docker"], ["shellbox", "b-daytona"], ["shellbox", "b-iris"], ["shellbox", "b-qemu"], ["b-iris", "iris"]]
+};
+
+const SUB = {
+  groups: [{ x: 250, y: 104, w: 200, h: 84, label: "Bubblewrap task, external network denied" }],
+  nodes: [
+    { id: "driver", x: 8, y: 8, w: 116, h: 34, label: "Host handler", sub: "holds credentials", step: 6 },
+    { id: "relay", x: 150, y: 8, w: 116, h: 34, label: "serve_http relay", sub: "bounded frames", step: 6 },
+    { id: "session", x: 150, y: 62, w: 116, h: 34, label: "ProcessSession", sub: "shared lifecycle", step: 4 },
+    { id: "pipes", x: 8, y: 116, w: 108, h: 34, label: "Local, Docker pipes", sub: "subprocess", step: 4 },
+    { id: "daytona", x: 124, y: 150, w: 112, h: 34, label: "Daytona bridge", sub: "text codec", step: 5 },
+    { id: "spec", x: 300, y: 8, w: 100, h: 34, label: "TaskSpec", sub: "containers, probes", step: 1 },
+    { id: "group", x: 262, y: 128, w: 82, h: 34, label: "Primary", sub: "guest helper", step: 2 },
+    { id: "runtime", x: 358, y: 128, w: 82, h: 34, label: "Runtime", sub: "readiness probe", step: 3 },
+    { id: "teardown", x: 300, y: 58, w: 100, h: 30, label: "Teardown", sub: "cancel-safe", step: 7 },
+    { id: "limits", x: 8, y: 62, w: 116, h: 30, label: "OCI roots, cgroups", sub: "local only", step: 8 }
+  ],
+  edges: [["driver", "relay"], ["relay", "session"], ["session", "pipes"], ["session", "daytona"], ["pipes", "group"], ["group", "runtime", "loopback"], ["spec", "teardown"], ["teardown", "group"], ["daytona", "group"]]
+};
+
+/* Step diagrams: shown when a box in "Inside this PR" is double-clicked. Boxes link to code. */
+const STEP_DIA = {
+  2: { title: "Start the members", groups: [{ x: 238, y: 6, w: 216, h: 106, label: "Members after the primary" }],
+    nodes: [
+      { id: "ct", x: 8, y: 10, w: 104, h: 32, label: "create_task", sub: "checks policy, names", at: ["backends/local/machine.py", 1029] },
+      { id: "cp", x: 124, y: 10, w: 104, h: 32, label: "_create(primary)", sub: "own network namespace", at: ["backends/local/machine.py", 1056] },
+      { id: "sk", x: 124, y: 62, w: 104, h: 32, label: "_start_keeper", sub: "--unshare-net if DENY", at: ["backends/local/machine.py", 484] },
+      { id: "cm", x: 248, y: 24, w: 96, h: 32, label: "_create(peer=)", sub: "joins primary netns", at: ["backends/local/machine.py", 1062] },
+      { id: "mo", x: 352, y: 24, w: 94, h: 32, label: "monitor task", sub: "ENTRYPOINT + CMD", at: ["backends/local/machine.py", 1083] },
+      { id: "cf", x: 352, y: 74, w: 94, h: 32, label: "_companion_finished", sub: "any exit", at: ["backends/local/machine.py", 1236] },
+      { id: "ex", x: 8, y: 140, w: 104, h: 32, label: "_expire", sub: "TTL", at: ["backends/local/machine.py", 1087] },
+      { id: "tc", x: 248, y: 140, w: 120, h: 32, label: "Task.close", sub: "one shared future", at: ["task.py", 147] }
+    ],
+    edges: [["ct", "cp"], ["cp", "sk"], ["cp", "cm", "peer"], ["cm", "mo"], ["mo", "cf"], ["cf", "tc"], ["ex", "tc"]] },
+  4: { title: "Open a persistent process",
+    nodes: [
+      { id: "pm", x: 8, y: 10, w: 132, h: 32, label: "ProcessMachine", sub: "open_process(command)", at: ["machine.py", 271] },
+      { id: "lo", x: 8, y: 74, w: 104, h: 32, label: "local open_process", sub: "launch.py in namespaces", at: ["backends/local/machine.py", 639] },
+      { id: "do", x: 120, y: 74, w: 104, h: 32, label: "docker open_process", sub: "docker exec -i", at: ["backends/docker/machine.py", 166] },
+      { id: "da", x: 232, y: 74, w: 104, h: 32, label: "daytona open_process", sub: "command-log websocket", at: ["backends/daytona/machine.py", 200] },
+      { id: "ss", x: 60, y: 140, w: 116, h: 32, label: "SubprocessSession", sub: "native pipes", at: ["process_session.py", 197] },
+      { id: "ds", x: 232, y: 140, w: 116, h: 32, label: "DaytonaProcessSession", sub: "tagged base64 lines", at: ["backends/daytona/process.py", 36] },
+      { id: "bb", x: 352, y: 74, w: 100, h: 32, label: "BoundedByteBuffer", sub: "backpressure", at: ["process_session.py", 80] },
+      { id: "st", x: 300, y: 10, w: 150, h: 32, label: "StreamProcessSession", sub: "locks, stderr tail, close", at: ["process_session.py", 123] }
+    ],
+    edges: [["pm", "lo"], ["pm", "do"], ["pm", "da"], ["lo", "ss"], ["do", "ss"], ["da", "ds"], ["bb", "ds", "feeds"], ["ss", "st", "subclass"], ["ds", "st"]] },
+  6: { title: "Relay HTTP to the host", groups: [{ x: 4, y: 4, w: 210, h: 186, label: "Guest helper in the primary" }, { x: 246, y: 4, w: 210, h: 186, label: "Host process" }],
+    nodes: [
+      { id: "cl", x: 14, y: 22, w: 88, h: 30, label: "guest client", sub: "HTTP to 127.0.0.1" },
+      { id: "sl", x: 112, y: 22, w: 94, h: 30, label: "slots", sub: "16, non-blocking", at: ["http_service_guest.py", 44] },
+      { id: "hr", x: 14, y: 74, w: 112, h: 30, label: "handle_request", sub: "one thread each", at: ["http_service_guest.py", 76] },
+      { id: "em", x: 14, y: 140, w: 88, h: 30, label: "emit", sub: "JSON line, stdout", at: ["http_service_guest.py", 36] },
+      { id: "rr", x: 112, y: 140, w: 94, h: 30, label: "receive_responses", sub: "stdin reader", at: ["http_service_guest.py", 136] },
+      { id: "pu", x: 256, y: 106, w: 94, h: 30, label: "_pump", sub: "FIRST_COMPLETED", at: ["http_service.py", 125] },
+      { id: "rs", x: 256, y: 22, w: 94, h: 30, label: "_response", sub: "600 s wait_for", at: ["http_service.py", 86] },
+      { id: "hd", x: 360, y: 22, w: 88, h: 30, label: "handler", sub: "holds credentials" },
+      { id: "wr", x: 360, y: 150, w: 88, h: 30, label: "session.write", sub: "response frame", at: ["http_service.py", 136] }
+    ],
+    edges: [["cl", "sl"], ["cl", "hr"], ["hr", "em", "request"], ["em", "pu", "stdout"], ["pu", "rs", "task"], ["rs", "hd"], ["pu", "wr"], ["wr", "rr", "stdin"], ["rr", "hr", "ready.set"]] },
+  7: { title: "Tear down",
+    nodes: [
+      { id: "ca", x: 8, y: 16, w: 104, h: 32, label: "caller", sub: "cancelled, maybe twice" },
+      { id: "oc", x: 140, y: 16, w: 104, h: 32, label: "own_cleanup", sub: "task in _CLEANUPS", at: ["process_session.py", 36] },
+      { id: "ac", x: 140, y: 84, w: 104, h: 32, label: "await_cleanup", sub: "shield, then wait", at: ["process_session.py", 50] },
+      { id: "fo", x: 290, y: 84, w: 112, h: 32, label: "finish_owned", sub: "loops on shield", at: ["process_session.py", 21] },
+      { id: "re", x: 8, y: 150, w: 132, h: 32, label: "re-raise cancellation", sub: "after cleanup finishes", at: ["process_session.py", 59] },
+      { id: "tc", x: 290, y: 16, w: 112, h: 32, label: "Task.close", sub: "memoized future", at: ["task.py", 147] }
+    ],
+    edges: [["ca", "oc"], ["oc", "ac"], ["ac", "fo", "on cancel"], ["ac", "re"], ["tc", "oc", "same pattern"]] }
+};
+
+/* ---------------- State ---------------- */
+const S = { ltab: "path", zoom: null, hideTests: true, query: "", mode: "steps", step: 6, blame: false, files: {}, reveal: {}, collapsed: {}, full: {}, chips: [], panelOpen: true, tab: "session", focusFinding: null, l: {}, moved: false, confirm: false, memory: null, sent: [] };
+let D = null, byPath = {}, HL = {};
+
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const md = s => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+const $ = id => document.getElementById(id);
+function toast(t) { const el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => el.hidden = true, 3200); }
+
+/* ---------------- Layered descriptions ---------------- */
+function layered(key, l1, l2, l3) {
+  const lvl = S.l[key] || 1;
+  let h = `<p class="l1">${md(l1)}</p>`;
+  if (lvl >= 2 && l2) h += `<p class="l2">${md(l2)}</p>`;
+  if (lvl >= 3 && l3) h += `<div class="l3">${l3.map(p => `<p>${md(p)}</p>`).join("")}</div>`;
+  const max = l3 ? 3 : l2 ? 2 : 1;
+  if (max > 1) h += lvl < max ? `<button class="more" data-layer="${key}" data-to="${lvl + 1}">${lvl === 1 ? "More" : "Full description"}</button>` : `<button class="more" data-layer="${key}" data-to="1">Less</button>`;
+  return h;
+}
+function renderDesc() {
+  $("prDesc").innerHTML = `<h3>Pull request <small>prepared 2026-10-30, before your review</small></h3>` + layered("pr", PR.l1, PR.l2, PR.l3);
+}
+
+/* ---------------- Diagrams ---------------- */
+function clip(a, b) {
+  const ax = a.x + a.w / 2, ay = a.y + a.h / 2, bx = b.x + b.w / 2, by = b.y + b.h / 2;
+  const f = (n, dx, dy) => { const tx = dx ? (n.w / 2) / Math.abs(dx) : Infinity, ty = dy ? (n.h / 2) / Math.abs(dy) : Infinity; return Math.min(tx, ty); };
+  const dx = bx - ax, dy = by - ay, ta = f(a, dx, dy), tb = f(b, dx, dy);
+  return [ax + dx * ta, ay + dy * ta, bx - dx * tb, by - dy * tb];
+}
+function drawMap(svg, G, cls) {
+  const N = Object.fromEntries(G.nodes.map(n => [n.id, n]));
+  let h = "";
+  (G.groups || []).forEach(g => h += `<g class="group"><rect x="${g.x}" y="${g.y}" width="${g.w}" height="${g.h}"/><text x="${g.x + 8}" y="${g.y + 13}">${esc(g.label)}</text></g>`);
+  G.edges.forEach(([a, b, lab]) => {
+    const [x1, y1, x2, y2] = clip(N[a], N[b]);
+    h += `<line class="edge" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+    if (lab) h += `<text class="edge-label" x="${(x1 + x2) / 2 - 16}" y="${(y1 + y2) / 2 - 4}">${lab}</text>`;
+  });
+  G.nodes.forEach(n => {
+    const c = ["node", n.here ? "here" : "", n.on ? "on" : "", n.dim ? "dim" : "", cls(n)].join(" ");
+    h += `<g class="${c}" data-node="${n.id}" tabindex="0" role="button" aria-label="${esc(n.label)}"><rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}"/><text x="${n.x + 8}" y="${n.y + (n.sub ? 14 : n.h / 2 + 4)}">${esc(n.label)}</text>${n.sub ? `<text class="sub" x="${n.x + 8}" y="${n.y + 26}">${esc(n.sub)}</text>` : ""}</g>`;
+  });
+  svg.innerHTML = h;
+}
+function renderMaps() {
+  drawMap($("ctxMap"), CTX, () => "");
+  const z = S.zoom && STEP_DIA[S.zoom];
+  if (z) {
+    $("subHead").innerHTML = `<span class="bc"><button id="unzoom">This PR</button> / <span>Step ${S.zoom}: ${esc(z.title)}</span></span><small>click a box to open its code</small>`;
+    drawMap($("subMap"), z, n => "code");
+  } else {
+    $("subHead").innerHTML = `Inside this PR <small>click: open step · double-click: step diagram</small>`;
+    drawMap($("subMap"), SUB, n => [S.mode === "steps" && n.step === S.step ? "here" : "", STEP_DIA[n.step] ? "hasdia" : ""].join(" "));
+    // Mark boxes whose step has its own diagram.
+    SUB.nodes.filter(n => STEP_DIA[n.step]).forEach(n => {
+      const g = $("subMap").querySelector(`[data-node="${n.id}"]`);
+      g && g.insertAdjacentHTML("beforeend", `<text class="dia" x="${n.x + n.w - 12}" y="${n.y + 12}">+</text>`);
+    });
+  }
+}
+
+/* ---------------- Steps and tree ---------------- */
+function stepOrder() { return S.moved ? [6, 1, 2, 3, 4, 5, 7, 8] : [1, 2, 3, 4, 5, 6, 7, 8]; }
+function renderLeft() {
+  document.querySelectorAll("[data-ltab]").forEach(b => b.setAttribute("aria-selected", b.dataset.ltab === S.ltab));
+  if (S.ltab === "path") renderSteps();
+  else if (S.ltab === "changes") renderChanges();
+  else if (S.ltab === "files") renderTree();
+  else renderSearch();
+}
+function changedRows() {
+  return D.files.filter(f => !S.hideTests || !f.path.includes("/tests/"));
+}
+function renderChanges() {
+  if (S.ltab !== "changes") return;
+  const rows = changedRows(), cur = S.mode === "files" ? S.curFile : null;
+  const flagged = new Set(FINDINGS.filter(f => f.status === "draft").map(f => SRC + f.path));
+  $("lbody").innerHTML = rows.map(f => {
+    const i = f.path.lastIndexOf("/"), add = f.lines ? f.lines.filter(l => l[0] === "a").length : f.add, del = f.lines ? f.lines.filter(l => l[0] === "d").length : f.del;
+    return `<div class="crow ${cur === f.path ? "on" : ""}" data-file="${f.path}" data-kbd tabindex="0"><span class="st">${f.status === "A" ? "A" : "M"}</span><span class="nm">${flagged.has(f.path) ? '<span class="fileflag" style="display:inline-block;margin-right:5px;vertical-align:1px"></span>' : ""}${esc(f.path.slice(i + 1))}</span><span class="ct"><span style="color:var(--ok)">+${add}</span> <span style="color:var(--bad)">−${del}</span></span><span class="pt">${esc(f.path.slice(0, i))}</span></div>`;
+  }).join("");
+  $("lfoot").innerHTML = `<span>${rows.length} of ${D.files.length} files${S.hideTests ? " · tests hidden" : ""}</span><label><input type="checkbox" id="hideTests" ${S.hideTests ? "checked" : ""}> Hide tests</label>`;
+}
+function renderSearch() {
+  if (S.ltab !== "search") return;
+  const have = $("sq");
+  if (!have) $("lbody").innerHTML = `<div class="search"><input id="sq" type="search" placeholder="Search the PR head (literal)" value="${esc(S.query)}" autocomplete="off"></div><div class="sres" id="sres"></div>`;
+  const q = S.query, out = [];
+  let total = 0;
+  if (q.length >= 2) {
+    for (const f of D.files) {
+      if (!f.lines) continue;
+      const hits = f.lines.filter(l => l[2] != null && l[3].includes(q));
+      if (!hits.length) continue;
+      total += hits.length;
+      out.push(`<div class="sf">${esc(f.path.replace(SRC, ""))} · ${hits.length}</div>` + hits.slice(0, 12).map(l => `<div class="sl" data-hit="${f.path}|${l[2]}"><b>${l[2]}</b>${esc(l[3].trim()).split(esc(q)).join(`<mark>${esc(q)}</mark>`)}</div>`).join(""));
+    }
+  }
+  $("sres").innerHTML = q.length < 2 ? "" : out.join("") || `<div class="sf">No matches in the loaded files</div>`;
+  $("lfoot").innerHTML = `<span>${q.length >= 2 ? total + " matches · " : ""}the app runs ripgrep over the whole checkout; the demo searches the ${D.files.filter(f => f.lines).length} loaded files</span>`;
+}
+function renderSteps() {
+  if (S.ltab !== "path") return;
+  $("lfoot").innerHTML = `<span>${STEPS.length} steps · prepared before your review</span>`;
+  $("lbody").innerHTML = `<ol class="steps">` + stepOrder().map(id => STEPS.find(s => s.id === id)).map(s =>
+    `<li class="step ${S.mode === "steps" && S.step === s.id ? "on" : ""} ${S.moved && s.id === 6 ? "moved" : ""}" data-step="${s.id}" tabindex="0"><span class="n">${s.id}</span><span class="t">${esc(s.title)}</span><span class="s">${md(s.s)}</span></li>`).join("") + `</ol>`;
+}
+function stepsFor(rel) { return STEPS.filter(s => s.ex.some(e => e[0] === rel)).map(s => s.id); }
+function renderTree() {
+  if (S.ltab !== "files") return;
+  const root = "lib/shellbox/";
+  const changed = new Set(D.files.map(f => f.path));
+  const dirs = {};
+  D.tree.forEach(p => { const rel = p.slice(root.length); const i = rel.lastIndexOf("/"); const d = i < 0 ? "" : rel.slice(0, i); (dirs[d] = dirs[d] || []).push(rel.slice(i + 1)); });
+  const order = Object.keys(dirs).sort((a, b) => a.localeCompare(b));
+  let h = `<div class="row dir">lib/shellbox/</div>`;
+  const flagged = new Set(FINDINGS.filter(f => f.status === "draft").map(f => SRC + f.path));
+  for (const d of order) {
+    const names = dirs[d], full = n => root + (d ? d + "/" : "") + n;
+    const ch = names.filter(n => changed.has(full(n))), quiet = names.filter(n => !changed.has(full(n)));
+    const key = "t:" + d;
+    if (!ch.length) continue;
+    const depth = d ? d.split("/").length : 0;
+    const label = d.startsWith("src/shellbox") ? d.replace("src/shellbox", "src/shellbox") : d;
+    const tests = d === "tests";
+    const open = tests ? S.collapsed[key] === false : S.collapsed[key] !== true;
+    h += `<div class="row dir" data-tdir="${key}" style="padding-left:${6 + Math.min(depth, 2) * 6}px">${open ? "▾" : "▸"} ${esc(label || ".")}/ <span class="stat">${ch.length} changed</span></div>`;
+    if (!open) continue;
+    for (const n of ch) {
+      const p = full(n), f = byPath[p], rel = p.startsWith(SRC) ? p.slice(SRC.length) : null;
+      const st = rel ? stepsFor(rel) : [];
+      const add = f.lines ? f.lines.filter(l => l[0] === "a").length : f.add, del = f.lines ? f.lines.filter(l => l[0] === "d").length : f.del;
+      h += `<div class="row file changed" data-file="${p}" style="padding-left:${20 + Math.min(depth, 2) * 6}px" title="${esc(p)}">${flagged.has(p) ? '<span class="fileflag" title="draft review note"></span>' : ""}${esc(n)} ${st.map(x => `<span class="badge">${x}</span>`).join("")}<span class="stat">+${add} −${del}</span></div>`;
+    }
+    if (quiet.length) {
+      const qk = "q:" + d;
+      if (S.collapsed[qk] === false) quiet.forEach(n => h += `<div class="row file quiet" data-quiet="${full(n)}" style="padding-left:${20 + Math.min(depth, 2) * 6}px">${esc(n)}</div>`);
+      h += `<div class="row hidden-count" data-tdir="${qk}" style="padding-left:${20 + Math.min(depth, 2) * 6}px">${S.collapsed[qk] === false ? "hide unchanged" : `+ ${quiet.length} unchanged`}</div>`;
+    }
+  }
+  const unchangedDirs = order.filter(d => !dirs[d].some(n => changed.has(root + (d ? d + "/" : "") + n)));
+  h += `<div class="row hidden-count" style="padding-left:12px" title="${esc(unchangedDirs.join(", "))}">+ ${unchangedDirs.length} unchanged folders (gvisor, iris, qemu, shellsim, guest)</div>`;
+  const elsewhere = D.files.filter(f => !f.path.startsWith(root));
+  h += `<div class="row dir" style="margin-top:8px">Elsewhere <span class="stat">${elsewhere.length} changed</span></div>`;
+  elsewhere.forEach(f => h += `<div class="row file quiet" data-file="${f.path}" style="padding-left:20px" title="${esc(f.path)}">${esc(f.path)}<span class="stat">+${f.add} −${f.del}</span></div>`);
+  $("lbody").innerHTML = `<div class="tree">${h.replace(/class="row file/g, 'tabindex="0" data-kbd class="row file').replace(/class="row dir" data-tdir/g, 'tabindex="0" class="row dir" data-tdir')}</div>`;
+  $("lfoot").innerHTML = `<span>Changed files first · numbers are code path steps</span>`;
+}
+
+/* ---------------- Highlighting ---------------- */
+function splitHL(html) {
+  const out = []; let stack = [], cur = "";
+  const re = /(<span[^>]*>)|(<\/span>)|(\n)|([^<\n]+)/g; let m;
+  while ((m = re.exec(html))) {
+    if (m[1]) { stack.push(m[1]); cur += m[1]; }
+    else if (m[2]) { stack.pop(); cur += m[2]; }
+    else if (m[3]) { cur += "</span>".repeat(stack.length); out.push(cur); cur = stack.join(""); }
+    else cur += m[4];
+  }
+  out.push(cur + "</span>".repeat(stack.length));
+  return out;
+}
+function hl(path) {
+  if (HL[path]) return HL[path];
+  const f = byPath[path], lang = path.endsWith(".md") ? "markdown" : "python";
+  const head = f.lines.filter(l => l[2] != null).map(l => l[3]).join("\n");
+  const base = f.lines.filter(l => l[1] != null).map(l => l[3]).join("\n");
+  const run = t => window.hljs ? splitHL(hljs.highlight(t, { language: lang, ignoreIllegals: true }).value) : t.split("\n").map(esc);
+  HL[path] = { head: run(head), base: run(base) };
+  return HL[path];
+}
+
+/* ---------------- Code rendering ---------------- */
+const CONTEXT = 3;
+function lineHTML(path, f, i, H, blameState) {
+  const [tag, o, n] = f.lines[i];
+  const code = tag === "d" ? H.base[o - 1] : H.head[n - 1];
+  let bl = "";
+  if (S.blame) {
+    if (n != null) {
+      const sha = f.blame[n - 1], c = D.commits[sha] || {};
+      if (sha !== blameState.last) {
+        const days = Math.max(0, Math.round((Date.parse("2026-11-01") / 1000 - c.time) / 86400));
+        bl = `<span class="bl" title="${esc(sha + " " + (c.summary || ""))}"><b>${sha.slice(0, 7)}</b> ${esc((c.author || "").split(" ")[0])} · ${days}d</span>`;
+      } else bl = `<span class="bl"></span>`;
+      blameState.last = sha;
+    } else bl = `<span class="bl"></span>`;
+  }
+  const rel = path.slice(SRC.length);
+  const fs = n != null ? FINDINGS.filter(x => x.path === rel && x.line === n && x.status !== "rejected") : [];
+  const mk = fs.length ? `<span class="mk has ${fs[0].status === "resolved" ? "resolved" : ""} ${fs[0].mine ? "mine" : ""}" data-finding="${fs[0].id}" title="${esc(fs[0].l1)}"></span>` : `<span class="mk">${tag === "a" ? "+" : tag === "d" ? "−" : ""}</span>`;
+  let row = `<div class="ln ${tag === "c" ? "" : tag}" data-path="${path}" data-i="${i}" ${n != null ? `data-n="${n}"` : ""}>${bl}<span class="no">${o ?? ""}</span><span class="no">${n ?? ""}</span>${mk}<code>${code || " "}</code></div>`;
+  if (S.focusFinding && fs.some(x => x.id === S.focusFinding)) {
+    const x = fs.find(x => x.id === S.focusFinding);
+    row += `<div class="inline-note"><div class="who">${esc(x.who)} · ${x.sev} · ${x.status}</div>${md(x.l1)}</div>`;
+  }
+  return row;
+}
+function renderLines(path, visible, key) {
+  const f = byPath[path], H = hl(path), rev = S.reveal[key] || (S.reveal[key] = new Set());
+  const show = i => S.full[path] || visible.has(i) || rev.has(i);
+  let h = "", i = 0, N = f.lines.length; const bs = { last: null };
+  while (i < N) {
+    if (show(i)) { h += lineHTML(path, f, i, H, bs); i++; continue; }
+    let j = i; while (j < N && !show(j)) j++;
+    const cnt = j - i, top = i === 0, bottom = j === N;
+    const btns = [];
+    if (cnt > 30) { if (!top) btns.push(`<button data-rv="${key}|${i}|${i + 15}">Show 15 below</button>`); if (!bottom) btns.push(`<button data-rv="${key}|${j - 15}|${j}">Show 15 above</button>`); }
+    btns.push(`<button data-rv="${key}|${i}|${j}">Show all</button>`);
+    h += `<div class="gap"><span class="count">${cnt} unchanged line${cnt === 1 ? "" : "s"}${top ? " at the top" : bottom ? " to the end" : ""}</span>${btns.join("")}</div>`;
+    bs.last = null; i = j;
+  }
+  return `<div class="lines">${h}</div>`;
+}
+function diffVisible(f) {
+  const v = new Set();
+  f.lines.forEach((l, i) => { if (l[0] !== "c") for (let k = i - CONTEXT; k <= i + CONTEXT; k++) if (k >= 0 && k < f.lines.length) v.add(k); });
+  return v;
+}
+function rangeVisible(f, a, b) {
+  const v = new Set(); let inside = false;
+  f.lines.forEach((l, i) => { if (l[2] != null) inside = l[2] >= a && l[2] <= b; if (inside) v.add(i); });
+  return v;
+}
+function fileHeader(path, extra) {
+  const rel = path.startsWith(SRC) ? path.slice(SRC.length) : null, w = rel && FILES[rel];
+  const f = byPath[path], add = f.lines ? f.lines.filter(l => l[0] === "a").length : f.add, del = f.lines ? f.lines.filter(l => l[0] === "d").length : f.del;
+  const i = path.lastIndexOf("/");
+  const lvl = S.l["f:" + path] || 1;
+  const desc = w ? `<div class="fdesc">${md(w.l1)}${w.l2 ? (lvl > 1 ? ` ${md(w.l2)} <button class="more" data-layer="f:${path}" data-to="1">Less</button>` : `<button class="more" data-layer="f:${path}" data-to="2">More</button>`) : ""}</div>` : "";
+  const collapsed = S.collapsed["c:" + path];
+  return `<div class="fhead" data-fhead="${path}" data-kbd tabindex="0"><button class="chev" data-collapse="${path}" aria-label="Collapse file">${collapsed ? "▸" : "▾"}</button><div class="grow"><div class="path"><span class="d">${esc(path.slice(0, i + 1))}</span>${esc(path.slice(i + 1))}</div>${desc}${extra || ""}</div><span class="counts"><span class="a">+${add}</span> <span class="r">−${del}</span></span>${f.lines ? `<button class="act" data-full="${path}">${S.full[path] ? "Diff only" : "Whole file"}</button>` : ""}</div>`;
+}
+function renderMain() {
+  const m = $("main");
+  if (S.mode === "steps") {
+    const s = STEPS.find(x => x.id === S.step);
+    let h = `<div class="step-head"><div class="kicker">Step ${s.id} of ${STEPS.length}</div><h2>${esc(s.title)}</h2>${`<div style="margin-top:6px">` + layered("s:" + s.id, s.s, s.l2) + `</div>`}</div>`;
+    s.ex.forEach(([rel, a, b], k) => {
+      const path = SRC + rel, f = byPath[path], key = `s${s.id}:${k}`;
+      const collapsed = S.collapsed["c:" + path];
+      h += `<div class="fcard">${fileHeader(path, `<div class="excerpt-label" style="background:none;border:0;padding:2px 0 0">lines ${a} to ${b}</div>`)}${collapsed ? "" : `<div class="fbody">${renderLines(path, rangeVisible(f, a, b), key)}</div>`}</div>`;
+    });
+    const nx = stepOrder()[stepOrder().indexOf(s.id) + 1];
+    if (nx) h += `<button class="btn ghost" data-step-go="${nx}">Next: ${esc(STEPS.find(x => x.id === nx).title)}</button>`;
+    m.innerHTML = h;
+  } else {
+    const prio = p => p.startsWith(SRC) ? (p.includes("/tests/") ? 2 : 0) : p.startsWith("lib/shellbox/") ? (p.includes("/tests/") ? 2 : 1) : 3;
+    const files = [...D.files].sort((a, b) => prio(a.path) - prio(b.path) || a.path.localeCompare(b.path));
+    let h = `<div class="step-head"><div class="kicker">All changed files</div><h2>Diffs with ${CONTEXT} lines of context</h2></div>`;
+    files.forEach(f => {
+      const loaded = !!f.lines;
+      const collapsed = S.collapsed["c:" + f.path] ?? !loaded;
+      h += `<div class="fcard" id="card:${f.path}">${fileHeader(f.path)}${collapsed ? "" : `<div class="fbody">${loaded ? renderLines(f.path, diffVisible(f), "f:" + f.path) : `<div class="placeholder">Tests and lockfiles are left out of the demo data. In the app they load on expand.</div>`}</div>`}</div>`;
+    });
+    m.innerHTML = h;
+  }
+}
+
+/* ---------------- Panel ---------------- */
+const ANSWER = [
+  "The guest's request blocks in `Handler.handle_request` on `pending.ready.wait(REQUEST_TIMEOUT)` and gets a 504 after 600 s. On the host, `_response` hits its own 600 s `wait_for` slightly later and writes a 502 frame, which the guest drops because it already deleted the pending entry.",
+  "Other requests keep moving while fewer than 16 handlers hang: `_pump` waits on the receive task and every pending task with `FIRST_COMPLETED`, so one stuck handler occupies one slot. A 17th concurrent request is refused by the guest's non-blocking semaphore, and the client sees a dropped connection.",
+  "With all 16 stuck, there is a window where the guest has already answered 504 and freed a slot, while the host still counts 16 tasks. A retry in that window makes `_pump` raise `ValueError`, which cancels the `serve_http` body. I added this as a draft review note on line 133."
+];
+function renderPanel() {
+  const p = $("panel"), work = $("work");
+  work.classList.toggle("panel-closed", !S.panelOpen);
+  if (!S.panelOpen) { p.innerHTML = `<button class="reopen" id="reopen">Open PR session</button>`; return; }
+  const drafts = FINDINGS.filter(f => f.status === "draft").length, approved = FINDINGS.filter(f => f.status === "approved");
+  let h = `<div class="phead"><div><div class="ttl">PR #10640 session</div><div class="sub">Claude Code session, resumed · cwd marin @ 01a8bb8</div></div><button class="x" id="closePanel" aria-label="Close session and save notes">×</button></div>`;
+  h += `<div class="ptabs" role="tablist"><button role="tab" data-tab="session" aria-selected="${S.tab === "session"}">Session</button><button role="tab" data-tab="review" aria-selected="${S.tab === "review"}">Review notes (${FINDINGS.length})</button></div><div class="pbody" id="pbody">`;
+  if (S.memory) {
+    h += `<div class="memory"><h5>The session proposes these notes for the wordbase</h5><div style="color:var(--muted);font-size:11.5px">Press × to drop a note. The rest are kept when you press Done, open another session or close the window. The bug from this session is a draft review note, so it is not repeated here.</div>${S.memory.map((m, i) => `<div class="mem" style="position:relative;padding-right:28px"><span class="target">${esc(m.target)}</span>${md(m.text)}<button data-dropmem="${i}" aria-label="Drop this note" style="position:absolute;right:6px;top:4px;color:var(--muted);font-size:15px">×</button></div>`).join("")}${S.memory.length ? "" : `<div class="mem" style="color:var(--muted)">All notes dropped.</div>`}<div class="row" style="display:flex;gap:6px;margin-top:8px"><button class="btn" id="memKeep">Done</button></div></div>`;
+  } else if (S.tab === "session") {
+    h += `<details class="msg sys"><summary>Preparation turn, 2026-10-30 · wrote description, 8 steps, 2 diagrams, 2 draft notes</summary><ul><li>Read the diff at 01a8bb8 and its base</li><li>Read wordbase entries for <code>shellbox</code> and 9 files</li><li>Read your earlier review threads and Robert's replies</li><li>Wrote <code>wordbase/prs/10640/*.md</code></li></ul></details>`;
+    h += `<div class="msg user"><span class="chip">http_service.py:125-147 · _pump</span><div>If the handler hangs, what does the guest see, and does anything else stall?</div></div>`;
+    h += `<div class="msg agent">${ANSWER.map(p => `<p>${md(p)}</p>`).join("")}</div>`;
+    h += `<div class="action">The session moved step 6 to the top of the code path. <button id="applyMove">${S.moved ? "Undo" : "Apply"}</button></div>`;
+    S.sent.forEach(m => {
+      h += `<div class="msg user">${m.chips.map(c => `<span class="chip">${esc(c.label)}</span>`).join("")}<div>${esc(m.text)}</div></div>`;
+      h += `<div class="msg agent"><p>In the app this turn goes to the PR's Claude Code session. The session receives the chips as paths, line ranges and symbol names, plus the wordbase entry for each, and reads anything else itself. The demo has no model connected.</p></div>`;
+    });
+  } else {
+    FINDINGS.forEach(f => {
+      h += `<div class="finding ${S.focusFinding === f.id ? "focus" : ""}" data-fcard="${f.id}" data-kbd tabindex="0"><div class="top"><span class="pill ${f.status}">${f.status}</span><span class="pill sev">${f.sev}</span><span class="loc" data-goto="${f.id}">${esc(f.path)}:${f.line}</span><span>${esc(f.who)}</span></div><div class="l1">${md(f.l1)}</div>${(S.l["n:" + f.id] || 1) > 1 ? `<p class="l2">${md(f.l2)}</p><button class="more" data-layer="n:${f.id}" data-to="1">Less</button>` : `<button class="more" data-layer="n:${f.id}" data-to="2">More</button>`}`;
+      if (f.status === "draft" || f.status === "approved" || f.status === "rejected") h += `<div class="acts">${f.status !== "approved" ? `<button data-set="${f.id}|approved">Approve</button>` : ""}${f.status !== "rejected" ? `<button data-set="${f.id}|rejected">Reject</button>` : ""}${f.status !== "draft" ? `<button data-set="${f.id}|draft">Back to draft</button>` : ""}</div>`;
+      h += `</div>`;
+    });
+    h += `<div class="postbar">`;
+    if (S.confirm && approved.length) h += `<div class="confirm">These comments will post as one pending review on marin-community/marin#10640 from your account:<pre>${approved.map(f => `${SRC}${f.path}:${f.line}\n${f.l1}\n\n${f.l2}`).map(esc).join("\n\n---\n\n")}</pre><div style="display:flex;gap:6px"><button class="btn" id="doPost">Post review</button><button class="btn ghost" id="noPost">Cancel</button></div></div>`;
+    h += `<button class="btn" id="postBtn" ${approved.length ? "" : "disabled"}>Post ${approved.length} approved note${approved.length === 1 ? "" : "s"} to GitHub</button><div class="hint" style="color:var(--muted);font-size:11px">${drafts} draft${drafts === 1 ? "" : "s"} waiting for a decision</div></div>`;
+  }
+  h += `</div>`;
+  if (!S.memory) h += `<div class="pfoot"><div id="chips">${S.chips.map((c, i) => `<span class="chip">${esc(c.label)}<button data-unchip="${i}" aria-label="Remove">×</button></span>`).join("")}</div><textarea id="q" placeholder="Ask about the selection, a file, a symbol or a diagram box"></textarea><div class="row"><span class="hint">⌘> asks about the selection or the focused file, step, box or note. Right-click works too.</span><span style="flex:1"></span><button class="btn" id="send">Send</button></div></div>`;
+  p.innerHTML = h;
+}
+function keepMemory(reason) {
+  if (!S.memory) return;
+  toast(S.memory.length ? `${S.memory.length} note${S.memory.length === 1 ? "" : "s"} kept: ${reason}.` : "No notes kept.");
+  S.memory = null;
+}
+function addChip(c) { keepMemory("a new question started"); S.chips.push(c); S.panelOpen = true; S.tab = "session"; renderPanel(); $("q") && $("q").focus(); }
+function chipFor(el) {
+  if (!el) return null;
+  const file = el.closest("[data-file],[data-fhead]");
+  if (file) { const p = file.dataset.file || file.dataset.fhead; return { label: `file ${p.replace(SRC, "")}` }; }
+  const node = el.closest("[data-node]");
+  if (node) { const n = nodeById(node.dataset.node); return n.at ? { label: `${n.label} · ${n.at[0]}:${n.at[1]}` } : { label: `component ${n.label}` }; }
+  const st = el.closest("[data-step]");
+  if (st) { const s = STEPS.find(x => x.id === +st.dataset.step); return { label: `step ${s.id} · ${s.title}` }; }
+  const fc = el.closest("[data-fcard]");
+  if (fc) { const f = FINDINGS.find(x => x.id === fc.dataset.fcard); return { label: `note ${f.path}:${f.line}` }; }
+  return null;
+}
+function nodeById(id) { return [...CTX.nodes, ...SUB.nodes, ...Object.values(STEP_DIA).flatMap(d => d.nodes)].find(x => x.id === id); }
+function goToLineInStep(rel, n) {
+  const s = STEPS.find(x => x.id === S.step);
+  if (S.mode === "steps" && s.ex.some(([p, a, b]) => p === rel && a <= n && n <= b)) {
+    const row = $("main").querySelector(`.ln[data-path="${CSS.escape(SRC + rel)}"][data-n="${n}"]`);
+    if (row) { row.scrollIntoView({ block: "center", behavior: "smooth" }); row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash"); return; }
+  }
+  goToLine(SRC + rel, n);
+}
+
+/* ---------------- Navigation ---------------- */
+function goToLine(path, n, opts = {}) {
+  const f = byPath[path]; if (!f || !f.lines) { toast("That file is outside the demo data. In the app, definitions anywhere in the repo open here."); return; }
+  if (S.mode !== "files") { S.mode = "files"; syncMode(); }
+  S.collapsed["c:" + path] = false;
+  const key = "f:" + path, rev = S.reveal[key] || (S.reveal[key] = new Set());
+  const idx = f.lines.findIndex(l => l[2] === n);
+  for (let k = Math.max(0, idx - 6); k <= Math.min(f.lines.length - 1, idx + 14); k++) rev.add(k);
+  renderMain(); renderLeft();
+  const row = document.querySelector(`.ln[data-path="${CSS.escape(path)}"][data-n="${n}"]`);
+  if (row) { row.scrollIntoView({ block: "center", behavior: opts.instant ? "auto" : "smooth" }); row.classList.add("flash"); }
+}
+function goStep(id) { S.mode = "steps"; S.step = id; syncMode(); $("main").scrollTop = 0; }
+function syncMode() {
+  $("modeSteps").setAttribute("aria-pressed", S.mode === "steps"); $("modeFiles").setAttribute("aria-pressed", S.mode === "files");
+  renderLeft(); renderMaps(); renderMain();
+}
+function wordAt(x, y) {
+  let node, off;
+  if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); if (!r) return null; node = r.startContainer; off = r.startOffset; }
+  else if (document.caretPositionFromPoint) { const r = document.caretPositionFromPoint(x, y); if (!r) return null; node = r.offsetNode; off = r.offset; }
+  if (!node || node.nodeType !== 3) return null;
+  const t = node.textContent; let a = off, b = off;
+  while (a > 0 && /\w/.test(t[a - 1])) a--; while (b < t.length && /\w/.test(t[b])) b++;
+  return a < b ? t.slice(a, b) : null;
+}
+function defOf(word) { const d = D.symbols[word]; return d && d[0]; }
+
+/* ---------------- Context menu ---------------- */
+function menu(x, y, head, items) {
+  const c = $("ctx");
+  c.innerHTML = (head ? `<div class="head">${esc(head)}</div>` : "") + items.map((it, i) => it === "-" ? `<div class="sep"></div>` : `<button data-mi="${i}">${esc(it.label)}${it.kbd ? `<kbd>${it.kbd}</kbd>` : ""}</button>`).join("");
+  c.hidden = false;
+  c.style.left = Math.min(x, innerWidth - 250) + "px"; c.style.top = Math.min(y, innerHeight - c.offsetHeight - 8) + "px";
+  c.onclick = e => { const b = e.target.closest("[data-mi]"); if (!b) return; c.hidden = true; items[+b.dataset.mi].run(); };
+}
+document.addEventListener("click", e => { if (!e.target.closest("#ctx")) $("ctx").hidden = true; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { $("ctx").hidden = true; if (S.zoom) { S.zoom = null; renderMaps(); } } });
+const newWindow = what => () => toast(`In the app this opens ${what} in a new code-only window. Questions asked there go to this session.`);
+
+document.addEventListener("contextmenu", e => {
+  const ln = e.target.closest(".ln"), fh = e.target.closest("[data-fhead]"), node = e.target.closest("[data-node]"), tf = e.target.closest("[data-file]");
+  if (ln) {
+    e.preventDefault();
+    const w = wordAt(e.clientX, e.clientY), d = w && defOf(w), path = ln.dataset.path, n = +ln.dataset.n;
+    const items = [];
+    if (d) items.push({ label: `Go to definition of ${w}`, kbd: "⌘-click", run: () => goToLine(d[0], d[1]) }, { label: "Open definition in new window", run: newWindow(w) });
+    if (S.pendingSel) items.push({ label: "Ask about the selection", kbd: "⌘>", run: () => addChip(S.pendingSel) });
+    if (w) items.push({ label: `Ask about ${w}`, kbd: S.pendingSel ? "" : "⌘>", run: () => addChip({ label: `symbol ${w}${d ? " · " + d[0].slice(SRC.length) + ":" + d[1] : ""}` }) });
+    if (n) items.push({ label: `Ask about line ${n}`, run: () => addChip({ label: `${path.slice(SRC.length)}:${n}` }) });
+    items.push("-", { label: S.blame ? "Hide blame" : "Show blame", run: () => { S.blame = !S.blame; $("blameBtn").setAttribute("aria-pressed", S.blame); renderMain(); } });
+    menu(e.clientX, e.clientY, w || null, items);
+  } else if (fh || tf) {
+    e.preventDefault();
+    const path = (fh || tf).dataset.fhead || (fh || tf).dataset.file;
+    menu(e.clientX, e.clientY, path.split("/").pop(), [
+      { label: "Ask about this file", kbd: "⌘>", run: () => addChip({ label: `file ${path.replace(SRC, "")}` }) },
+      { label: "Open file in new window", run: newWindow(path.split("/").pop()) },
+      { label: "Show whole file", run: () => { S.full[path] = true; renderMain(); } }
+    ]);
+  } else if (node) {
+    e.preventDefault();
+    const n = nodeById(node.dataset.node), items = [{ label: `Ask about ${n.label}`, kbd: "⌘>", run: () => addChip(chipFor(node)) }];
+    if (n.at) items.push({ label: "Open its code", run: () => goToLineInStep(n.at[0], n.at[1]) });
+    else if (n.step) {
+      items.push({ label: `Go to step ${n.step}`, run: () => goStep(n.step) });
+      if (STEP_DIA[n.step]) items.push({ label: "Open step diagram", kbd: "double-click", run: () => { S.zoom = n.step; goStep(n.step); } });
+    } else if (!S.zoom || node.closest("#ctxMap")) items.push({ label: `Open the ${n.label} page`, run: () => toast(`In the app this opens the ${n.label} page: description, its place in Marin, its own map and its files.`) });
+    menu(e.clientX, e.clientY, n.label, items);
+  } else if (e.target.closest("[data-step],[data-fcard]")) {
+    e.preventDefault();
+    const el = e.target.closest("[data-step],[data-fcard]"), c = chipFor(el);
+    menu(e.clientX, e.clientY, c.label, [{ label: "Ask Claude", kbd: "⌘>", run: () => addChip(c) }]);
+  }
+});
+document.addEventListener("dblclick", e => {
+  const nd = e.target.closest("#subMap [data-node]");
+  if (!nd || S.zoom) return;
+  const n = SUB.nodes.find(x => x.id === nd.dataset.node);
+  if (!n) return;
+  if (STEP_DIA[n.step]) { S.zoom = n.step; goStep(n.step); }
+  else toast(`Step ${n.step} has no diagram of its own; its code is short enough to read directly.`);
+});
+
+/* ---------------- Events ---------------- */
+document.addEventListener("click", e => {
+  const t = e.target;
+  const lay = t.closest("[data-layer]"); if (lay) { S.l[lay.dataset.layer] = +lay.dataset.to; const k = lay.dataset.layer; if (k === "pr") renderDesc(); else if (k.startsWith("n:")) renderPanel(); else renderMain(); return; }
+  const st = t.closest("[data-step]"); if (st) { goStep(+st.dataset.step); return; }
+  const sg = t.closest("[data-step-go]"); if (sg) { goStep(+sg.dataset.stepGo); return; }
+  const lt = t.closest("[data-ltab]"); if (lt) { S.ltab = lt.dataset.ltab; renderLeft(); if (S.ltab === "search") $("sq").focus(); return; }
+  const hit = t.closest("[data-hit]"); if (hit) { const [p, n] = hit.dataset.hit.split("|"); goToLine(p, +n); return; }
+  const dm = t.closest("[data-dropmem]"); if (dm) { S.memory.splice(+dm.dataset.dropmem, 1); renderPanel(); return; }
+  if (t.id === "unzoom") { S.zoom = null; renderMaps(); return; }
+  const nd = t.closest("[data-node]");
+  if (nd) {
+    const n = nodeById(nd.dataset.node);
+    if (nd.closest("#subMap") && S.zoom) { if (n.at) goToLineInStep(n.at[0], n.at[1]); else toast(`${n.label} is outside this repository.`); }
+    else if (nd.closest("#subMap")) { if (S.step !== n.step || S.mode !== "steps") goStep(n.step); }
+    else toast(n.here ? "You are reviewing a change to Shellbox. In the app, this opens the Shellbox page." : `In the app this opens the ${n.label} page, with its own description, maps and files.`);
+    return;
+  }
+  const rv = t.closest("[data-rv]"); if (rv) { const [key, a, b] = rv.dataset.rv.split("|"); const set = S.reveal[key] || (S.reveal[key] = new Set()); for (let i = +a; i < +b; i++) set.add(i); const y = $("main").scrollTop; renderMain(); $("main").scrollTop = y; return; }
+  const fu = t.closest("[data-full]"); if (fu) { S.full[fu.dataset.full] = !S.full[fu.dataset.full]; renderMain(); return; }
+  const co = t.closest("[data-collapse]"); if (co) { const k = "c:" + co.dataset.collapse; const f = byPath[co.dataset.collapse]; const cur = S.collapsed[k] ?? (S.mode === "files" && !f.lines); S.collapsed[k] = !cur; renderMain(); return; }
+  const td = t.closest("[data-tdir]"); if (td) {
+    const k = td.dataset.tdir;
+    // Unchanged-file lists and tests start closed (open when false); other folders start open (closed when true).
+    if (k.startsWith("q:") || k === "t:tests") S.collapsed[k] = S.collapsed[k] === false;
+    else S.collapsed[k] = S.collapsed[k] !== true;
+    renderTree(); return;
+  }
+  const tf = t.closest("[data-file]"); if (tf) { const p = tf.dataset.file; S.curFile = p; S.mode = "files"; S.collapsed["c:" + p] = false; syncMode(); const el = document.getElementById("card:" + p); el && el.scrollIntoView({ block: "start" }); return; }
+  const fq = t.closest("[data-quiet]"); if (fq) { toast("Unchanged file. In the app it opens in the code viewer, with its wordbase description."); return; }
+  const mk = t.closest("[data-finding]"); if (mk) { S.focusFinding = S.focusFinding === mk.dataset.finding ? null : mk.dataset.finding; S.tab = "review"; S.panelOpen = true; S.memory = null; const y = $("main").scrollTop; renderMain(); $("main").scrollTop = y; renderPanel(); const c = document.querySelector(`[data-fcard="${S.focusFinding}"]`); c && c.scrollIntoView({ block: "nearest" }); return; }
+  const gt = t.closest("[data-goto]"); if (gt) { const f = FINDINGS.find(x => x.id === gt.dataset.goto); S.focusFinding = f.id; renderPanel(); goToLine(SRC + f.path, f.line); return; }
+  const se = t.closest("[data-set]"); if (se) { const [id, s] = se.dataset.set.split("|"); FINDINGS.find(x => x.id === id).status = s; S.confirm = false; renderPanel(); renderMain(); renderLeft(); return; }
+  const tab = t.closest("[data-tab]"); if (tab) { S.tab = tab.dataset.tab; renderPanel(); return; }
+  const uc = t.closest("[data-unchip]"); if (uc) { S.chips.splice(+uc.dataset.unchip, 1); renderPanel(); return; }
+  if (t.id === "postBtn") { S.confirm = true; renderPanel(); $("pbody").scrollTop = 1e6; return; }
+  if (t.id === "noPost") { S.confirm = false; renderPanel(); return; }
+  if (t.id === "doPost") { FINDINGS.forEach(f => { if (f.status === "approved") f.status = "posted"; }); S.confirm = false; renderPanel(); renderMain(); toast("Demo only: nothing was sent. In the app this creates one pending review with gh and then submits it."); return; }
+  if (t.id === "applyMove") { S.moved = !S.moved; if (S.moved) goStep(6); else renderSteps(); renderPanel(); return; }
+  if (t.id === "send") { const q = $("q").value.trim(); if (!q && !S.chips.length) return; S.sent.push({ text: q || "(no text)", chips: S.chips }); S.chips = []; renderPanel(); $("pbody").scrollTop = 1e6; return; }
+  if (t.id === "closePanel") {
+    S.memory = [
+      { target: "wordbase/lib/shellbox/src/shellbox/http_service.py.md · notes", text: "The relay's failure behavior under a stuck model endpoint comes from three limits defined in `http_service_guest.py` and imported by the host: 16 pending requests, 4 MiB bodies and a 600 s timeout. The guest starts its timeout when it emits a request and the host starts its own when the handler task begins, so the guest always gives up first." },
+      { target: "wordbase/systems/shellbox.md · notes", text: "Relay throughput over cluster exec transports was the open design question in the #10640 review. #10118 records earlier incidents with the same kind of transport, and the relay at 01a8bb8 has no counters for in-flight requests, queue depth or drops." },
+      { target: "wordbase/reviewer.md · how you review", text: "On Shellbox changes you start from cancellation, teardown and failure under load, and you ask how a component behaves when a dependency hangs." }
+    ];
+    renderPanel(); return;
+  }
+  if (t.id === "memKeep") { keepMemory("added to the wordbase (demo)"); S.panelOpen = false; renderPanel(); return; }
+  if (t.id === "reopen") { S.panelOpen = true; renderPanel(); return; }
+  if (t.id === "modeSteps") { S.mode = "steps"; syncMode(); return; }
+  if (t.id === "modeFiles") { S.mode = "files"; syncMode(); return; }
+  if (t.id === "blameBtn") { S.blame = !S.blame; t.setAttribute("aria-pressed", S.blame); const y = $("main").scrollTop; renderMain(); $("main").scrollTop = y; return; }
+  if ((e.metaKey || e.ctrlKey) && t.closest(".ln code")) { const w = wordAt(e.clientX, e.clientY), d = w && defOf(w); if (d) goToLine(d[0], d[1]); else if (w) toast(`No definition for ${w} in the demo's symbol table.`); }
+});
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === ">" || (e.shiftKey && e.key === "."))) {
+    // Ask about the code selection, else the focused row, box or note, else the open step.
+    e.preventDefault();
+    const s = STEPS.find(x => x.id === S.step);
+    const c = S.pendingSel || chipFor(document.activeElement) || (S.mode === "steps" ? { label: `step ${s.id} · ${s.title}` } : null);
+    if (c) addChip(c); else toast("Select code or focus a file, step, box or note first.");
+  }
+  if (e.key === "Enter" && !e.shiftKey && e.target.id === "q") { e.preventDefault(); $("send").click(); }
+  if (e.key === "Enter" && e.target.closest && e.target.closest("[data-step],[data-node]")) e.target.click();
+});
+document.addEventListener("selectionchange", () => {
+  const sel = window.getSelection(), txt = sel && sel.toString();
+  S.pendingSel = null;
+  if (!txt || !txt.trim()) return;
+  const up = n => n && (n.nodeType === 1 ? n : n.parentElement);
+  const a = up(sel.anchorNode) && up(sel.anchorNode).closest(".ln"), b = up(sel.focusNode) && up(sel.focusNode).closest(".ln");
+  if (!a || !b) return;
+  const ns = [a, b].map(x => +x.dataset.n || 0).filter(Boolean).sort((x, y) => x - y);
+  S.pendingSel = { label: `${a.dataset.path.replace(SRC, "")}:${ns[0]}${ns[1] && ns[1] !== ns[0] ? "-" + ns[1] : ""} · selection` };
+});
+document.addEventListener("input", e => { if (e.target.id === "sq") { S.query = e.target.value; renderSearch(); } });
+document.addEventListener("change", e => { if (e.target.id === "hideTests") { S.hideTests = e.target.checked; renderChanges(); } });
+
+/* ---------------- Boot ---------------- */
+fetch("pr10640.json").then(r => r.json()).then(data => {
+  D = data; D.files.forEach(f => byPath[f.path] = f);
+  renderDesc(); renderMaps(); renderLeft(); renderMain(); renderPanel();
+}).catch(() => { $("main").innerHTML = `<p style="padding:20px">The PR data file did not load. Reload the page to try again.</p>`; });
+</script>

@@ -1,0 +1,54 @@
+// Loaded only in Radiology's isolated copy of the real Gradle build.
+// Task APIs are inspected dynamically because AGP's built-in Kotlin and the
+// Kotlin Gradle plugin use different class loaders in a Gradle init script.
+import org.gradle.api.tasks.compile.JavaCompile
+
+def kotlinPlugin = System.getProperty('radiology.scip.kotlinc')
+def javacPlugin = System.getProperty('radiology.scip.javac')
+def sourceRoot = System.getProperty('radiology.scip.sourceroot')
+def targetRoot = System.getProperty('radiology.scip.targetroot')
+
+gradle.beforeProject { project ->
+    project.tasks.register('radiologyScipCompile')
+}
+
+// AGP creates variant compile tasks after project.afterEvaluate callbacks.
+// Waiting for all projects prevents a successful build with zero Android sources.
+gradle.projectsEvaluated {
+    gradle.rootProject.allprojects.each { project ->
+        def names = project.tasks.names.findAll { name ->
+            name in ['compileKotlin', 'compileTestKotlin', 'compileKotlinJvm', 'compileTestKotlinJvm',
+                     'compileDebugKotlin', 'compileDebugUnitTestKotlin',
+                     'compileJava', 'compileTestJava', 'compileDebugJavaWithJavac', 'compileDebugUnitTestJavaWithJavac']
+        }
+        names.each { name ->
+            project.tasks.named(name).configure { task ->
+                if (task.hasProperty('compilerOptions') && task.compilerOptions.hasProperty('freeCompilerArgs')) {
+                    task.compilerOptions.freeCompilerArgs.addAll([
+                        "-Xplugin=${kotlinPlugin}".toString(),
+                        '-P', "plugin:scip-kotlinc:sourceroot=${sourceRoot}".toString(),
+                        '-P', "plugin:scip-kotlinc:targetroot=${targetRoot}".toString()
+                    ])
+                } else if (task instanceof JavaCompile) {
+                    task.options.incremental = false
+                    task.options.annotationProcessorPath = project.files(task.options.annotationProcessorPath, javacPlugin)
+                    task.options.compilerArgs.add("-Xplugin:scip -sourceroot:${sourceRoot} -targetroot:${targetRoot}".toString())
+                    task.options.fork = true
+                    task.options.forkOptions.jvmArgs.addAll([
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED'
+                    ])
+                } else {
+                    throw new GradleException("Marin Viewer cannot attach the SCIP compiler plugin to ${task.path} (${task.class.name}).")
+                }
+                task.outputs.upToDateWhen { false }
+            }
+        }
+        project.tasks.named('radiologyScipCompile').configure {
+            dependsOn(names)
+        }
+    }
+}

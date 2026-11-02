@@ -1,0 +1,11 @@
+const fs = require("fs");
+const html = fs.readFileSync(process.argv[2], "utf8");
+const a = html.indexOf('const SRC = "lib/shellbox/src/shellbox/";');
+const b = html.indexOf("/* ---------------- State ---------------- */");
+const body = html.slice(a, b);
+const out = new Function(body + "\nreturn {SRC, PR, FILES, STEPS, FINDINGS, CTX, SUB, STEP_DIA};")();
+const m = html.indexOf("S.memory = [");
+const mEnd = html.indexOf("];", m);
+out.MEMORY = new Function("return " + html.slice(m + "S.memory = ".length, mEnd + 1))();
+fs.writeFileSync(process.argv[3], JSON.stringify(out, null, 1));
+console.log(Object.keys(out).map(k => k + ":" + (Array.isArray(out[k]) ? out[k].length : typeof out[k] === "object" ? Object.keys(out[k]).length : 1)).join(" "));

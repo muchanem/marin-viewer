@@ -1,0 +1,500 @@
+fb99229f9fefed2f135e2bd96413c82d3d035288 1 1 6
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1792808649
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793276763
+committer-tz -0700
+summary [shellbox] Add private service groups and host HTTP capabilities
+filename lib/shellbox/src/shellbox/http_service.py
+	# Copyright The Marin Authors
+fb99229f9fefed2f135e2bd96413c82d3d035288 2 2
+	# SPDX-License-Identifier: Apache-2.0
+fb99229f9fefed2f135e2bd96413c82d3d035288 3 3
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 4 4
+	"""Expose a bounded host HTTP capability inside a machine without network egress."""
+fb99229f9fefed2f135e2bd96413c82d3d035288 5 5
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 6 6
+	import asyncio
+fb99229f9fefed2f135e2bd96413c82d3d035288 9 7 1
+	import logging
+fb99229f9fefed2f135e2bd96413c82d3d035288 11 8 4
+	from collections.abc import AsyncIterator, Awaitable, Callable
+fb99229f9fefed2f135e2bd96413c82d3d035288 12 9
+	from contextlib import asynccontextmanager
+fb99229f9fefed2f135e2bd96413c82d3d035288 13 10
+	from dataclasses import dataclass
+fb99229f9fefed2f135e2bd96413c82d3d035288 14 11
+	from pathlib import Path
+68ba758500878a85b31407269d295ee27d19cb99 12 12 3
+author github-actions[bot]
+author-mail <41898282+github-actions[bot]@users.noreply.github.com>
+author-time 1793484058
+author-tz -0700
+committer github-actions[bot]
+committer-mail <41898282+github-actions[bot]@users.noreply.github.com>
+committer-time 1793484080
+committer-tz -0700
+summary [shellbox] Validate and encode HTTP frames with Pydantic
+previous a49cbeb27d6bdcee9f38f6ecf144a1103834c281 lib/shellbox/src/shellbox/http_service.py
+filename lib/shellbox/src/shellbox/http_service.py
+	from typing import Literal
+68ba758500878a85b31407269d295ee27d19cb99 13 13
+	
+68ba758500878a85b31407269d295ee27d19cb99 14 14
+	from pydantic import BaseModel, ConfigDict, Field
+fb99229f9fefed2f135e2bd96413c82d3d035288 15 15 2
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 16 16
+	from shellbox import http_service_guest
+11f5c20972d9567496598096696cf708431f2468 16 17 2
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1793405404
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793405404
+committer-tz -0700
+summary [shellbox] Carry host services over persistent process sessions
+previous ad1adb1269b6fedd51427bff7a45c147bcbb8b56 lib/shellbox/src/shellbox/http_service.py
+filename lib/shellbox/src/shellbox/http_service.py
+	from shellbox.machine import Command, Machine, ProcessMachine, ProcessSession, UnsupportedMachineSpec
+11f5c20972d9567496598096696cf708431f2468 17 18
+	from shellbox.process_session import finish_owned, own_cleanup
+fb99229f9fefed2f135e2bd96413c82d3d035288 18 19 4
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 19 20
+	logger = logging.getLogger(__name__)
+fb99229f9fefed2f135e2bd96413c82d3d035288 20 21
+	MAX_BODY = http_service_guest.MAX_BODY
+fb99229f9fefed2f135e2bd96413c82d3d035288 21 22
+	MAX_PENDING = http_service_guest.MAX_PENDING
+786a63cb2cea37172703c6f51996d3918c0b82e0 22 23 1
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1792811623
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793276783
+committer-tz -0700
+summary [shellbox] Reclaim commands cancelled during process startup
+previous a5a745e8c97a03fc954a7361b816f4cebe447375 lib/shellbox/src/shellbox/http_service.py
+filename lib/shellbox/src/shellbox/http_service.py
+	MAX_PATH = http_service_guest.MAX_PATH
+11f5c20972d9567496598096696cf708431f2468 23 24 1
+	WIRE_LIMIT = http_service_guest.WIRE_LIMIT
+fb99229f9fefed2f135e2bd96413c82d3d035288 24 25 1
+	TRANSPORT_TIMEOUT = 30
+11f5c20972d9567496598096696cf708431f2468 25 26 1
+	CLEANUP_TIMEOUT = 5
+fb99229f9fefed2f135e2bd96413c82d3d035288 37 27 16
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 38 28
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 39 29
+	@dataclass(frozen=True)
+fb99229f9fefed2f135e2bd96413c82d3d035288 40 30
+	class HttpRequest:
+fb99229f9fefed2f135e2bd96413c82d3d035288 41 31
+	    method: str
+fb99229f9fefed2f135e2bd96413c82d3d035288 42 32
+	    path: str
+fb99229f9fefed2f135e2bd96413c82d3d035288 43 33
+	    body: bytes
+fb99229f9fefed2f135e2bd96413c82d3d035288 44 34
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 45 35
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 46 36
+	@dataclass(frozen=True)
+fb99229f9fefed2f135e2bd96413c82d3d035288 47 37
+	class HttpResponse:
+fb99229f9fefed2f135e2bd96413c82d3d035288 48 38
+	    status: int
+fb99229f9fefed2f135e2bd96413c82d3d035288 49 39
+	    body: bytes
+fb99229f9fefed2f135e2bd96413c82d3d035288 50 40
+	    content_type: str = "application/json"
+fb99229f9fefed2f135e2bd96413c82d3d035288 51 41
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 52 42
+	
+68ba758500878a85b31407269d295ee27d19cb99 43 43 23
+	class _WireFrame(BaseModel):
+68ba758500878a85b31407269d295ee27d19cb99 44 44
+	    model_config = ConfigDict(strict=True, extra="forbid", val_json_bytes="base64", ser_json_bytes="base64")
+68ba758500878a85b31407269d295ee27d19cb99 45 45
+	
+68ba758500878a85b31407269d295ee27d19cb99 46 46
+	
+68ba758500878a85b31407269d295ee27d19cb99 47 47
+	class _ReadyFrame(_WireFrame):
+68ba758500878a85b31407269d295ee27d19cb99 48 48
+	    type: Literal["ready"]
+68ba758500878a85b31407269d295ee27d19cb99 49 49
+	
+68ba758500878a85b31407269d295ee27d19cb99 50 50
+	
+68ba758500878a85b31407269d295ee27d19cb99 51 51
+	class _RequestFrame(_WireFrame):
+68ba758500878a85b31407269d295ee27d19cb99 52 52
+	    type: Literal["request"]
+68ba758500878a85b31407269d295ee27d19cb99 53 53
+	    id: str = Field(min_length=32, max_length=32)
+68ba758500878a85b31407269d295ee27d19cb99 54 54
+	    method: Literal["GET", "POST"]
+68ba758500878a85b31407269d295ee27d19cb99 55 55
+	    path: str = Field(max_length=MAX_PATH)
+68ba758500878a85b31407269d295ee27d19cb99 56 56
+	    body: bytes = Field(max_length=MAX_BODY)
+68ba758500878a85b31407269d295ee27d19cb99 57 57
+	
+68ba758500878a85b31407269d295ee27d19cb99 58 58
+	
+68ba758500878a85b31407269d295ee27d19cb99 59 59
+	class _ResponseFrame(_WireFrame):
+68ba758500878a85b31407269d295ee27d19cb99 60 60
+	    id: str = Field(min_length=32, max_length=32)
+68ba758500878a85b31407269d295ee27d19cb99 61 61
+	    status: int = Field(ge=100, le=599)
+68ba758500878a85b31407269d295ee27d19cb99 62 62
+	    body: bytes = Field(max_length=MAX_BODY)
+68ba758500878a85b31407269d295ee27d19cb99 63 63
+	    content_type: str = Field(default="application/json", max_length=MAX_PATH, pattern=r"^[^\r\n]*$")
+68ba758500878a85b31407269d295ee27d19cb99 64 64
+	
+68ba758500878a85b31407269d295ee27d19cb99 65 65
+	
+11f5c20972d9567496598096696cf708431f2468 42 66 5
+	class _Frames:
+11f5c20972d9567496598096696cf708431f2468 43 67
+	    def __init__(self, session: ProcessSession):
+11f5c20972d9567496598096696cf708431f2468 44 68
+	        self.session = session
+11f5c20972d9567496598096696cf708431f2468 45 69
+	        self.buffer = bytearray()
+11f5c20972d9567496598096696cf708431f2468 46 70
+	
+68ba758500878a85b31407269d295ee27d19cb99 71 71 1
+	    async def receive(self) -> bytes:
+11f5c20972d9567496598096696cf708431f2468 48 72 5
+	        while True:
+11f5c20972d9567496598096696cf708431f2468 49 73
+	            end = self.buffer.find(b"\n")
+11f5c20972d9567496598096696cf708431f2468 50 74
+	            if end >= 0:
+11f5c20972d9567496598096696cf708431f2468 51 75
+	                frame = bytes(self.buffer[:end])
+11f5c20972d9567496598096696cf708431f2468 52 76
+	                del self.buffer[: end + 1]
+68ba758500878a85b31407269d295ee27d19cb99 77 77 1
+	                return frame
+11f5c20972d9567496598096696cf708431f2468 57 78 6
+	            if len(self.buffer) >= WIRE_LIMIT:
+11f5c20972d9567496598096696cf708431f2468 58 79
+	                raise ValueError("Sandbox HTTP frame exceeds its limit")
+11f5c20972d9567496598096696cf708431f2468 59 80
+	            data = await self.session.read(min(65536, WIRE_LIMIT - len(self.buffer)))
+11f5c20972d9567496598096696cf708431f2468 60 81
+	            if not data:
+11f5c20972d9567496598096696cf708431f2468 61 82
+	                raise RuntimeError("Sandbox HTTP service process ended")
+11f5c20972d9567496598096696cf708431f2468 62 83
+	            self.buffer.extend(data)
+fb99229f9fefed2f135e2bd96413c82d3d035288 73 84 2
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 74 85
+	
+68ba758500878a85b31407269d295ee27d19cb99 86 86 1
+	async def _response(handler: Callable[[HttpRequest], Awaitable[HttpResponse]], request: _RequestFrame) -> _ResponseFrame:
+fb99229f9fefed2f135e2bd96413c82d3d035288 76 87 1
+	    try:
+68ba758500878a85b31407269d295ee27d19cb99 88 88 6
+	        response = await asyncio.wait_for(
+68ba758500878a85b31407269d295ee27d19cb99 89 89
+	            handler(HttpRequest(request.method, request.path, request.body)), timeout=http_service_guest.REQUEST_TIMEOUT
+68ba758500878a85b31407269d295ee27d19cb99 90 90
+	        )
+68ba758500878a85b31407269d295ee27d19cb99 91 91
+	        return _ResponseFrame(
+68ba758500878a85b31407269d295ee27d19cb99 92 92
+	            id=request.id, status=response.status, body=response.body, content_type=response.content_type
+68ba758500878a85b31407269d295ee27d19cb99 93 93
+	        )
+fb99229f9fefed2f135e2bd96413c82d3d035288 83 94 3
+	    except Exception as error:
+fb99229f9fefed2f135e2bd96413c82d3d035288 84 95
+	        # Provider exception text and headers can contain host credentials.
+fb99229f9fefed2f135e2bd96413c82d3d035288 85 96
+	        logger.warning("HTTP capability failed (%s)", type(error).__name__)
+68ba758500878a85b31407269d295ee27d19cb99 97 97 1
+	        return _ResponseFrame(id=request.id, status=502, body=b'{"error":"host service failed"}')
+fb99229f9fefed2f135e2bd96413c82d3d035288 87 98 2
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 88 99
+	
+11f5c20972d9567496598096696cf708431f2468 79 100 26
+	async def _cancel(tasks: set[asyncio.Task]) -> None:
+11f5c20972d9567496598096696cf708431f2468 80 101
+	    for task in tasks:
+11f5c20972d9567496598096696cf708431f2468 81 102
+	        task.cancel()
+11f5c20972d9567496598096696cf708431f2468 82 103
+	    if not tasks:
+11f5c20972d9567496598096696cf708431f2468 83 104
+	        return
+11f5c20972d9567496598096696cf708431f2468 84 105
+	    done, pending = await asyncio.wait(tasks, timeout=CLEANUP_TIMEOUT)
+11f5c20972d9567496598096696cf708431f2468 85 106
+	    for task in done:
+11f5c20972d9567496598096696cf708431f2468 86 107
+	        if not task.cancelled():
+11f5c20972d9567496598096696cf708431f2468 87 108
+	            task.exception()
+11f5c20972d9567496598096696cf708431f2468 88 109
+	    # A handler that suppresses cancellation must not hold the service open.
+11f5c20972d9567496598096696cf708431f2468 89 110
+	    # Retain its task until it exits, consuming any eventual error.
+11f5c20972d9567496598096696cf708431f2468 90 111
+	    for task in pending:
+11f5c20972d9567496598096696cf708431f2468 91 112
+	        task.add_done_callback(_handler_finished)
+11f5c20972d9567496598096696cf708431f2468 92 113
+	        _UNFINISHED_HANDLERS.add(task)
+11f5c20972d9567496598096696cf708431f2468 93 114
+	
+11f5c20972d9567496598096696cf708431f2468 94 115
+	
+11f5c20972d9567496598096696cf708431f2468 95 116
+	_UNFINISHED_HANDLERS: set[asyncio.Task] = set()
+11f5c20972d9567496598096696cf708431f2468 96 117
+	
+11f5c20972d9567496598096696cf708431f2468 97 118
+	
+11f5c20972d9567496598096696cf708431f2468 98 119
+	def _handler_finished(task: asyncio.Task) -> None:
+11f5c20972d9567496598096696cf708431f2468 99 120
+	    _UNFINISHED_HANDLERS.discard(task)
+11f5c20972d9567496598096696cf708431f2468 100 121
+	    if not task.cancelled():
+11f5c20972d9567496598096696cf708431f2468 101 122
+	        task.exception()
+11f5c20972d9567496598096696cf708431f2468 102 123
+	
+11f5c20972d9567496598096696cf708431f2468 103 124
+	
+11f5c20972d9567496598096696cf708431f2468 104 125
+	async def _pump(frames: _Frames, handler: Callable[[HttpRequest], Awaitable[HttpResponse]]) -> None:
+68ba758500878a85b31407269d295ee27d19cb99 126 126 1
+	    pending: dict[str, asyncio.Task[_ResponseFrame]] = {}
+11f5c20972d9567496598096696cf708431f2468 106 127 1
+	    receive = asyncio.create_task(frames.receive())
+fb99229f9fefed2f135e2bd96413c82d3d035288 96 128 1
+	    try:
+11f5c20972d9567496598096696cf708431f2468 108 129 2
+	        while True:
+11f5c20972d9567496598096696cf708431f2468 109 130
+	            done, _ = await asyncio.wait((receive, *pending.values()), return_when=asyncio.FIRST_COMPLETED)
+fb99229f9fefed2f135e2bd96413c82d3d035288 98 131 1
+	            for request_id, task in list(pending.items()):
+11f5c20972d9567496598096696cf708431f2468 111 132 1
+	                if task not in done:
+fb99229f9fefed2f135e2bd96413c82d3d035288 100 133 2
+	                    continue
+fb99229f9fefed2f135e2bd96413c82d3d035288 101 134
+	                response = task.result()
+11f5c20972d9567496598096696cf708431f2468 126 135 1
+	                async with asyncio.timeout(TRANSPORT_TIMEOUT):
+68ba758500878a85b31407269d295ee27d19cb99 136 136 1
+	                    await frames.session.write(response.model_dump_json().encode() + b"\n")
+fb99229f9fefed2f135e2bd96413c82d3d035288 115 137 1
+	                del pending[request_id]
+11f5c20972d9567496598096696cf708431f2468 129 138 1
+	            if receive in done:
+68ba758500878a85b31407269d295ee27d19cb99 139 139 4
+	                request = _RequestFrame.model_validate_json(receive.result())
+68ba758500878a85b31407269d295ee27d19cb99 140 140
+	                if request.id in pending or len(pending) >= MAX_PENDING:
+68ba758500878a85b31407269d295ee27d19cb99 141 141
+	                    raise ValueError("Duplicate sandbox HTTP request or pending request limit exceeded")
+68ba758500878a85b31407269d295ee27d19cb99 142 142
+	                pending[request.id] = asyncio.create_task(_response(handler, request))
+11f5c20972d9567496598096696cf708431f2468 148 143 1
+	                receive = asyncio.create_task(frames.receive())
+fb99229f9fefed2f135e2bd96413c82d3d035288 144 144 1
+	    finally:
+11f5c20972d9567496598096696cf708431f2468 150 145 1
+	        await finish_owned(own_cleanup(_cancel({receive, *pending.values()})))
+fb99229f9fefed2f135e2bd96413c82d3d035288 148 146 9
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 149 147
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 150 148
+	@asynccontextmanager
+fb99229f9fefed2f135e2bd96413c82d3d035288 151 149
+	async def serve_http(
+fb99229f9fefed2f135e2bd96413c82d3d035288 152 150
+	    machine: Machine,
+fb99229f9fefed2f135e2bd96413c82d3d035288 153 151
+	    handler: Callable[[HttpRequest], Awaitable[HttpResponse]],
+fb99229f9fefed2f135e2bd96413c82d3d035288 154 152
+	    *,
+fb99229f9fefed2f135e2bd96413c82d3d035288 155 153
+	    port: int,
+fb99229f9fefed2f135e2bd96413c82d3d035288 156 154
+	) -> AsyncIterator[str]:
+11f5c20972d9567496598096696cf708431f2468 160 155 1
+	    """Run a host handler behind one foreground machine-local HTTP listener.
+fb99229f9fefed2f135e2bd96413c82d3d035288 158 156 1
+	
+11f5c20972d9567496598096696cf708431f2468 162 157 3
+	    Python 3 in the guest exchanges bounded, buffered frames over persistent
+11f5c20972d9567496598096696cf708431f2468 163 158
+	    process pipes. The handler authorizes paths and operations before using host
+11f5c20972d9567496598096696cf708431f2468 164 159
+	    authority. Caller headers and streaming are unsupported. Close this context
+8a4b9abe107ed5f17f109a8717df5e1a9ac7113d 165 160 1
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1793459327
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793459427
+committer-tz -0700
+summary [iris] Name task members containers across execution APIs
+previous ec80dcca0d427727dd482b1f66f76fb7a47b47cf lib/shellbox/src/shellbox/http_service.py
+filename lib/shellbox/src/shellbox/http_service.py
+	    before closing the machine or its container group.
+fb99229f9fefed2f135e2bd96413c82d3d035288 164 161 3
+	    """
+fb99229f9fefed2f135e2bd96413c82d3d035288 165 162
+	    if not 1 <= port <= 65535:
+fb99229f9fefed2f135e2bd96413c82d3d035288 166 163
+	        raise ValueError("HTTP service port is out of range")
+11f5c20972d9567496598096696cf708431f2468 169 164 21
+	    if not isinstance(machine, ProcessMachine):
+11f5c20972d9567496598096696cf708431f2468 170 165
+	        raise UnsupportedMachineSpec("HTTP services require persistent process sessions")
+11f5c20972d9567496598096696cf708431f2468 171 166
+	    source = Path(http_service_guest.__file__).read_text()
+11f5c20972d9567496598096696cf708431f2468 172 167
+	    session = await machine.open_process(Command(("python3", "-u", "-c", source, str(port))))
+11f5c20972d9567496598096696cf708431f2468 173 168
+	    pump: asyncio.Task[None] | None = None
+11f5c20972d9567496598096696cf708431f2468 174 169
+	    owner = asyncio.current_task()
+11f5c20972d9567496598096696cf708431f2468 175 170
+	    assert owner is not None
+11f5c20972d9567496598096696cf708431f2468 176 171
+	    failed = False
+11f5c20972d9567496598096696cf708431f2468 177 172
+	    interrupted = False
+11f5c20972d9567496598096696cf708431f2468 178 173
+	    primary: BaseException | None = None
+11f5c20972d9567496598096696cf708431f2468 179 174
+	
+11f5c20972d9567496598096696cf708431f2468 180 175
+	    def finished(task: asyncio.Task[None]) -> None:
+11f5c20972d9567496598096696cf708431f2468 181 176
+	        nonlocal failed, interrupted
+11f5c20972d9567496598096696cf708431f2468 182 177
+	        if not task.cancelled():
+11f5c20972d9567496598096696cf708431f2468 183 178
+	            # Interrupt the body promptly if the helper exits while no HTTP
+11f5c20972d9567496598096696cf708431f2468 184 179
+	            # request is active. Retrieve the actual failure after cleanup.
+11f5c20972d9567496598096696cf708431f2468 185 180
+	            failed = True
+11f5c20972d9567496598096696cf708431f2468 186 181
+	            if not owner.cancelling():
+11f5c20972d9567496598096696cf708431f2468 187 182
+	                interrupted = True
+11f5c20972d9567496598096696cf708431f2468 188 183
+	                owner.cancel()
+11f5c20972d9567496598096696cf708431f2468 189 184
+	
+fb99229f9fefed2f135e2bd96413c82d3d035288 173 185 1
+	    try:
+11f5c20972d9567496598096696cf708431f2468 191 186 2
+	        frames = _Frames(session)
+11f5c20972d9567496598096696cf708431f2468 192 187
+	        async with asyncio.timeout(TRANSPORT_TIMEOUT):
+68ba758500878a85b31407269d295ee27d19cb99 188 188 1
+	            _ReadyFrame.model_validate_json(await frames.receive())
+11f5c20972d9567496598096696cf708431f2468 195 189 2
+	        pump = asyncio.create_task(_pump(frames, handler))
+11f5c20972d9567496598096696cf708431f2468 196 190
+	        pump.add_done_callback(finished)
+fb99229f9fefed2f135e2bd96413c82d3d035288 179 191 1
+	        yield f"http://127.0.0.1:{port}"
+11f5c20972d9567496598096696cf708431f2468 198 192 3
+	    except BaseException as error:
+11f5c20972d9567496598096696cf708431f2468 199 193
+	        primary = error
+11f5c20972d9567496598096696cf708431f2468 200 194
+	        raise
+fb99229f9fefed2f135e2bd96413c82d3d035288 180 195 1
+	    finally:
+11f5c20972d9567496598096696cf708431f2468 202 196 4
+	        if pump is not None:
+11f5c20972d9567496598096696cf708431f2468 203 197
+	            pump.remove_done_callback(finished)
+11f5c20972d9567496598096696cf708431f2468 204 198
+	
+11f5c20972d9567496598096696cf708431f2468 205 199
+	        async def cleanup() -> None:
+fb99229f9fefed2f135e2bd96413c82d3d035288 183 200 1
+	            if pump is not None:
+11f5c20972d9567496598096696cf708431f2468 207 201 9
+	                pump.cancel()
+11f5c20972d9567496598096696cf708431f2468 208 202
+	                await asyncio.gather(pump, return_exceptions=True)
+11f5c20972d9567496598096696cf708431f2468 209 203
+	            async with asyncio.timeout(TRANSPORT_TIMEOUT):
+11f5c20972d9567496598096696cf708431f2468 210 204
+	                await session.close()
+11f5c20972d9567496598096696cf708431f2468 211 205
+	
+11f5c20972d9567496598096696cf708431f2468 212 206
+	        closing = own_cleanup(cleanup())
+11f5c20972d9567496598096696cf708431f2468 213 207
+	        try:
+11f5c20972d9567496598096696cf708431f2468 214 208
+	            await asyncio.shield(closing)
+11f5c20972d9567496598096696cf708431f2468 215 209
+	        except BaseException as error:
+fb99229f9fefed2f135e2bd96413c82d3d035288 186 210 1
+	            try:
+11f5c20972d9567496598096696cf708431f2468 217 211 13
+	                await finish_owned(closing)
+11f5c20972d9567496598096696cf708431f2468 218 212
+	            except BaseException as cleanup_error:
+11f5c20972d9567496598096696cf708431f2468 219 213
+	                error.add_note(f"HTTP service cleanup failed ({type(cleanup_error).__name__})")
+11f5c20972d9567496598096696cf708431f2468 220 214
+	            if primary is None:
+11f5c20972d9567496598096696cf708431f2468 221 215
+	                raise
+11f5c20972d9567496598096696cf708431f2468 222 216
+	        if (
+11f5c20972d9567496598096696cf708431f2468 223 217
+	            failed
+11f5c20972d9567496598096696cf708431f2468 224 218
+	            and pump is not None
+11f5c20972d9567496598096696cf708431f2468 225 219
+	            and (primary is None or (interrupted and isinstance(primary, asyncio.CancelledError)))
+11f5c20972d9567496598096696cf708431f2468 226 220
+	        ):
+11f5c20972d9567496598096696cf708431f2468 227 221
+	            if interrupted:
+11f5c20972d9567496598096696cf708431f2468 228 222
+	                owner.uncancel()
+11f5c20972d9567496598096696cf708431f2468 229 223
+	            pump.result()

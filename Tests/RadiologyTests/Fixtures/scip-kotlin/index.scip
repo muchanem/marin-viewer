@@ -1,0 +1,34 @@
+
+N
+	scip-java0.0.0-SNAPSHOT-file:///private/tmp/radiology-kotlin-fixture/ Ñ
+src/main/kotlin/Store.kt$scip-java maven . . fixture/B6"scip-java maven . . fixture/Store#BZ A-scip-java maven . . fixture/Store#`<init>`().BZ =)scip-java maven . . fixture/Store#read().BR*A-scip-java maven . . fixture/Store#read().(id)BR)scip-java maven . . kotlin/Int#B,"scip-java maven . . kotlin/String#B7-scip-java maven . . fixture/Store#read().(id)B')?+scip-java maven . . fixture/Store#read(+1).BR)E1scip-java maven . . fixture/Store#read(+1).(name)BR,"scip-java maven . . kotlin/String#B,"scip-java maven . . kotlin/String#B";1scip-java maven . . fixture/Store#read(+1).(name)B%)u
+"scip-java maven . . fixture/Store#(2Store:("kotlin*public final class Store : AnyBscip-java maven . . fixture/É
+-scip-java maven . . fixture/Store#`<init>`().(	2Store:%"kotlin*public constructor(): StoreB"scip-java maven . . fixture/Store#â
+)scip-java maven . . fixture/Store#read().(2read:0"kotlin*&public final fun read(id: Int): StringB"scip-java maven . . fixture/Store#s
+-scip-java maven . . fixture/Store#read().(id)(%2id:"kotlin*id: IntB)scip-java maven . . fixture/Store#read().ê
++scip-java maven . . fixture/Store#read(+1).(2read:5"kotlin*+public final fun read(name: String): StringB"scip-java maven . . fixture/Store#Ä
+1scip-java maven . . fixture/Store#read(+1).(name)(%2name:"kotlin*name: StringB+scip-java maven . . fixture/Store#read(+1)."kotlin*vpackage fixture
+
+class Store {
+    fun read(id: Int): String = "item:$id"
+    fun read(name: String): String = name
+}
+Ã
+src/main/kotlin/Noise.kt$scip-java maven . . fixture/B*"scip-java maven . . fixture/other/B;)scip-java maven . . fixture/other/read().BR+A-scip-java maven . . fixture/other/read().(id)B	R	)scip-java maven . . kotlin/Int#B,"scip-java maven . . kotlin/String#B7-scip-java maven . . fixture/other/read().(id)B(*â
+)scip-java maven . . fixture/other/read().(2read:0"kotlin*&public final fun read(id: Int): StringB"scip-java maven . . fixture/other/s
+-scip-java maven . . fixture/other/read().(id)(%2id:"kotlin*id: IntB)scip-java maven . . fixture/other/read()."kotlin*Cpackage fixture.other
+
+fun read(id: Int): String = "unrelated:$id"
+Ó
+src/main/kotlin/Reader.kt$scip-java maven . . fixture/B:&scip-java maven . . fixture/changed().BZ A-scip-java maven . . fixture/changed().(store)BR,"scip-java maven . . fixture/Store#B,"scip-java maven . . kotlin/String#B!local 0BRlocal 0B"'3)scip-java maven . . kotlin/String#plus().B()7-scip-java maven . . fixture/changed().(store)B*/3)scip-java maven . . fixture/Store#read().B04:(scip-java maven . . fixture/untouched().BR8C/scip-java maven . . fixture/untouched().(store)BR,"scip-java maven . . fixture/Store#B,"scip-java maven . . kotlin/String#B#9/scip-java maven . . fixture/untouched().(store)B&+5+scip-java maven . . fixture/Store#read(+1).B,0ã
+&scip-java maven . . fixture/changed().(2changed:8"kotlin*.public final fun changed(store: Store): StringBscip-java maven . . fixture/x
+-scip-java maven . . fixture/changed().(store)(%2store:"kotlin*store: StoreB&scip-java maven . . fixture/changed().]
+local 0()2label:!"kotlin*local val label: StringB&scip-java maven . . fixture/changed().ë
+(scip-java maven . . fixture/untouched().(2	untouched::"kotlin*0public final fun untouched(store: Store): StringBscip-java maven . . fixture/|
+/scip-java maven . . fixture/untouched().(store)(%2store:"kotlin*store: StoreB(scip-java maven . . fixture/untouched()."kotlin*¨package fixture
+
+fun changed(store: Store): String {
+    val label = "caf√© üöÄ"; return label + store.read(2)
+}
+
+fun untouched(store: Store): String = store.read("name")

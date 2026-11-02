@@ -1,0 +1,35 @@
+{
+  "name": "marin-viewer-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Marin viewer sidecar: Agent SDK sessions, tools, protocol, layout and review posting over JSON lines on stdio.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "start": "node dist/main.js",
+    "poll": "node dist/poll.js",
+    "compare": "node dist/compare.js",
+    "first-pass": "node dist/first-pass.js",
+    "system-pages": "node dist/system-pages.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.302",
+    "@anthropic-ai/sdk": "0.135.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "elkjs": "0.12.0",
+    "js-tiktoken": "1.0.21",
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12"
+  }
+}

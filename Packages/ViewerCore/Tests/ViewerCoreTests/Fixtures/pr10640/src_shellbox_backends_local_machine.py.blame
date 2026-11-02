@@ -1,0 +1,2781 @@
+0348ac3ad409520ae59778c9dc99803d175af05b 1 1 3
+author Russell Power
+author-mail <russell.power@gmail.com>
+author-time 1791493246
+author-tz -0700
+committer GitHub
+committer-mail <noreply@github.com>
+committer-time 1791493246
+committer-tz -0700
+summary [shellbox,verifyit] Local grading backend and typed candidate grading (#9936)
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	# Copyright The Marin Authors
+0348ac3ad409520ae59778c9dc99803d175af05b 2 2
+	# SPDX-License-Identifier: Apache-2.0
+0348ac3ad409520ae59778c9dc99803d175af05b 3 3
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 4 4 1
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1792810834
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793276783
+committer-tz -0700
+summary [shellbox] Keep local machines and private services running
+previous fb99229f9fefed2f135e2bd96413c82d3d035288 lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	"""Persistent bubblewrap sandboxes over host programs or prepared OCI filesystems.
+0348ac3ad409520ae59778c9dc99803d175af05b 5 5 1
+	
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 6 6 3
+author github-actions[bot]
+author-mail <41898282+github-actions[bot]@users.noreply.github.com>
+author-time 1793475818
+author-tz -0700
+committer github-actions[bot]
+committer-mail <41898282+github-actions[bot]@users.noreply.github.com>
+committer-time 1793475818
+committer-tz -0700
+summary [shellbox] Reclaim detached commands and drain session output
+previous 4410a348662fd2c70c3cf91fe99b9058423f8429 lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	Host-image commands see the host's programs, read-only or copy-on-write. Prepared
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 7 7
+	images use their OCI filesystem. Both have private runtime configuration and
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 8 8
+	writable directories such as ``/app``, ``/tmp``, and ``HOME``.
+0348ac3ad409520ae59778c9dc99803d175af05b 8 9 3
+	"""
+0348ac3ad409520ae59778c9dc99803d175af05b 9 10
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 10 11
+	import asyncio
+a5a745e8c97a03fc954a7361b816f4cebe447375 11 12 1
+	import fcntl
+52b8b1adf4d8db34deb185bef4901e62d14550ad 12 13 1
+author Mark Muchane
+author-mail <muchanem@gmail.com>
+author-time 1792512264
+author-tz -0400
+committer GitHub
+committer-mail <noreply@github.com>
+committer-time 1792512264
+committer-tz -0400
+summary [shellbox] Let local machines write system directories copy-on-write (#10155)
+previous 22e29179376ec59f1499392df9156562a734e09a lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	import io
+0348ac3ad409520ae59778c9dc99803d175af05b 12 14 2
+	import json
+0348ac3ad409520ae59778c9dc99803d175af05b 13 15
+	import logging
+0348ac3ad409520ae59778c9dc99803d175af05b 15 16 2
+	import os
+0348ac3ad409520ae59778c9dc99803d175af05b 16 17
+	import pwd
+52b8b1adf4d8db34deb185bef4901e62d14550ad 18 18 1
+	import re
+0348ac3ad409520ae59778c9dc99803d175af05b 17 19 3
+	import resource
+0348ac3ad409520ae59778c9dc99803d175af05b 18 20
+	import shutil
+0348ac3ad409520ae59778c9dc99803d175af05b 19 21
+	import signal
+0348ac3ad409520ae59778c9dc99803d175af05b 21 22 1
+	import sys
+52b8b1adf4d8db34deb185bef4901e62d14550ad 24 23 1
+	import tarfile
+0348ac3ad409520ae59778c9dc99803d175af05b 22 24 1
+	import tempfile
+a5a745e8c97a03fc954a7361b816f4cebe447375 26 25 1
+	from collections.abc import Awaitable, Callable, Iterable
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 26 26 1
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1792813967
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793276869
+committer-tz -0700
+summary [shellbox] Preserve isolation and process semantics in service groups
+previous 6172ca524ead412a6fc7c48cf64ee4b28ce051dc lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	from concurrent.futures import ThreadPoolExecutor
+a5a745e8c97a03fc954a7361b816f4cebe447375 27 27 1
+	from dataclasses import replace
+52b8b1adf4d8db34deb185bef4901e62d14550ad 27 28 1
+	from enum import StrEnum
+0348ac3ad409520ae59778c9dc99803d175af05b 24 29 1
+	from pathlib import Path, PurePosixPath
+fb972712d0f93f3b9bc636493370a36416f6d183 30 30 1
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1793280809
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793280809
+committer-tz -0700
+summary [shellbox] Normalize singleton and grouped tasks to named containers
+previous beb2d003f446acd475a074ae362d1f5fd718e0bc lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	from typing import cast
+0348ac3ad409520ae59778c9dc99803d175af05b 25 31 1
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 28 32 1
+	from shellbox.backends.local import launch
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 32 33 1
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1793410663
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793410713
+committer-tz -0700
+summary [shellbox] Enforce local CPU and memory budgets with cgroups
+previous b6b98594e11b8f7805fd4029db3be67aa01364fd lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	from shellbox.backends.local.cgroup import MachineCgroup, check_cgroup_parent
+a5a745e8c97a03fc954a7361b816f4cebe447375 32 34 1
+	from shellbox.backends.local.images import PreparedLocalImage, prepare_local_image
+c075c479801a700462be58a455233b3d8b34d011 29 35 1
+author Russell Power
+author-mail <russell.power@gmail.com>
+author-time 1791923671
+author-tz -0700
+committer GitHub
+committer-mail <noreply@github.com>
+committer-time 1791923671
+committer-tz -0700
+summary Integrate portable ports into Shellbox rollouts (#10071)
+previous ded5387ac1dfb0b5bb4c0e5907ec9de74631e0a0 lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	from shellbox.backends.local.python_environment import DEFAULT_PYTHON_VERSION, resolve_python_environment
+a5a745e8c97a03fc954a7361b816f4cebe447375 34 36 2
+	from shellbox.backends.local.transfers import unpack_local_archive
+a5a745e8c97a03fc954a7361b816f4cebe447375 35 37
+	from shellbox.image import PreparedImage, RegistryImage, process_image_cache
+0348ac3ad409520ae59778c9dc99803d175af05b 29 38 1
+	from shellbox.machine import (
+52b8b1adf4d8db34deb185bef4901e62d14550ad 35 39 1
+	    DEFAULT_MACHINE_OUTPUT_LIMIT_BYTES,
+c075c479801a700462be58a455233b3d8b34d011 31 40 1
+	    LINUX_PROCESS_CAPABILITIES,
+0348ac3ad409520ae59778c9dc99803d175af05b 30 41 2
+	    Backend,
+0348ac3ad409520ae59778c9dc99803d175af05b 31 42
+	    Command,
+c075c479801a700462be58a455233b3d8b34d011 34 43 2
+	    CommandSemantics,
+c075c479801a700462be58a455233b3d8b34d011 35 44
+	    ExecutionRequirements,
+0348ac3ad409520ae59778c9dc99803d175af05b 32 45 3
+	    ExitReason,
+0348ac3ad409520ae59778c9dc99803d175af05b 33 46
+	    HostImage,
+0348ac3ad409520ae59778c9dc99803d175af05b 34 47
+	    MachineSpec,
+a5a745e8c97a03fc954a7361b816f4cebe447375 46 48 1
+	    MachineTerminated,
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 39 49 1
+author Russell Power
+author-mail <russell.power@gmail.com>
+author-time 1791999343
+author-tz -0700
+committer GitHub
+committer-mail <noreply@github.com>
+committer-time 1791999343
+committer-tz -0700
+summary [task-curation] Declare grader requirements, files and env (#10104)
+previous 50566b602fbdf6bafb80138888ece10a7471914f lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	    Mount,
+0348ac3ad409520ae59778c9dc99803d175af05b 35 50 1
+	    NetworkPolicy,
+c075c479801a700462be58a455233b3d8b34d011 40 51 1
+	    PackageSpec,
+0348ac3ad409520ae59778c9dc99803d175af05b 36 52 2
+	    Result,
+0348ac3ad409520ae59778c9dc99803d175af05b 37 53
+	    UnsupportedMachineSpec,
+c075c479801a700462be58a455233b3d8b34d011 43 54 1
+	    check_execution_requirements,
+0348ac3ad409520ae59778c9dc99803d175af05b 38 55 1
+	)
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 56 56 1
+author github-actions[bot]
+author-mail <41898282+github-actions[bot]@users.noreply.github.com>
+author-time 1793476430
+author-tz -0700
+committer github-actions[bot]
+committer-mail <41898282+github-actions[bot]@users.noreply.github.com>
+committer-time 1793476430
+committer-tz -0700
+summary [shellbox] Own image cleanup through repeated cancellation
+previous bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	from shellbox.process_session import SubprocessSession, acquire_owned, finish_owned, own_cleanup
+fb972712d0f93f3b9bc636493370a36416f6d183 55 57 1
+	from shellbox.task import Task, TaskSpec, single_container_task
+0348ac3ad409520ae59778c9dc99803d175af05b 39 58 4
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 40 59
+	logger = logging.getLogger(__name__)
+0348ac3ad409520ae59778c9dc99803d175af05b 41 60
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 42 61
+	DEFAULT_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+0348ac3ad409520ae59778c9dc99803d175af05b 44 62 7
+	# Resolve the program through sh, as the container backends do: a missing or unexecutable program
+0348ac3ad409520ae59778c9dc99803d175af05b 45 63
+	# or working directory becomes a failed command (127 or 126 for the program) rather than an exception.
+0348ac3ad409520ae59778c9dc99803d175af05b 46 64
+	RUN_SCRIPT = 'cd "$1" || exit; shift; exec "$@"'
+0348ac3ad409520ae59778c9dc99803d175af05b 47 65
+	LAUNCH_SOURCE = Path(launch.__file__).read_text()
+0348ac3ad409520ae59778c9dc99803d175af05b 48 66
+	NPROC_HEADROOM = 256
+0348ac3ad409520ae59778c9dc99803d175af05b 49 67
+	"""Tasks a command may add beyond the host's task count when it starts; RLIMIT_NPROC counts all of a user's tasks."""
+0348ac3ad409520ae59778c9dc99803d175af05b 50 68
+	FILE_SIZE_LIMIT = 1 << 30
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 69 69 1
+	PROCESS_STOP_TIMEOUT = 1
+070425daf9fd971d6e0cba39ac298678c9e6afda 63 70 1
+author Russell Power
+author-mail <russell.power@gmail.com>
+author-time 1792685496
+author-tz -0700
+committer GitHub
+committer-mail <noreply@github.com>
+committer-time 1792685496
+committer-tz -0700
+summary Prevent host credential and configuration leaks into sandboxes (#10473)
+previous ffeb49cfa348c1331153efe0e470f22f4b5ad2aa lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	# Reserve program directories and private configuration paths from caller-supplied mounts.
+0348ac3ad409520ae59778c9dc99803d175af05b 54 71 7
+	SYSTEM_DIRECTORIES = (
+0348ac3ad409520ae59778c9dc99803d175af05b 55 72
+	    "/bin",
+0348ac3ad409520ae59778c9dc99803d175af05b 56 73
+	    "/etc",
+0348ac3ad409520ae59778c9dc99803d175af05b 57 74
+	    "/lib",
+0348ac3ad409520ae59778c9dc99803d175af05b 58 75
+	    "/lib32",
+0348ac3ad409520ae59778c9dc99803d175af05b 59 76
+	    "/lib64",
+0348ac3ad409520ae59778c9dc99803d175af05b 60 77
+	    "/libx32",
+0348ac3ad409520ae59778c9dc99803d175af05b 63 78 4
+	    "/sbin",
+0348ac3ad409520ae59778c9dc99803d175af05b 64 79
+	    "/sys",
+0348ac3ad409520ae59778c9dc99803d175af05b 65 80
+	    "/usr",
+0348ac3ad409520ae59778c9dc99803d175af05b 66 81
+	)
+070425daf9fd971d6e0cba39ac298678c9e6afda 75 82 16
+	OVERLAID_DIRECTORIES = ("/bin", "/etc", "/lib", "/lib32", "/lib64", "/libx32", "/sbin", "/usr")
+070425daf9fd971d6e0cba39ac298678c9e6afda 76 83
+	"""The system directories that a copy-on-write machine can write; ``/sys`` stays read-only."""
+070425daf9fd971d6e0cba39ac298678c9e6afda 77 84
+	PRIVATE_SYSTEM_DIRECTORIES = ("/etc", "/sys")
+070425daf9fd971d6e0cba39ac298678c9e6afda 78 85
+	# Copy only runtime configuration. Host credentials, shell startup files, /opt and sysfs are not inputs.
+070425daf9fd971d6e0cba39ac298678c9e6afda 79 86
+	RUNTIME_CONFIGURATION = (
+070425daf9fd971d6e0cba39ac298678c9e6afda 80 87
+	    "/etc/alternatives",
+070425daf9fd971d6e0cba39ac298678c9e6afda 81 88
+	    "/etc/group",
+070425daf9fd971d6e0cba39ac298678c9e6afda 82 89
+	    "/etc/hosts",
+070425daf9fd971d6e0cba39ac298678c9e6afda 83 90
+	    "/etc/ld.so.cache",
+070425daf9fd971d6e0cba39ac298678c9e6afda 84 91
+	    "/etc/localtime",
+070425daf9fd971d6e0cba39ac298678c9e6afda 85 92
+	    "/etc/nsswitch.conf",
+070425daf9fd971d6e0cba39ac298678c9e6afda 86 93
+	    "/etc/passwd",
+070425daf9fd971d6e0cba39ac298678c9e6afda 87 94
+	    "/etc/resolv.conf",
+070425daf9fd971d6e0cba39ac298678c9e6afda 88 95
+	    "/etc/ssl/cert.pem",
+070425daf9fd971d6e0cba39ac298678c9e6afda 89 96
+	    "/etc/ssl/certs",
+070425daf9fd971d6e0cba39ac298678c9e6afda 90 97
+	)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 81 98 11
+	MOUNTINFO = Path("/proc/self/mountinfo")
+52b8b1adf4d8db34deb185bef4901e62d14550ad 82 99
+	# Transfers that reach an overlaid directory pass through the sandbox as a tar stream, so they see the machine's
+52b8b1adf4d8db34deb185bef4901e62d14550ad 83 100
+	# layer. A file that is a symlink is archived as the file it leads to inside the sandbox, not as the link.
+52b8b1adf4d8db34deb185bef4901e62d14550ad 84 101
+	EXTRACT_SCRIPT = 'mkdir -p -- "$1" && exec tar -xof - -C "$1"'
+52b8b1adf4d8db34deb185bef4901e62d14550ad 85 102
+	ARCHIVE_SCRIPT = (
+52b8b1adf4d8db34deb185bef4901e62d14550ad 86 103
+	    '[ -e "$1" ] || { echo "No such file or directory: $1" >&2; exit 2; }; '
+52b8b1adf4d8db34deb185bef4901e62d14550ad 87 104
+	    'if [ -d "$1" ]; then exec tar -cf - -C "$1" .; fi; '
+52b8b1adf4d8db34deb185bef4901e62d14550ad 88 105
+	    'exec tar -chf - -C "$(dirname -- "$1")" -- "$(basename -- "$1")"'
+52b8b1adf4d8db34deb185bef4901e62d14550ad 89 106
+	)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 90 107
+	ARCHIVE_LIMIT_BYTES = 1 << 30
+52b8b1adf4d8db34deb185bef4901e62d14550ad 91 108
+	"""The largest download from an overlaid directory, as a tar stream."""
+0348ac3ad409520ae59778c9dc99803d175af05b 67 109 4
+	SHARED_MEMORY = "/dev/shm"
+0348ac3ad409520ae59778c9dc99803d175af05b 68 110
+	"""Python's multiprocessing creates its semaphores here."""
+0348ac3ad409520ae59778c9dc99803d175af05b 69 111
+	SCRATCH = PurePosixPath("/tmp")
+0348ac3ad409520ae59778c9dc99803d175af05b 70 112
+	HOME = PurePosixPath("/home/shellbox")
+52b8b1adf4d8db34deb185bef4901e62d14550ad 96 113 2
+	CONTROL_ENVIRONMENT = {"PATH": "/usr/bin:/bin", "HOME": str(HOME), "LANG": "C.UTF-8"}
+52b8b1adf4d8db34deb185bef4901e62d14550ad 97 114
+	"""The environment of the backend's own commands, such as transfers; ``MachineSpec.env`` does not reach them."""
+0348ac3ad409520ae59778c9dc99803d175af05b 71 115 4
+	ROOT_MODE = 0o755
+0348ac3ad409520ae59778c9dc99803d175af05b 72 116
+	"""Lets a command that runs as another user traverse the machine's root directory."""
+0348ac3ad409520ae59778c9dc99803d175af05b 73 117
+	STICKY_WORLD_WRITABLE = 0o1777
+0348ac3ad409520ae59778c9dc99803d175af05b 74 118
+	PROBE_TIMEOUT = 30
+a5a745e8c97a03fc954a7361b816f4cebe447375 117 119 1
+	NS_GET_USERNS = 0xB701
+0348ac3ad409520ae59778c9dc99803d175af05b 75 120 6
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 76 121
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 77 122
+	class SandboxUnavailable(RuntimeError):
+0348ac3ad409520ae59778c9dc99803d175af05b 78 123
+	    """No bwrap executable can build a command sandbox on this host."""
+0348ac3ad409520ae59778c9dc99803d175af05b 79 124
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 80 125
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 108 126 6
+	class SystemDirectories(StrEnum):
+52b8b1adf4d8db34deb185bef4901e62d14550ad 109 127
+	    """How a local machine's commands see the host's system directories."""
+52b8b1adf4d8db34deb185bef4901e62d14550ad 110 128
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 111 129
+	    READ_ONLY = "read_only"
+52b8b1adf4d8db34deb185bef4901e62d14550ad 112 130
+	    """Bound read-only: a write fails."""
+52b8b1adf4d8db34deb185bef4901e62d14550ad 113 131
+	    COPY_ON_WRITE = "copy_on_write"
+070425daf9fd971d6e0cba39ac298678c9e6afda 124 132 1
+	    """Writable per machine on every directory in ``OVERLAID_DIRECTORIES``.
+52b8b1adf4d8db34deb185bef4901e62d14550ad 115 133 1
+	
+070425daf9fd971d6e0cba39ac298678c9e6afda 126 134 4
+	    Commands see the host's programs, private runtime configuration and their own machine's writes,
+070425daf9fd971d6e0cba39ac298678c9e6afda 127 135
+	    which persist between its commands and which ``close`` discards; the host's files never change.
+070425daf9fd971d6e0cba39ac298678c9e6afda 128 136
+	    Files the host mounts inside overlaid directories stay read-only. Needs overlayfs and a temporary
+070425daf9fd971d6e0cba39ac298678c9e6afda 129 137
+	    directory that is not itself on overlayfs.
+52b8b1adf4d8db34deb185bef4901e62d14550ad 120 138 3
+	    """
+52b8b1adf4d8db34deb185bef4901e62d14550ad 121 139
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 122 140
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 81 141 19
+	def _absolute_path(path: str) -> PurePosixPath:
+0348ac3ad409520ae59778c9dc99803d175af05b 82 142
+	    if not path.startswith("/"):
+0348ac3ad409520ae59778c9dc99803d175af05b 83 143
+	        raise ValueError(f"Path must be absolute: {path}")
+0348ac3ad409520ae59778c9dc99803d175af05b 84 144
+	    return PurePosixPath(os.path.normpath(path))
+0348ac3ad409520ae59778c9dc99803d175af05b 85 145
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 86 146
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 87 147
+	def _within(path: PurePosixPath, roots: Iterable[str]) -> bool:
+0348ac3ad409520ae59778c9dc99803d175af05b 88 148
+	    return any(path.is_relative_to(root) for root in roots)
+0348ac3ad409520ae59778c9dc99803d175af05b 89 149
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 90 150
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 91 151
+	def _copy(source: Path, target: Path) -> None:
+0348ac3ad409520ae59778c9dc99803d175af05b 92 152
+	    """Copy a file, or a directory's contents, to ``target``, creating its parents."""
+0348ac3ad409520ae59778c9dc99803d175af05b 93 153
+	    if source.is_dir():
+0348ac3ad409520ae59778c9dc99803d175af05b 94 154
+	        shutil.copytree(source, target, symlinks=True, dirs_exist_ok=True)
+0348ac3ad409520ae59778c9dc99803d175af05b 95 155
+	        return
+0348ac3ad409520ae59778c9dc99803d175af05b 96 156
+	    target.parent.mkdir(parents=True, exist_ok=True)
+0348ac3ad409520ae59778c9dc99803d175af05b 97 157
+	    shutil.copy2(source, target)
+0348ac3ad409520ae59778c9dc99803d175af05b 98 158
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 99 159
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 142 160 1
+	def _remove(path: Path) -> None:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 159 161 10
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1792814360
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793276869
+committer-tz -0700
+summary [shellbox] Reclaim readonly guest directories safely
+previous 18602c0a66995c8b859c4f4818e78a9ea0c2588d lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	    """Remove a private tree after its guest processes have been reclaimed."""
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 160 162
+	    try:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 161 163
+	        shutil.rmtree(path)
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 162 164
+	    except PermissionError:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 163 165
+	        descriptor = os.open(path, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 164 166
+	        try:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 165 167
+	            _unlock_directories(descriptor)
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 166 168
+	        finally:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 167 169
+	            os.close(descriptor)
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 168 170
+	        shutil.rmtree(path)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 144 171 1
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 150 172 1
+	
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 171 173 14
+	def _unlock_directories(descriptor: int) -> None:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 172 174
+	    # O_PATH opens even mode000 directories. The proc link refers to this pinned
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 173 175
+	    # directory, so neither chmod nor traversal can follow a guest symlink out.
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 174 176
+	    pinned = f"/proc/self/fd/{descriptor}"
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 175 177
+	    os.chmod(pinned, 0o700)
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 176 178
+	    with os.scandir(pinned) as entries:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 177 179
+	        for entry in entries:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 178 180
+	            if not entry.is_dir(follow_symlinks=False):
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 179 181
+	                continue
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 180 182
+	            child = os.open(entry.name, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=descriptor)
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 181 183
+	            try:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 182 184
+	                _unlock_directories(child)
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 183 185
+	            finally:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 184 186
+	                os.close(child)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 152 187 4
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 153 188
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 154 189
+	def _overlaid_directories() -> tuple[str, ...]:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 155 190
+	    """The overlaid directories this host has; a link into ``/usr`` on a merged-/usr host is not one."""
+070425daf9fd971d6e0cba39ac298678c9e6afda 166 191 5
+	    return tuple(
+070425daf9fd971d6e0cba39ac298678c9e6afda 167 192
+	        path
+070425daf9fd971d6e0cba39ac298678c9e6afda 168 193
+	        for path in OVERLAID_DIRECTORIES
+070425daf9fd971d6e0cba39ac298678c9e6afda 169 194
+	        if path not in PRIVATE_SYSTEM_DIRECTORIES and os.path.isdir(path) and not os.path.islink(path)
+070425daf9fd971d6e0cba39ac298678c9e6afda 170 195
+	    )
+52b8b1adf4d8db34deb185bef4901e62d14550ad 157 196 28
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 158 197
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 159 198
+	def _layer(layers: Path, directory: str) -> Path:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 160 199
+	    return layers / directory.strip("/")
+52b8b1adf4d8db34deb185bef4901e62d14550ad 161 200
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 162 201
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 163 202
+	def _prepare_layers(layers: Path) -> None:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 164 203
+	    for directory in _overlaid_directories():
+52b8b1adf4d8db34deb185bef4901e62d14550ad 165 204
+	        (_layer(layers, directory) / "upper").mkdir(parents=True)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 166 205
+	        (_layer(layers, directory) / "work").mkdir()
+52b8b1adf4d8db34deb185bef4901e62d14550ad 167 206
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 168 207
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 169 208
+	def _submounts(mountinfo: str, directories: Iterable[str]) -> tuple[str, ...]:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 170 209
+	    """The mount points strictly inside ``directories``, parents first, from the text of ``/proc/self/mountinfo``."""
+52b8b1adf4d8db34deb185bef4901e62d14550ad 171 210
+	    points = []
+52b8b1adf4d8db34deb185bef4901e62d14550ad 172 211
+	    for line in mountinfo.splitlines():
+52b8b1adf4d8db34deb185bef4901e62d14550ad 173 212
+	        # The kernel escapes space, tab, newline and backslash in mount points as three octal digits.
+52b8b1adf4d8db34deb185bef4901e62d14550ad 174 213
+	        point = re.sub(r"\\([0-7]{3})", lambda match: chr(int(match[1], 8)), line.split()[4])
+52b8b1adf4d8db34deb185bef4901e62d14550ad 175 214
+	        if any(PurePosixPath(point).is_relative_to(directory) and point != directory for directory in directories):
+52b8b1adf4d8db34deb185bef4901e62d14550ad 176 215
+	            points.append(point)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 177 216
+	    return tuple(sorted(dict.fromkeys(points), key=lambda point: (point.count("/"), point)))
+52b8b1adf4d8db34deb185bef4901e62d14550ad 178 217
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 179 218
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 180 219
+	def read_only_system_mounts() -> tuple[str, ...]:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 181 220
+	    """The paths the host mounts inside overlaid directories; copy-on-write machines keep them read-only."""
+52b8b1adf4d8db34deb185bef4901e62d14550ad 182 221
+	    return _submounts(MOUNTINFO.read_text(), _overlaid_directories())
+52b8b1adf4d8db34deb185bef4901e62d14550ad 183 222
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 184 223
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 112 224 4
+	def _sandbox_argv(
+0348ac3ad409520ae59778c9dc99803d175af05b 113 225
+	    bwrap: Path,
+0348ac3ad409520ae59778c9dc99803d175af05b 114 226
+	    *,
+0348ac3ad409520ae59778c9dc99803d175af05b 115 227
+	    root: Path,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 189 228 1
+	    layers: Path | None,
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 111 229 1
+	    mounts: Iterable[Mount],
+0348ac3ad409520ae59778c9dc99803d175af05b 117 230 1
+	    network: NetworkPolicy,
+0348ac3ad409520ae59778c9dc99803d175af05b 119 231 1
+	) -> list[str]:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 194 232 1
+	    """The bwrap invocation that runs a program over ``root`` with the system directories and ``mounts``.
+0348ac3ad409520ae59778c9dc99803d175af05b 121 233 1
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 196 234 1
+	    The system directories are read-only, or, with ``layers``, overlaid by the machine's layer of each.
+0348ac3ad409520ae59778c9dc99803d175af05b 122 235 6
+	    The program runs without capabilities; as root, bwrap needs no user namespace for its own.
+0348ac3ad409520ae59778c9dc99803d175af05b 123 236
+	    """
+0348ac3ad409520ae59778c9dc99803d175af05b 124 237
+	    argv = [str(bwrap), "--unshare-ipc", "--unshare-pid", "--unshare-uts", "--unshare-cgroup-try"]
+0348ac3ad409520ae59778c9dc99803d175af05b 125 238
+	    if network == NetworkPolicy.DENY:
+0348ac3ad409520ae59778c9dc99803d175af05b 126 239
+	        argv.append("--unshare-net")
+0348ac3ad409520ae59778c9dc99803d175af05b 127 240
+	    argv += ["--new-session", "--die-with-parent", "--cap-drop", "ALL"]
+0348ac3ad409520ae59778c9dc99803d175af05b 131 241 1
+	    argv += ["--bind", str(root), "/"]
+52b8b1adf4d8db34deb185bef4901e62d14550ad 207 242 1
+	    overlaid = () if layers is None else _overlaid_directories()
+0348ac3ad409520ae59778c9dc99803d175af05b 132 243 1
+	    for path in SYSTEM_DIRECTORIES:
+070425daf9fd971d6e0cba39ac298678c9e6afda 223 244 4
+	        if path in PRIVATE_SYSTEM_DIRECTORIES:
+070425daf9fd971d6e0cba39ac298678c9e6afda 224 245
+	            if path == "/sys" or layers is None:
+070425daf9fd971d6e0cba39ac298678c9e6afda 225 246
+	                argv += ["--ro-bind", str(root / path.lstrip("/")), path]
+070425daf9fd971d6e0cba39ac298678c9e6afda 226 247
+	        elif os.path.islink(path):
+0348ac3ad409520ae59778c9dc99803d175af05b 134 248 2
+	            # Merged-/usr hosts link /bin and /lib into /usr; the link keeps paths such as the ELF loader valid.
+0348ac3ad409520ae59778c9dc99803d175af05b 135 249
+	            argv += ["--symlink", os.readlink(path), path]
+52b8b1adf4d8db34deb185bef4901e62d14550ad 212 250 4
+	        elif path in overlaid:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 213 251
+	            assert layers is not None
+52b8b1adf4d8db34deb185bef4901e62d14550ad 214 252
+	            layer = _layer(layers, path)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 215 253
+	            argv += ["--overlay-src", path, "--overlay", str(layer / "upper"), str(layer / "work"), path]
+0348ac3ad409520ae59778c9dc99803d175af05b 136 254 2
+	        else:
+0348ac3ad409520ae59778c9dc99803d175af05b 137 255
+	            argv += ["--ro-bind-try", path, path]
+070425daf9fd971d6e0cba39ac298678c9e6afda 235 256 1
+	    # Overlays hide nested host mounts; preserve those inside shared program directories read-only.
+52b8b1adf4d8db34deb185bef4901e62d14550ad 220 257 2
+	    for point in read_only_system_mounts() if overlaid else ():
+52b8b1adf4d8db34deb185bef4901e62d14550ad 221 258
+	        argv += ["--ro-bind", point, point]
+0348ac3ad409520ae59778c9dc99803d175af05b 138 259 1
+	    argv += ["--dev", "/dev", "--tmpfs", SHARED_MEMORY, "--proc", "/proc"]
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 134 260 2
+	    for mount in mounts:
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 135 261
+	        argv += ["--ro-bind", str(mount.host), str(mount.guest)]
+0348ac3ad409520ae59778c9dc99803d175af05b 143 262 5
+	    return argv
+0348ac3ad409520ae59778c9dc99803d175af05b 144 263
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 145 264
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 146 265
+	def _bwrap_candidates(bwrap: Path | None) -> tuple[Path, ...]:
+0348ac3ad409520ae59778c9dc99803d175af05b 147 266
+	    """``bwrap`` alone, or the bundled bwrap followed by any bwrap on ``PATH``; the caller probes each in turn."""
+edae2f5d763f78e18fc0ed40e1452e989ccb85c2 230 267 5
+author Ben Feuer
+author-mail <bf996@nyu.edu>
+author-time 1792527826
+author-tz -0400
+committer GitHub
+committer-mail <noreply@github.com>
+committer-time 1792527826
+committer-tz -0700
+summary [shellbox] Allow importing the local backend on non-Linux hosts (#10328)
+previous 1b2cc4dd37220d29c4d29a643b940e1cd66f90bf lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	    if sys.platform != "linux":
+edae2f5d763f78e18fc0ed40e1452e989ccb85c2 231 268
+	        raise SandboxUnavailable("The local bubblewrap backend requires Linux")
+edae2f5d763f78e18fc0ed40e1452e989ccb85c2 232 269
+	    # This dependency is installed only on Linux.
+edae2f5d763f78e18fc0ed40e1452e989ccb85c2 233 270
+	    from bubblewrap_bin import bwrap_path  # noqa: PLC0415
+edae2f5d763f78e18fc0ed40e1452e989ccb85c2 234 271
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 148 272 3
+	    if bwrap is not None:
+0348ac3ad409520ae59778c9dc99803d175af05b 149 273
+	        return (bwrap,)
+0348ac3ad409520ae59778c9dc99803d175af05b 150 274
+	    system = shutil.which("bwrap")
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 273 275 1
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1793194720
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793276870
+committer-tz -0700
+summary [shellbox] Reclaim failed startup at the keeper barrier
+previous 487662aa8f50d3fd0f234728ec8a2b70d2b2d6ec lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	    return (bwrap_path(), *(() if system is None else (Path(system),)))
+0348ac3ad409520ae59778c9dc99803d175af05b 152 276 2
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 153 277
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 238 278 1
+	def _prepare_sandbox(bwrap: Path, system_directories: SystemDirectories) -> str | None:
+cbac3420ccf77fd967760d55a006a72dbc05b8c8 282 279 1
+	    """Return why namespace creation or command entry fails, or None when both work."""
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 272 280 6
+	
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 273 281
+	    async def probe() -> str | None:
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 274 282
+	        root, layers = _machine_directories(None, copy_on_write=system_directories is SystemDirectories.COPY_ON_WRITE)
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 275 283
+	        machine = LocalMachine(
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 276 284
+	            MachineSpec(HostImage(), workdir="/"),
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 277 285
+	            bwrap=bwrap,
+070425daf9fd971d6e0cba39ac298678c9e6afda 275 286 3
+	            root=root,
+070425daf9fd971d6e0cba39ac298678c9e6afda 276 287
+	            layers=layers,
+070425daf9fd971d6e0cba39ac298678c9e6afda 277 288
+	            mounts=(),
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 281 289 1
+	            environment=CONTROL_ENVIRONMENT,
+070425daf9fd971d6e0cba39ac298678c9e6afda 280 290 1
+	        )
+0348ac3ad409520ae59778c9dc99803d175af05b 159 291 1
+	        try:
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 284 292 14
+	            async with asyncio.timeout(PROBE_TIMEOUT):
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 285 293
+	                await machine._start_keeper()
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 286 294
+	                result = await machine._control("exit 0", PurePosixPath("/"))
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 287 295
+	        except (OSError, RuntimeError, TimeoutError) as error:
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 288 296
+	            return str(error) or type(error).__name__
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 289 297
+	        finally:
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 290 298
+	            await machine.close()
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 291 299
+	        if result.exit_code == 0:
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 292 300
+	            return None
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 293 301
+	        return result.stderr.decode(errors="replace").strip() or f"exit status {result.exit_code}"
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 294 302
+	
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 295 303
+	    # Factory construction is synchronous and may run inside an existing event loop.
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 296 304
+	    with ThreadPoolExecutor(max_workers=1) as executor:
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 297 305
+	        return executor.submit(asyncio.run, probe()).result()
+0348ac3ad409520ae59778c9dc99803d175af05b 166 306 2
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 167 307
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 261 308 1
+	def _working_bwrap(candidates: Iterable[Path], system_directories: SystemDirectories) -> Path:
+0348ac3ad409520ae59778c9dc99803d175af05b 169 309 2
+	    errors = []
+0348ac3ad409520ae59778c9dc99803d175af05b 170 310
+	    for candidate in candidates:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 264 311 1
+	        error = _prepare_sandbox(candidate, system_directories)
+0348ac3ad409520ae59778c9dc99803d175af05b 172 312 3
+	        if error is None:
+0348ac3ad409520ae59778c9dc99803d175af05b 173 313
+	            return candidate
+0348ac3ad409520ae59778c9dc99803d175af05b 174 314
+	        errors.append(f"{candidate}: {error}")
+52b8b1adf4d8db34deb185bef4901e62d14550ad 268 315 5
+	    overlay = (
+52b8b1adf4d8db34deb185bef4901e62d14550ad 269 316
+	        "Copy-on-write system directories also need overlayfs and a temporary directory that is not on overlayfs. "
+52b8b1adf4d8db34deb185bef4901e62d14550ad 270 317
+	        if system_directories == SystemDirectories.COPY_ON_WRITE
+52b8b1adf4d8db34deb185bef4901e62d14550ad 271 318
+	        else ""
+52b8b1adf4d8db34deb185bef4901e62d14550ad 272 319
+	    )
+0348ac3ad409520ae59778c9dc99803d175af05b 175 320 3
+	    raise SandboxUnavailable(
+0348ac3ad409520ae59778c9dc99803d175af05b 176 321
+	        "No bwrap can sandbox commands on this host. A root process needs CAP_SYS_ADMIN, CAP_NET_ADMIN, no "
+0348ac3ad409520ae59778c9dc99803d175af05b 177 322
+	        "AppArmor confinement and a seccomp filter that allows pivot_root; another user needs unprivileged "
+52b8b1adf4d8db34deb185bef4901e62d14550ad 276 323 1
+	        "user namespaces. " + overlay + "; ".join(errors)
+0348ac3ad409520ae59778c9dc99803d175af05b 179 324 3
+	    )
+0348ac3ad409520ae59778c9dc99803d175af05b 180 325
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 181 326
+	
+11f5c20972d9567496598096696cf708431f2468 324 327 1
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1793405404
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793405404
+committer-tz -0700
+summary [shellbox] Carry host services over persistent process sessions
+previous ad1adb1269b6fedd51427bff7a45c147bcbb8b56 lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	def _resource_limits() -> list[tuple[int, int]]:
+0348ac3ad409520ae59778c9dc99803d175af05b 183 328 1
+	    host_tasks = int(Path("/proc/loadavg").read_text().split()[3].split("/")[1])
+11f5c20972d9567496598096696cf708431f2468 326 329 1
+	    return [
+0348ac3ad409520ae59778c9dc99803d175af05b 185 330 4
+	        (resource.RLIMIT_NPROC, host_tasks + NPROC_HEADROOM),
+0348ac3ad409520ae59778c9dc99803d175af05b 186 331
+	        (resource.RLIMIT_FSIZE, FILE_SIZE_LIMIT),
+0348ac3ad409520ae59778c9dc99803d175af05b 187 332
+	        (resource.RLIMIT_CORE, 0),
+0348ac3ad409520ae59778c9dc99803d175af05b 188 333
+	    ]
+0348ac3ad409520ae59778c9dc99803d175af05b 194 334 18
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 195 335
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 196 336
+	def _command_account(user: str | None) -> pwd.struct_passwd | None:
+0348ac3ad409520ae59778c9dc99803d175af05b 197 337
+	    """The host account a command switches to, or None to run as this process's user."""
+0348ac3ad409520ae59778c9dc99803d175af05b 198 338
+	    uid = os.geteuid()
+0348ac3ad409520ae59778c9dc99803d175af05b 199 339
+	    if user is None or user == str(uid):
+0348ac3ad409520ae59778c9dc99803d175af05b 200 340
+	        return None
+0348ac3ad409520ae59778c9dc99803d175af05b 201 341
+	    try:
+0348ac3ad409520ae59778c9dc99803d175af05b 202 342
+	        account = pwd.getpwuid(int(user)) if user.isdigit() else pwd.getpwnam(user)
+0348ac3ad409520ae59778c9dc99803d175af05b 203 343
+	    except KeyError as error:
+0348ac3ad409520ae59778c9dc99803d175af05b 204 344
+	        raise UnsupportedMachineSpec(f"The local backend found no host account for user {user}") from error
+0348ac3ad409520ae59778c9dc99803d175af05b 205 345
+	    if account.pw_uid == uid:
+0348ac3ad409520ae59778c9dc99803d175af05b 206 346
+	        return None
+0348ac3ad409520ae59778c9dc99803d175af05b 207 347
+	    if uid != 0:
+0348ac3ad409520ae59778c9dc99803d175af05b 208 348
+	        raise UnsupportedMachineSpec(f"The local backend runs as uid {uid}; only root can run a command as {user}")
+0348ac3ad409520ae59778c9dc99803d175af05b 209 349
+	    return account
+0348ac3ad409520ae59778c9dc99803d175af05b 210 350
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 211 351
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 330 352 1
+	def _prepare_root(root: Path, workdir: PurePosixPath | None) -> None:
+0348ac3ad409520ae59778c9dc99803d175af05b 233 353 1
+	    root.chmod(ROOT_MODE)
+070425daf9fd971d6e0cba39ac298678c9e6afda 370 354 6
+	    for directory in (*PRIVATE_SYSTEM_DIRECTORIES, "/opt"):
+070425daf9fd971d6e0cba39ac298678c9e6afda 371 355
+	        (root / directory.lstrip("/")).mkdir(parents=True)
+070425daf9fd971d6e0cba39ac298678c9e6afda 372 356
+	    for configuration in RUNTIME_CONFIGURATION:
+070425daf9fd971d6e0cba39ac298678c9e6afda 373 357
+	        source = Path(configuration)
+070425daf9fd971d6e0cba39ac298678c9e6afda 374 358
+	        if source.exists():
+070425daf9fd971d6e0cba39ac298678c9e6afda 375 359
+	            _copy(source, root / configuration.lstrip("/"))
+0348ac3ad409520ae59778c9dc99803d175af05b 234 360 5
+	    # Any user may write /tmp and HOME, as in a container image.
+0348ac3ad409520ae59778c9dc99803d175af05b 235 361
+	    for directory in (SCRATCH, HOME):
+0348ac3ad409520ae59778c9dc99803d175af05b 236 362
+	        path = root / directory.relative_to("/")
+0348ac3ad409520ae59778c9dc99803d175af05b 237 363
+	        path.mkdir(parents=True)
+0348ac3ad409520ae59778c9dc99803d175af05b 238 364
+	        path.chmod(STICKY_WORLD_WRITABLE)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 337 365 16
+	    if workdir is not None:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 338 366
+	        (root / workdir.relative_to("/")).mkdir(parents=True, exist_ok=True)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 339 367
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 340 368
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 341 369
+	def _archive(source: Path, name: str) -> bytes:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 342 370
+	    """A tar stream of ``source`` under ``name``; ``name`` "." takes a directory's contents.
+52b8b1adf4d8db34deb185bef4901e62d14550ad 343 371
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 344 372
+	    As ``_copy`` does, a ``source`` that is a symlink contributes what it leads to, and symlinks inside a
+52b8b1adf4d8db34deb185bef4901e62d14550ad 345 373
+	    directory stay symlinks.
+52b8b1adf4d8db34deb185bef4901e62d14550ad 346 374
+	    """
+52b8b1adf4d8db34deb185bef4901e62d14550ad 347 375
+	    stream = io.BytesIO()
+52b8b1adf4d8db34deb185bef4901e62d14550ad 348 376
+	    with tarfile.open(fileobj=stream, mode="w") as archive:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 349 377
+	        archive.add(os.path.realpath(source), arcname=name)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 350 378
+	    return stream.getvalue()
+52b8b1adf4d8db34deb185bef4901e62d14550ad 351 379
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 352 380
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 383 381 19
+	def _pin_init(pid: int, namespace: int) -> int:
+a5a745e8c97a03fc954a7361b816f4cebe447375 384 382
+	    """Pin bwrap's init, verifying its identity through an anchored proc directory."""
+a5a745e8c97a03fc954a7361b816f4cebe447375 385 383
+	    directory = os.open(f"/proc/{pid}", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+a5a745e8c97a03fc954a7361b816f4cebe447375 386 384
+	    descriptor = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 387 385
+	    try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 388 386
+	        descriptor = os.pidfd_open(pid)
+a5a745e8c97a03fc954a7361b816f4cebe447375 389 387
+	        process_namespace = os.open("ns/pid", os.O_RDONLY | os.O_CLOEXEC, dir_fd=directory)
+a5a745e8c97a03fc954a7361b816f4cebe447375 390 388
+	        try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 391 389
+	            if os.fstat(process_namespace).st_ino != namespace:
+a5a745e8c97a03fc954a7361b816f4cebe447375 392 390
+	                raise SandboxUnavailable("Bubblewrap init namespace identity changed")
+a5a745e8c97a03fc954a7361b816f4cebe447375 393 391
+	        finally:
+a5a745e8c97a03fc954a7361b816f4cebe447375 394 392
+	            os.close(process_namespace)
+a5a745e8c97a03fc954a7361b816f4cebe447375 395 393
+	        return descriptor
+a5a745e8c97a03fc954a7361b816f4cebe447375 396 394
+	    except BaseException:
+a5a745e8c97a03fc954a7361b816f4cebe447375 397 395
+	        if descriptor is not None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 398 396
+	            os.close(descriptor)
+a5a745e8c97a03fc954a7361b816f4cebe447375 399 397
+	        raise
+a5a745e8c97a03fc954a7361b816f4cebe447375 400 398
+	    finally:
+a5a745e8c97a03fc954a7361b816f4cebe447375 401 399
+	        os.close(directory)
+0348ac3ad409520ae59778c9dc99803d175af05b 240 400 3
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 241 401
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 242 402
+	class LocalMachine:
+a5a745e8c97a03fc954a7361b816f4cebe447375 405 403 1
+	    """A persistent bubblewrap member, with commands entering pinned namespaces."""
+0348ac3ad409520ae59778c9dc99803d175af05b 248 404 7
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 249 405
+	    def __init__(
+0348ac3ad409520ae59778c9dc99803d175af05b 250 406
+	        self,
+0348ac3ad409520ae59778c9dc99803d175af05b 251 407
+	        spec: MachineSpec,
+0348ac3ad409520ae59778c9dc99803d175af05b 252 408
+	        *,
+0348ac3ad409520ae59778c9dc99803d175af05b 253 409
+	        bwrap: Path,
+0348ac3ad409520ae59778c9dc99803d175af05b 254 410
+	        root: Path,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 391 411 1
+	        layers: Path | None,
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 250 412 1
+	        mounts: tuple[Mount, ...],
+0348ac3ad409520ae59778c9dc99803d175af05b 256 413 1
+	        environment: dict[str, str],
+a5a745e8c97a03fc954a7361b816f4cebe447375 416 414 2
+	        image: PreparedLocalImage | None = None,
+a5a745e8c97a03fc954a7361b816f4cebe447375 417 415
+	        bundle: Path | None = None,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 414 416 1
+	        cgroup_parent: Path | None = None,
+0348ac3ad409520ae59778c9dc99803d175af05b 257 417 3
+	    ):
+0348ac3ad409520ae59778c9dc99803d175af05b 258 418
+	        self.spec = spec
+0348ac3ad409520ae59778c9dc99803d175af05b 259 419
+	        self.root = root
+52b8b1adf4d8db34deb185bef4901e62d14550ad 397 420 1
+	        self.layers = layers
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 255 421 1
+	        self.mounts = mounts
+a5a745e8c97a03fc954a7361b816f4cebe447375 423 422 2
+	        self.image = image
+a5a745e8c97a03fc954a7361b816f4cebe447375 424 423
+	        self._bundle = bundle
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 422 424 2
+	        self._cgroup_parent = cgroup_parent
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 423 425
+	        self._cgroup: MachineCgroup | None = None
+0348ac3ad409520ae59778c9dc99803d175af05b 261 426 3
+	        self._bwrap = bwrap
+0348ac3ad409520ae59778c9dc99803d175af05b 262 427
+	        self._environment = environment
+0348ac3ad409520ae59778c9dc99803d175af05b 263 428
+	        self._closed = False
+a5a745e8c97a03fc954a7361b816f4cebe447375 428 429 1
+	        self._closing: asyncio.Task[None] | None = None
+fb972712d0f93f3b9bc636493370a36416f6d183 431 430 1
+	        self._task_close: Callable[[], Awaitable[None]] | None = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 430 431 8
+	        self._keeper: asyncio.subprocess.Process | None = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 431 432
+	        self._keeper_pidfd: int | None = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 432 433
+	        self._init_pidfd: int | None = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 433 434
+	        self._namespaces: tuple[int, ...] = ()
+a5a745e8c97a03fc954a7361b816f4cebe447375 434 435
+	        self._owned_namespaces: tuple[int, ...] = ()
+a5a745e8c97a03fc954a7361b816f4cebe447375 435 436
+	        self._network_namespaces: tuple[int, ...] = ()
+a5a745e8c97a03fc954a7361b816f4cebe447375 436 437
+	        self._root_fd: int | None = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 437 438
+	        self._commands: set[asyncio.subprocess.Process] = set()
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 439 439 1
+	        self._sessions: set[SubprocessSession] = set()
+a5a745e8c97a03fc954a7361b816f4cebe447375 438 440 1
+	        self._watcher: asyncio.Task[None] | None = None
+0348ac3ad409520ae59778c9dc99803d175af05b 264 441 3
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 265 442
+	    def _check_open(self) -> None:
+0348ac3ad409520ae59778c9dc99803d175af05b 266 443
+	        if self._closed:
+a5a745e8c97a03fc954a7361b816f4cebe447375 443 444 3
+	            raise MachineTerminated("Machine is closed")
+a5a745e8c97a03fc954a7361b816f4cebe447375 444 445
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 445 446
+	    async def _start_keeper(self, peer: "LocalMachine | None" = None) -> None:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 444 447 2
+	        if self._cgroup_parent is not None:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 445 448
+	            self._cgroup = MachineCgroup.create(self._cgroup_parent, cpus=self.spec.cpus, memory_mb=self.spec.memory_mb)
+a5a745e8c97a03fc954a7361b816f4cebe447375 446 449 7
+	        if self.image is None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 447 450
+	            arguments = _sandbox_argv(
+a5a745e8c97a03fc954a7361b816f4cebe447375 448 451
+	                self._bwrap,
+a5a745e8c97a03fc954a7361b816f4cebe447375 449 452
+	                root=self.root,
+a5a745e8c97a03fc954a7361b816f4cebe447375 450 453
+	                layers=self.layers,
+a5a745e8c97a03fc954a7361b816f4cebe447375 451 454
+	                mounts=self.mounts,
+a5a745e8c97a03fc954a7361b816f4cebe447375 452 455
+	                network=self.spec.network if peer is None else NetworkPolicy.ALLOW,
+a5a745e8c97a03fc954a7361b816f4cebe447375 454 456 12
+	            )
+a5a745e8c97a03fc954a7361b816f4cebe447375 455 457
+	        else:
+a5a745e8c97a03fc954a7361b816f4cebe447375 456 458
+	            arguments = [
+a5a745e8c97a03fc954a7361b816f4cebe447375 457 459
+	                str(self._bwrap),
+a5a745e8c97a03fc954a7361b816f4cebe447375 458 460
+	                "--unshare-user",
+a5a745e8c97a03fc954a7361b816f4cebe447375 459 461
+	                "--uid",
+a5a745e8c97a03fc954a7361b816f4cebe447375 460 462
+	                "0",
+a5a745e8c97a03fc954a7361b816f4cebe447375 461 463
+	                "--gid",
+a5a745e8c97a03fc954a7361b816f4cebe447375 462 464
+	                "0",
+a5a745e8c97a03fc954a7361b816f4cebe447375 463 465
+	                "--unshare-ipc",
+a5a745e8c97a03fc954a7361b816f4cebe447375 464 466
+	                "--unshare-pid",
+a5a745e8c97a03fc954a7361b816f4cebe447375 465 467
+	                "--unshare-uts",
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 461 468 1
+	                "--unshare-cgroup-try",
+a5a745e8c97a03fc954a7361b816f4cebe447375 466 469 25
+	                "--new-session",
+a5a745e8c97a03fc954a7361b816f4cebe447375 467 470
+	                "--die-with-parent",
+a5a745e8c97a03fc954a7361b816f4cebe447375 468 471
+	                "--cap-drop",
+a5a745e8c97a03fc954a7361b816f4cebe447375 469 472
+	                "ALL",
+a5a745e8c97a03fc954a7361b816f4cebe447375 470 473
+	                "--bind",
+a5a745e8c97a03fc954a7361b816f4cebe447375 471 474
+	                str(self.root),
+a5a745e8c97a03fc954a7361b816f4cebe447375 472 475
+	                "/",
+a5a745e8c97a03fc954a7361b816f4cebe447375 473 476
+	                "--dev",
+a5a745e8c97a03fc954a7361b816f4cebe447375 474 477
+	                "/dev",
+a5a745e8c97a03fc954a7361b816f4cebe447375 475 478
+	                "--proc",
+a5a745e8c97a03fc954a7361b816f4cebe447375 476 479
+	                "/proc",
+a5a745e8c97a03fc954a7361b816f4cebe447375 477 480
+	                "--tmpfs",
+a5a745e8c97a03fc954a7361b816f4cebe447375 478 481
+	                "/dev/shm",
+a5a745e8c97a03fc954a7361b816f4cebe447375 479 482
+	            ]
+a5a745e8c97a03fc954a7361b816f4cebe447375 480 483
+	            if peer is None and self.spec.network is NetworkPolicy.DENY:
+a5a745e8c97a03fc954a7361b816f4cebe447375 481 484
+	                arguments.append("--unshare-net")
+a5a745e8c97a03fc954a7361b816f4cebe447375 482 485
+	        # A new user namespace is needed for each independent mount namespace,
+a5a745e8c97a03fc954a7361b816f4cebe447375 483 486
+	        # including members that inherit a peer's network namespace.
+a5a745e8c97a03fc954a7361b816f4cebe447375 484 487
+	        if os.geteuid() != 0 and "--unshare-user" not in arguments:
+a5a745e8c97a03fc954a7361b816f4cebe447375 485 488
+	            arguments.insert(1, "--unshare-user")
+a5a745e8c97a03fc954a7361b816f4cebe447375 486 489
+	        if self.image is None and os.geteuid() != 0:
+a5a745e8c97a03fc954a7361b816f4cebe447375 487 490
+	            arguments[1:1] = ["--uid", str(os.geteuid()), "--gid", str(os.getegid())]
+a5a745e8c97a03fc954a7361b816f4cebe447375 488 491
+	        block_read, block_write = os.pipe()
+a5a745e8c97a03fc954a7361b816f4cebe447375 489 492
+	        allocation = asyncio.create_task(self._allocate_keeper(arguments, peer, block_read, block_write))
+a5a745e8c97a03fc954a7361b816f4cebe447375 490 493
+	        try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 495 494 2
+	            try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 496 495
+	                await asyncio.shield(allocation)
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 494 496 10
+	            except asyncio.CancelledError:
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 495 497
+	                # Allocation still consumes the startup descriptors until it
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 496 498
+	                # finishes, even if another cancellation arrives while waiting.
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 497 499
+	                while not allocation.done():
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 498 500
+	                    try:
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 499 501
+	                        await asyncio.shield(allocation)
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 500 502
+	                    except asyncio.CancelledError:
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 501 503
+	                        pass
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 502 504
+	                allocation.result()
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 503 505
+	                raise
+a5a745e8c97a03fc954a7361b816f4cebe447375 497 506 1
+	            finally:
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 505 507 9
+	                # An unpinned init may be waiting for this barrier and holding
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 506 508
+	                # stderr open. Withhold its start token and release the barrier
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 507 509
+	                # before cleanup waits for stderr EOF.
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 508 510
+	                if self._keeper is not None and self._keeper.stdin is not None:
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 509 511
+	                    self._keeper.stdin.close()
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 510 512
+	                os.close(block_read)
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 511 513
+	                os.close(block_write)
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 512 514
+	        except BaseException:
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 513 515
+	            await asyncio.shield(self._close_local())
+a5a745e8c97a03fc954a7361b816f4cebe447375 499 516 1
+	            raise
+a5a745e8c97a03fc954a7361b816f4cebe447375 503 517 19
+	        assert self._keeper_pidfd is not None
+a5a745e8c97a03fc954a7361b816f4cebe447375 504 518
+	        self._watcher = asyncio.create_task(self._watch_keeper(os.dup(self._keeper_pidfd)))
+a5a745e8c97a03fc954a7361b816f4cebe447375 505 519
+	        self._watcher.add_done_callback(_log_task_failure)
+a5a745e8c97a03fc954a7361b816f4cebe447375 506 520
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 507 521
+	    async def _allocate_keeper(
+a5a745e8c97a03fc954a7361b816f4cebe447375 508 522
+	        self, arguments: list[str], peer: "LocalMachine | None", block_read: int, block_write: int
+a5a745e8c97a03fc954a7361b816f4cebe447375 509 523
+	    ) -> None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 510 524
+	        with tempfile.TemporaryFile() as information:
+a5a745e8c97a03fc954a7361b816f4cebe447375 511 525
+	            arguments += [
+a5a745e8c97a03fc954a7361b816f4cebe447375 512 526
+	                "--block-fd",
+a5a745e8c97a03fc954a7361b816f4cebe447375 513 527
+	                str(block_read),
+a5a745e8c97a03fc954a7361b816f4cebe447375 514 528
+	                "--info-fd",
+a5a745e8c97a03fc954a7361b816f4cebe447375 515 529
+	                str(information.fileno()),
+a5a745e8c97a03fc954a7361b816f4cebe447375 516 530
+	                "--clearenv",
+a5a745e8c97a03fc954a7361b816f4cebe447375 517 531
+	                "--setenv",
+a5a745e8c97a03fc954a7361b816f4cebe447375 518 532
+	                "PATH",
+a5a745e8c97a03fc954a7361b816f4cebe447375 519 533
+	                DEFAULT_PATH,
+a5a745e8c97a03fc954a7361b816f4cebe447375 520 534
+	                "/bin/sh",
+a5a745e8c97a03fc954a7361b816f4cebe447375 521 535
+	                "-c",
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 534 536 1
+	                'read -r ready && [ "$ready" = shellbox-ready ] || exit 1; exec sleep 2147483647',
+a5a745e8c97a03fc954a7361b816f4cebe447375 523 537 2
+	            ]
+a5a745e8c97a03fc954a7361b816f4cebe447375 524 538
+	            prefix = () if peer is None else peer._network_namespaces
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 536 539 5
+	            config = {
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 537 540
+	                "namespaces": prefix,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 538 541
+	                "program": arguments,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 539 542
+	                "cgroup": None if self._cgroup is None else str(self._cgroup.path / "cgroup.procs"),
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 540 543
+	            }
+a5a745e8c97a03fc954a7361b816f4cebe447375 526 544 12
+	            with tempfile.TemporaryFile() as configuration:
+a5a745e8c97a03fc954a7361b816f4cebe447375 527 545
+	                configuration.write(json.dumps(config).encode())
+a5a745e8c97a03fc954a7361b816f4cebe447375 528 546
+	                configuration.seek(0)
+a5a745e8c97a03fc954a7361b816f4cebe447375 529 547
+	                self._keeper = await asyncio.create_subprocess_exec(
+a5a745e8c97a03fc954a7361b816f4cebe447375 530 548
+	                    sys.executable,
+a5a745e8c97a03fc954a7361b816f4cebe447375 531 549
+	                    "-I",
+a5a745e8c97a03fc954a7361b816f4cebe447375 532 550
+	                    "-S",
+a5a745e8c97a03fc954a7361b816f4cebe447375 533 551
+	                    "-c",
+a5a745e8c97a03fc954a7361b816f4cebe447375 534 552
+	                    LAUNCH_SOURCE,
+a5a745e8c97a03fc954a7361b816f4cebe447375 535 553
+	                    str(configuration.fileno()),
+a5a745e8c97a03fc954a7361b816f4cebe447375 536 554
+	                    pass_fds=(configuration.fileno(), information.fileno(), block_read, *prefix),
+a5a745e8c97a03fc954a7361b816f4cebe447375 537 555
+	                    env=CONTROL_ENVIRONMENT,
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 550 556 1
+	                    stdin=asyncio.subprocess.PIPE,
+a5a745e8c97a03fc954a7361b816f4cebe447375 539 557 7
+	                    stdout=asyncio.subprocess.DEVNULL,
+a5a745e8c97a03fc954a7361b816f4cebe447375 540 558
+	                    stderr=asyncio.subprocess.PIPE,
+a5a745e8c97a03fc954a7361b816f4cebe447375 541 559
+	                    start_new_session=True,
+a5a745e8c97a03fc954a7361b816f4cebe447375 542 560
+	                )
+a5a745e8c97a03fc954a7361b816f4cebe447375 543 561
+	                self._keeper_pidfd = os.pidfd_open(self._keeper.pid)
+a5a745e8c97a03fc954a7361b816f4cebe447375 544 562
+	            async with asyncio.timeout(PROBE_TIMEOUT):
+a5a745e8c97a03fc954a7361b816f4cebe447375 545 563
+	                while True:
+fd44195a3848481993279777a7c2aeac49299945 558 564 3
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1793195400
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793276870
+committer-tz -0700
+summary [shellbox] Preserve the startup status writer offset
+previous 2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	                    # The inherited file description shares bwrap's write
+fd44195a3848481993279777a7c2aeac49299945 559 565
+	                    # offset; seeking here can corrupt its multi-write JSON.
+fd44195a3848481993279777a7c2aeac49299945 560 566
+	                    payload = os.pread(information.fileno(), os.fstat(information.fileno()).st_size, 0)
+a5a745e8c97a03fc954a7361b816f4cebe447375 548 567 27
+	                    if payload:
+a5a745e8c97a03fc954a7361b816f4cebe447375 549 568
+	                        try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 550 569
+	                            status = json.loads(payload)
+a5a745e8c97a03fc954a7361b816f4cebe447375 551 570
+	                            pid = status["child-pid"]
+a5a745e8c97a03fc954a7361b816f4cebe447375 552 571
+	                            if self._init_pidfd is None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 553 572
+	                                self._init_pidfd = _pin_init(pid, status["pid-namespace"])
+a5a745e8c97a03fc954a7361b816f4cebe447375 554 573
+	                            # info-fd is written before bwrap finishes mounting
+a5a745e8c97a03fc954a7361b816f4cebe447375 555 574
+	                            # and pivoting. Pinning root earlier would capture
+a5a745e8c97a03fc954a7361b816f4cebe447375 556 575
+	                            # the host root rather than the guest root.
+a5a745e8c97a03fc954a7361b816f4cebe447375 557 576
+	                            expected = self.root.stat()
+a5a745e8c97a03fc954a7361b816f4cebe447375 558 577
+	                            actual = os.stat(f"/proc/{pid}/root")
+a5a745e8c97a03fc954a7361b816f4cebe447375 559 578
+	                            expected_uid = 0 if self.image is not None else os.geteuid()
+a5a745e8c97a03fc954a7361b816f4cebe447375 560 579
+	                            mapped = Path(f"/proc/{pid}/uid_map").read_text().splitlines()
+a5a745e8c97a03fc954a7361b816f4cebe447375 561 580
+	                            final_user = any(int(row.split()[0]) == expected_uid for row in mapped)
+a5a745e8c97a03fc954a7361b816f4cebe447375 562 581
+	                            if final_user and (actual.st_dev, actual.st_ino) == (expected.st_dev, expected.st_ino):
+a5a745e8c97a03fc954a7361b816f4cebe447375 563 582
+	                                break
+a5a745e8c97a03fc954a7361b816f4cebe447375 564 583
+	                        except json.JSONDecodeError:
+a5a745e8c97a03fc954a7361b816f4cebe447375 565 584
+	                            pass  # bwrap may still be writing its single status document.
+a5a745e8c97a03fc954a7361b816f4cebe447375 566 585
+	                    if self._keeper.returncode is not None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 567 586
+	                        assert self._keeper.stderr is not None
+a5a745e8c97a03fc954a7361b816f4cebe447375 568 587
+	                        error = (await self._keeper.stderr.read()).decode(errors="replace")
+a5a745e8c97a03fc954a7361b816f4cebe447375 569 588
+	                        raise SandboxUnavailable(f"Persistent bubblewrap keeper failed: {error.strip()}")
+a5a745e8c97a03fc954a7361b816f4cebe447375 570 589
+	                    await asyncio.sleep(0.01)
+a5a745e8c97a03fc954a7361b816f4cebe447375 571 590
+	            # The keeper cannot be reused after exit: the opened descriptors pin
+a5a745e8c97a03fc954a7361b816f4cebe447375 572 591
+	            # this namespace and root even if the kernel later reuses its PID.
+a5a745e8c97a03fc954a7361b816f4cebe447375 573 592
+	            descriptors = []
+a5a745e8c97a03fc954a7361b816f4cebe447375 574 593
+	            try:
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 571 594 1
+	                for namespace in ("user", "net", "ipc", "uts", "mnt", "pid", "cgroup"):
+a5a745e8c97a03fc954a7361b816f4cebe447375 576 595 17
+	                    descriptors.append(os.open(f"/proc/{pid}/ns/{namespace}", os.O_RDONLY | os.O_CLOEXEC))
+a5a745e8c97a03fc954a7361b816f4cebe447375 577 596
+	                    expected_inode = json.loads(payload).get(f"{namespace}-namespace")
+a5a745e8c97a03fc954a7361b816f4cebe447375 578 597
+	                    if expected_inode is not None and os.fstat(descriptors[-1]).st_ino != expected_inode:
+a5a745e8c97a03fc954a7361b816f4cebe447375 579 598
+	                        raise SandboxUnavailable("Bubblewrap startup namespace identity changed")
+a5a745e8c97a03fc954a7361b816f4cebe447375 580 599
+	                self._root_fd = os.open(f"/proc/{pid}/root", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+a5a745e8c97a03fc954a7361b816f4cebe447375 581 600
+	                owner = fcntl.ioctl(descriptors[4], NS_GET_USERNS)
+a5a745e8c97a03fc954a7361b816f4cebe447375 582 601
+	                os.set_inheritable(owner, False)
+a5a745e8c97a03fc954a7361b816f4cebe447375 583 602
+	            except BaseException:
+a5a745e8c97a03fc954a7361b816f4cebe447375 584 603
+	                for descriptor in descriptors:
+a5a745e8c97a03fc954a7361b816f4cebe447375 585 604
+	                    os.close(descriptor)
+a5a745e8c97a03fc954a7361b816f4cebe447375 586 605
+	                raise
+a5a745e8c97a03fc954a7361b816f4cebe447375 587 606
+	            self._owned_namespaces = (owner, *descriptors)
+a5a745e8c97a03fc954a7361b816f4cebe447375 588 607
+	            # bwrap drops capabilities by entering a final child user namespace.
+a5a745e8c97a03fc954a7361b816f4cebe447375 589 608
+	            # Join mount/network owners first, then that restricted namespace.
+a5a745e8c97a03fc954a7361b816f4cebe447375 590 609
+	            self._namespaces = (*prefix, owner, *descriptors[1:], descriptors[0])
+a5a745e8c97a03fc954a7361b816f4cebe447375 591 610
+	            self._network_namespaces = (*prefix, owner, descriptors[1])
+a5a745e8c97a03fc954a7361b816f4cebe447375 592 611
+	            os.write(block_write, b"1")
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 605 612 4
+	            assert self._keeper.stdin is not None
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 606 613
+	            self._keeper.stdin.write(b"shellbox-ready\n")
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 607 614
+	            await self._keeper.stdin.drain()
+2aea610414d4a6aecf3b8f9a8e2729e4009c1b0b 608 615
+	            self._keeper.stdin.close()
+a5a745e8c97a03fc954a7361b816f4cebe447375 593 616 19
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 594 617
+	    async def _watch_keeper(self, descriptor: int) -> None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 595 618
+	        # Process.wait also waits for stderr EOF. Watch process death directly:
+a5a745e8c97a03fc954a7361b816f4cebe447375 596 619
+	        # an orphaned init can keep that pipe open until our cleanup kills it.
+a5a745e8c97a03fc954a7361b816f4cebe447375 597 620
+	        loop = asyncio.get_running_loop()
+a5a745e8c97a03fc954a7361b816f4cebe447375 598 621
+	        exited = loop.create_future()
+a5a745e8c97a03fc954a7361b816f4cebe447375 599 622
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 600 623
+	        def ready() -> None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 601 624
+	            loop.remove_reader(descriptor)
+a5a745e8c97a03fc954a7361b816f4cebe447375 602 625
+	            exited.set_result(None)
+a5a745e8c97a03fc954a7361b816f4cebe447375 603 626
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 604 627
+	        loop.add_reader(descriptor, ready)
+a5a745e8c97a03fc954a7361b816f4cebe447375 605 628
+	        try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 606 629
+	            await exited
+a5a745e8c97a03fc954a7361b816f4cebe447375 607 630
+	        finally:
+a5a745e8c97a03fc954a7361b816f4cebe447375 608 631
+	            loop.remove_reader(descriptor)
+a5a745e8c97a03fc954a7361b816f4cebe447375 609 632
+	            os.close(descriptor)
+a5a745e8c97a03fc954a7361b816f4cebe447375 610 633
+	        if not self._closed:
+a5a745e8c97a03fc954a7361b816f4cebe447375 611 634
+	            await self.close()
+0348ac3ad409520ae59778c9dc99803d175af05b 280 635 2
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 281 636
+	    async def run(self, command: Command) -> Result:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 433 637 2
+	        return await self._execute(command, {**self._environment, **self.spec.env, **command.env})
+52b8b1adf4d8db34deb185bef4901e62d14550ad 434 638
+	
+11f5c20972d9567496598096696cf708431f2468 626 639 37
+	    async def open_process(self, command: Command) -> SubprocessSession:
+11f5c20972d9567496598096696cf708431f2468 627 640
+	        """Start a foreground process in the same pinned namespaces as run."""
+11f5c20972d9567496598096696cf708431f2468 628 641
+	        if command.stdin or command.timeout is not None:
+11f5c20972d9567496598096696cf708431f2468 629 642
+	            raise ValueError("Process sessions own stdin and their lifetime")
+11f5c20972d9567496598096696cf708431f2468 630 643
+	        self._check_open()
+11f5c20972d9567496598096696cf708431f2468 631 644
+	        environment = {**self._environment, **self.spec.env, **command.env}
+11f5c20972d9567496598096696cf708431f2468 632 645
+	        config = self._command_config(command, environment)
+11f5c20972d9567496598096696cf708431f2468 633 646
+	
+11f5c20972d9567496598096696cf708431f2468 634 647
+	        async def acquire() -> SubprocessSession:
+11f5c20972d9567496598096696cf708431f2468 635 648
+	            # Keep all private descriptors alive until asyncio returns the child
+11f5c20972d9567496598096696cf708431f2468 636 649
+	            # handle. The launcher closes them before executing guest code.
+11f5c20972d9567496598096696cf708431f2468 637 650
+	            with tempfile.TemporaryFile() as configuration:
+11f5c20972d9567496598096696cf708431f2468 638 651
+	                configuration.write(json.dumps(config).encode())
+11f5c20972d9567496598096696cf708431f2468 639 652
+	                configuration.seek(0)
+11f5c20972d9567496598096696cf708431f2468 640 653
+	                assert self._root_fd is not None
+11f5c20972d9567496598096696cf708431f2468 641 654
+	                process = await asyncio.create_subprocess_exec(
+11f5c20972d9567496598096696cf708431f2468 642 655
+	                    sys.executable,
+11f5c20972d9567496598096696cf708431f2468 643 656
+	                    "-I",
+11f5c20972d9567496598096696cf708431f2468 644 657
+	                    "-S",
+11f5c20972d9567496598096696cf708431f2468 645 658
+	                    "-c",
+11f5c20972d9567496598096696cf708431f2468 646 659
+	                    LAUNCH_SOURCE,
+11f5c20972d9567496598096696cf708431f2468 647 660
+	                    str(configuration.fileno()),
+11f5c20972d9567496598096696cf708431f2468 648 661
+	                    pass_fds=(configuration.fileno(), self._root_fd, *dict.fromkeys(self._namespaces)),
+11f5c20972d9567496598096696cf708431f2468 649 662
+	                    env=CONTROL_ENVIRONMENT,
+11f5c20972d9567496598096696cf708431f2468 650 663
+	                    stdin=asyncio.subprocess.PIPE,
+11f5c20972d9567496598096696cf708431f2468 651 664
+	                    stdout=asyncio.subprocess.PIPE,
+11f5c20972d9567496598096696cf708431f2468 652 665
+	                    stderr=asyncio.subprocess.PIPE,
+11f5c20972d9567496598096696cf708431f2468 653 666
+	                    start_new_session=True,
+11f5c20972d9567496598096696cf708431f2468 654 667
+	                )
+11f5c20972d9567496598096696cf708431f2468 655 668
+	            self._commands.add(process)
+11f5c20972d9567496598096696cf708431f2468 656 669
+	
+11f5c20972d9567496598096696cf708431f2468 657 670
+	            async def stop() -> None:
+11f5c20972d9567496598096696cf708431f2468 658 671
+	                try:
+11f5c20972d9567496598096696cf708431f2468 659 672
+	                    os.killpg(process.pid, signal.SIGKILL)
+11f5c20972d9567496598096696cf708431f2468 660 673
+	                except ProcessLookupError:
+11f5c20972d9567496598096696cf708431f2468 661 674
+	                    pass
+11f5c20972d9567496598096696cf708431f2468 662 675
+	                try:
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 676 676 7
+	                    async with asyncio.timeout(PROCESS_STOP_TIMEOUT):
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 677 677
+	                        await process.wait()
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 678 678
+	                        await session.drain_output()
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 679 679
+	                except TimeoutError:
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 680 680
+	                    # A command can detach from its launcher's process group
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 681 681
+	                    # and retain the pipes. Reclaim its entire task namespace.
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 682 682
+	                    await self.close()
+11f5c20972d9567496598096696cf708431f2468 664 683 2
+	                finally:
+11f5c20972d9567496598096696cf708431f2468 665 684
+	                    self._commands.discard(process)
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 685 685 1
+	                    self._sessions.discard(session)
+11f5c20972d9567496598096696cf708431f2468 666 686 1
+	
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 687 687 3
+	            session = SubprocessSession(process, stop=stop, stderr_limit=command.output_limit_bytes)
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 688 688
+	            self._sessions.add(session)
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 689 689
+	            return session
+11f5c20972d9567496598096696cf708431f2468 668 690 1
+	
+df9448851ddd1482bf077a1b6fbca1db1ce1c8de 669 691 1
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1793406277
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793406677
+committer-tz -0700
+summary [shellbox] Reuse owned acquisition for closable resources
+previous c795dc3987e00c51e14a60f1b5ee69dd70284ca9 lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	        return await acquire_owned(asyncio.create_task(acquire()))
+11f5c20972d9567496598096696cf708431f2468 683 692 1
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 435 693 8
+	    async def _control(
+52b8b1adf4d8db34deb185bef4901e62d14550ad 436 694
+	        self,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 437 695
+	        script: str,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 438 696
+	        path: PurePosixPath,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 439 697
+	        *,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 440 698
+	        stdin: bytes = b"",
+52b8b1adf4d8db34deb185bef4901e62d14550ad 441 699
+	        output_limit_bytes: int = DEFAULT_MACHINE_OUTPUT_LIMIT_BYTES,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 442 700
+	    ) -> Result:
+a5a745e8c97a03fc954a7361b816f4cebe447375 624 701 5
+	        return await self._execute(
+a5a745e8c97a03fc954a7361b816f4cebe447375 625 702
+	            Command(
+a5a745e8c97a03fc954a7361b816f4cebe447375 626 703
+	                ("/bin/sh", "-c", script, "sh", str(path)), cwd="/", stdin=stdin, output_limit_bytes=output_limit_bytes
+a5a745e8c97a03fc954a7361b816f4cebe447375 627 704
+	            ),
+a5a745e8c97a03fc954a7361b816f4cebe447375 628 705
+	            CONTROL_ENVIRONMENT,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 449 706 1
+	        )
+52b8b1adf4d8db34deb185bef4901e62d14550ad 451 707 1
+	
+11f5c20972d9567496598096696cf708431f2468 699 708 1
+	    def _command_config(self, command: Command, environment: dict[str, str]) -> dict:
+0348ac3ad409520ae59778c9dc99803d175af05b 282 709 5
+	        self._check_open()
+0348ac3ad409520ae59778c9dc99803d175af05b 283 710
+	        if not command.argv:
+0348ac3ad409520ae59778c9dc99803d175af05b 284 711
+	            raise ValueError("Command argv is empty")
+0348ac3ad409520ae59778c9dc99803d175af05b 285 712
+	        if command.output_limit_bytes < 0:
+0348ac3ad409520ae59778c9dc99803d175af05b 286 713
+	            raise ValueError("Output limit must be nonnegative")
+a5a745e8c97a03fc954a7361b816f4cebe447375 637 714 10
+	        if self.image is not None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 638 715
+	            if command.user not in (None, "0", "0:0"):
+a5a745e8c97a03fc954a7361b816f4cebe447375 639 716
+	                raise UnsupportedMachineSpec("Prepared local images currently support only root USER")
+a5a745e8c97a03fc954a7361b816f4cebe447375 640 717
+	            account = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 641 718
+	        else:
+a5a745e8c97a03fc954a7361b816f4cebe447375 642 719
+	            selected = _command_account(command.user)
+a5a745e8c97a03fc954a7361b816f4cebe447375 643 720
+	            account = None if selected is None else (selected.pw_uid, selected.pw_gid)
+a5a745e8c97a03fc954a7361b816f4cebe447375 644 721
+	        config = {
+a5a745e8c97a03fc954a7361b816f4cebe447375 645 722
+	            "namespaces": self._namespaces,
+a5a745e8c97a03fc954a7361b816f4cebe447375 646 723
+	            "root": self._root_fd,
+11f5c20972d9567496598096696cf708431f2468 715 724 1
+	            "limits": _resource_limits(),
+a5a745e8c97a03fc954a7361b816f4cebe447375 648 725 5
+	            "account": account,
+a5a745e8c97a03fc954a7361b816f4cebe447375 649 726
+	            "script": RUN_SCRIPT,
+a5a745e8c97a03fc954a7361b816f4cebe447375 650 727
+	            "cwd": command.cwd or self.spec.workdir or "/",
+a5a745e8c97a03fc954a7361b816f4cebe447375 651 728
+	            "argv": command.argv,
+a5a745e8c97a03fc954a7361b816f4cebe447375 652 729
+	            "environment": environment,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 718 730 1
+	            "cgroup": None if self._cgroup is None else str(self._cgroup.path / "cgroup.procs"),
+a5a745e8c97a03fc954a7361b816f4cebe447375 653 731 2
+	        }
+a5a745e8c97a03fc954a7361b816f4cebe447375 654 732
+	        if any("\0" in argument for argument in (*command.argv, *environment, *environment.values())):
+070425daf9fd971d6e0cba39ac298678c9e6afda 515 733 1
+	            raise ValueError("Sandbox arguments cannot contain NUL bytes")
+11f5c20972d9567496598096696cf708431f2468 724 734 4
+	        return config
+11f5c20972d9567496598096696cf708431f2468 725 735
+	
+11f5c20972d9567496598096696cf708431f2468 726 736
+	    async def _execute(self, command: Command, environment: dict[str, str]) -> Result:
+11f5c20972d9567496598096696cf708431f2468 727 737
+	        config = self._command_config(command, environment)
+a5a745e8c97a03fc954a7361b816f4cebe447375 656 738 2
+	        # Anonymous output files let a successful foreground command finish even
+a5a745e8c97a03fc954a7361b816f4cebe447375 657 739
+	        # when its background services keep stdout open. RLIMIT_FSIZE bounds writers.
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 654 740 1
+	        status_read, status_write = os.pipe()
+a5a745e8c97a03fc954a7361b816f4cebe447375 658 741 1
+	        with (
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 656 742 2
+	            os.fdopen(status_read, "rb", buffering=0) as status,
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 657 743
+	            os.fdopen(status_write, "wb", buffering=0) as status_writer,
+a5a745e8c97a03fc954a7361b816f4cebe447375 659 744 5
+	            tempfile.TemporaryFile() as configuration,
+a5a745e8c97a03fc954a7361b816f4cebe447375 660 745
+	            tempfile.TemporaryFile() as stdout_file,
+a5a745e8c97a03fc954a7361b816f4cebe447375 661 746
+	            tempfile.TemporaryFile() as stderr_file,
+a5a745e8c97a03fc954a7361b816f4cebe447375 662 747
+	            tempfile.TemporaryFile() as stdin_file,
+a5a745e8c97a03fc954a7361b816f4cebe447375 663 748
+	        ):
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 663 749 4
+	            config["status"] = status_write
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 664 750
+	            # Reports are written before the launcher exits. A nonblocking read
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 665 751
+	            # cannot be held open by a process that inherited another pipe end.
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 666 752
+	            os.set_blocking(status_read, False)
+a5a745e8c97a03fc954a7361b816f4cebe447375 664 753 5
+	            configuration.write(json.dumps(config).encode())
+a5a745e8c97a03fc954a7361b816f4cebe447375 665 754
+	            configuration.seek(0)
+a5a745e8c97a03fc954a7361b816f4cebe447375 666 755
+	            stdin_file.write(command.stdin)
+a5a745e8c97a03fc954a7361b816f4cebe447375 667 756
+	            stdin_file.seek(0)
+a5a745e8c97a03fc954a7361b816f4cebe447375 668 757
+	            assert self._root_fd is not None
+786a63cb2cea37172703c6f51996d3918c0b82e0 669 758 8
+author rjpower
+author-mail <rjpower@users.noreply.github.com>
+author-time 1792811623
+author-tz -0700
+committer rjpower
+committer-mail <rjpower@users.noreply.github.com>
+committer-time 1793276783
+committer-tz -0700
+summary [shellbox] Reclaim commands cancelled during process startup
+previous a5a745e8c97a03fc954a7361b816f4cebe447375 lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	            acquisition = asyncio.create_task(
+786a63cb2cea37172703c6f51996d3918c0b82e0 670 759
+	                asyncio.create_subprocess_exec(
+786a63cb2cea37172703c6f51996d3918c0b82e0 671 760
+	                    sys.executable,
+786a63cb2cea37172703c6f51996d3918c0b82e0 672 761
+	                    "-I",
+786a63cb2cea37172703c6f51996d3918c0b82e0 673 762
+	                    "-S",
+786a63cb2cea37172703c6f51996d3918c0b82e0 674 763
+	                    "-c",
+786a63cb2cea37172703c6f51996d3918c0b82e0 675 764
+	                    LAUNCH_SOURCE,
+786a63cb2cea37172703c6f51996d3918c0b82e0 676 765
+	                    str(configuration.fileno()),
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 680 766 1
+	                    pass_fds=(configuration.fileno(), status_write, self._root_fd, *dict.fromkeys(self._namespaces)),
+786a63cb2cea37172703c6f51996d3918c0b82e0 678 767 6
+	                    env=CONTROL_ENVIRONMENT,
+786a63cb2cea37172703c6f51996d3918c0b82e0 679 768
+	                    stdin=stdin_file,
+786a63cb2cea37172703c6f51996d3918c0b82e0 680 769
+	                    stdout=stdout_file,
+786a63cb2cea37172703c6f51996d3918c0b82e0 681 770
+	                    stderr=stderr_file,
+786a63cb2cea37172703c6f51996d3918c0b82e0 682 771
+	                    start_new_session=True,
+786a63cb2cea37172703c6f51996d3918c0b82e0 683 772
+	                )
+070425daf9fd971d6e0cba39ac298678c9e6afda 544 773 1
+	            )
+786a63cb2cea37172703c6f51996d3918c0b82e0 685 774 1
+	            process = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 684 775 2
+	            try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 685 776
+	                async with asyncio.timeout(command.timeout):
+786a63cb2cea37172703c6f51996d3918c0b82e0 688 777 2
+	                    process = await asyncio.shield(acquisition)
+786a63cb2cea37172703c6f51996d3918c0b82e0 689 778
+	                    self._commands.add(process)
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 693 779 1
+	                    status_writer.close()
+a5a745e8c97a03fc954a7361b816f4cebe447375 686 780 2
+	                    await process.wait()
+a5a745e8c97a03fc954a7361b816f4cebe447375 687 781
+	            except BaseException as interruption:
+786a63cb2cea37172703c6f51996d3918c0b82e0 692 782 8
+	                try:
+786a63cb2cea37172703c6f51996d3918c0b82e0 693 783
+	                    if process is None:
+786a63cb2cea37172703c6f51996d3918c0b82e0 694 784
+	                        # A child may already have forked before asyncio hands
+786a63cb2cea37172703c6f51996d3918c0b82e0 695 785
+	                        # back its handle. Own that handle before closing its
+786a63cb2cea37172703c6f51996d3918c0b82e0 696 786
+	                        # namespace or the private configuration descriptors.
+786a63cb2cea37172703c6f51996d3918c0b82e0 697 787
+	                        process = await asyncio.shield(acquisition)
+786a63cb2cea37172703c6f51996d3918c0b82e0 698 788
+	                        self._commands.add(process)
+786a63cb2cea37172703c6f51996d3918c0b82e0 699 789
+	                finally:
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 704 790 1
+	                    status_writer.close()
+786a63cb2cea37172703c6f51996d3918c0b82e0 700 791 2
+	                    if not self._closed:
+786a63cb2cea37172703c6f51996d3918c0b82e0 701 792
+	                        await asyncio.shield(self.close())
+a5a745e8c97a03fc954a7361b816f4cebe447375 690 793 5
+	                await process.wait()
+a5a745e8c97a03fc954a7361b816f4cebe447375 691 794
+	                if isinstance(interruption, TimeoutError):
+a5a745e8c97a03fc954a7361b816f4cebe447375 692 795
+	                    return Result(None, b"", b"", False, False, ExitReason.TIMED_OUT)
+a5a745e8c97a03fc954a7361b816f4cebe447375 693 796
+	                raise
+a5a745e8c97a03fc954a7361b816f4cebe447375 694 797
+	            finally:
+786a63cb2cea37172703c6f51996d3918c0b82e0 707 798 2
+	                if process is not None:
+786a63cb2cea37172703c6f51996d3918c0b82e0 708 799
+	                    self._commands.discard(process)
+a5a745e8c97a03fc954a7361b816f4cebe447375 696 800 1
+	            self._check_open()
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 715 801 4
+	            if error := status.read(launch.SETUP_ERROR_LIMIT_BYTES):
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 716 802
+	                raise RuntimeError(
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 717 803
+	                    f"Cannot start the command in the machine's sandbox: {error.decode(errors='replace')}"
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 718 804
+	                )
+a5a745e8c97a03fc954a7361b816f4cebe447375 697 805 14
+	            stdout_file.seek(0)
+a5a745e8c97a03fc954a7361b816f4cebe447375 698 806
+	            stderr_file.seek(0)
+a5a745e8c97a03fc954a7361b816f4cebe447375 699 807
+	            stdout = stdout_file.read(command.output_limit_bytes + 1)
+a5a745e8c97a03fc954a7361b816f4cebe447375 700 808
+	            stderr = stderr_file.read(command.output_limit_bytes + 1)
+a5a745e8c97a03fc954a7361b816f4cebe447375 701 809
+	        assert process.returncode is not None
+a5a745e8c97a03fc954a7361b816f4cebe447375 702 810
+	        code = process.returncode
+a5a745e8c97a03fc954a7361b816f4cebe447375 703 811
+	        return Result(
+a5a745e8c97a03fc954a7361b816f4cebe447375 704 812
+	            128 - code if code < 0 else code,
+a5a745e8c97a03fc954a7361b816f4cebe447375 705 813
+	            stdout[: command.output_limit_bytes],
+a5a745e8c97a03fc954a7361b816f4cebe447375 706 814
+	            stderr[: command.output_limit_bytes],
+a5a745e8c97a03fc954a7361b816f4cebe447375 707 815
+	            len(stdout) > command.output_limit_bytes,
+a5a745e8c97a03fc954a7361b816f4cebe447375 708 816
+	            len(stderr) > command.output_limit_bytes,
+a5a745e8c97a03fc954a7361b816f4cebe447375 709 817
+	            ExitReason.EXITED,
+a5a745e8c97a03fc954a7361b816f4cebe447375 710 818
+	        )
+0348ac3ad409520ae59778c9dc99803d175af05b 338 819 4
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 339 820
+	    async def upload(self, source: Path, target: str) -> None:
+0348ac3ad409520ae59778c9dc99803d175af05b 340 821
+	        self._check_open()
+0348ac3ad409520ae59778c9dc99803d175af05b 341 822
+	        path = _absolute_path(target)
+a5a745e8c97a03fc954a7361b816f4cebe447375 715 823 11
+	        if self.image is None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 716 824
+	            writable_system = self.layers is not None and _within(path, OVERLAID_DIRECTORIES)
+a5a745e8c97a03fc954a7361b816f4cebe447375 717 825
+	            if (_within(path, SYSTEM_DIRECTORIES) and not writable_system) or any(
+a5a745e8c97a03fc954a7361b816f4cebe447375 718 826
+	                path.is_relative_to(mount.guest) for mount in self.mounts
+a5a745e8c97a03fc954a7361b816f4cebe447375 719 827
+	            ):
+a5a745e8c97a03fc954a7361b816f4cebe447375 720 828
+	                raise UnsupportedMachineSpec(f"The local backend's {target} is a read-only host path")
+a5a745e8c97a03fc954a7361b816f4cebe447375 721 829
+	        name = "." if source.is_dir() else path.name
+a5a745e8c97a03fc954a7361b816f4cebe447375 722 830
+	        stream = await asyncio.to_thread(_archive, source, name)
+a5a745e8c97a03fc954a7361b816f4cebe447375 723 831
+	        result = await self._control(EXTRACT_SCRIPT, path if source.is_dir() else path.parent, stdin=stream)
+a5a745e8c97a03fc954a7361b816f4cebe447375 724 832
+	        if result.exit_code != 0:
+a5a745e8c97a03fc954a7361b816f4cebe447375 725 833
+	            raise RuntimeError(f"Cannot upload to {target}: {result.stderr.decode(errors='replace').strip()}")
+0348ac3ad409520ae59778c9dc99803d175af05b 345 834 3
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 346 835
+	    async def download(self, source: str, target: Path) -> None:
+0348ac3ad409520ae59778c9dc99803d175af05b 347 836
+	        self._check_open()
+a5a745e8c97a03fc954a7361b816f4cebe447375 729 837 8
+	        path = _absolute_path(source)
+a5a745e8c97a03fc954a7361b816f4cebe447375 730 838
+	        if self.image is None and path == PurePosixPath("/"):
+a5a745e8c97a03fc954a7361b816f4cebe447375 731 839
+	            raise UnsupportedMachineSpec("A host-program machine cannot download its entire system root")
+a5a745e8c97a03fc954a7361b816f4cebe447375 732 840
+	        result = await self._control(ARCHIVE_SCRIPT, path, output_limit_bytes=ARCHIVE_LIMIT_BYTES)
+a5a745e8c97a03fc954a7361b816f4cebe447375 733 841
+	        if result.exit_code != 0:
+a5a745e8c97a03fc954a7361b816f4cebe447375 734 842
+	            raise RuntimeError(result.stderr.decode(errors="replace").strip())
+a5a745e8c97a03fc954a7361b816f4cebe447375 735 843
+	        if result.stdout_truncated:
+a5a745e8c97a03fc954a7361b816f4cebe447375 736 844
+	            raise RuntimeError(f"{source} exceeds the {ARCHIVE_LIMIT_BYTES}-byte download limit")
+11f5c20972d9567496598096696cf708431f2468 835 845 1
+	        await asyncio.to_thread(unpack_local_archive, result.stdout, target, source_name=path.name)
+0348ac3ad409520ae59778c9dc99803d175af05b 352 846 2
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 353 847
+	    async def close(self) -> None:
+fb972712d0f93f3b9bc636493370a36416f6d183 783 848 2
+	        if self._task_close is not None:
+fb972712d0f93f3b9bc636493370a36416f6d183 784 849
+	            await self._task_close()
+0348ac3ad409520ae59778c9dc99803d175af05b 355 850 1
+	            return
+a5a745e8c97a03fc954a7361b816f4cebe447375 743 851 9
+	        await self._close_local()
+a5a745e8c97a03fc954a7361b816f4cebe447375 744 852
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 745 853
+	    async def _close_local(self) -> None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 746 854
+	        if self._closing is None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 747 855
+	            self._closed = True
+a5a745e8c97a03fc954a7361b816f4cebe447375 748 856
+	            self._closing = asyncio.create_task(self._destroy())
+a5a745e8c97a03fc954a7361b816f4cebe447375 749 857
+	        await asyncio.shield(self._closing)
+a5a745e8c97a03fc954a7361b816f4cebe447375 750 858
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 751 859
+	    async def _destroy(self) -> None:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 848 860 2
+	        if self._cgroup is not None:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 849 861
+	            self._cgroup.kill()
+a5a745e8c97a03fc954a7361b816f4cebe447375 754 862 10
+	        # Kill the verified, pinned guest init before its host launcher. An
+a5a745e8c97a03fc954a7361b816f4cebe447375 755 863
+	        # immediate close can otherwise race bwrap's parent-death setup and
+a5a745e8c97a03fc954a7361b816f4cebe447375 756 864
+	        # leave the init holding the launcher's stderr pipe open.
+a5a745e8c97a03fc954a7361b816f4cebe447375 757 865
+	        for descriptor in (self._init_pidfd, self._keeper_pidfd):
+a5a745e8c97a03fc954a7361b816f4cebe447375 758 866
+	            if descriptor is None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 759 867
+	                continue
+a5a745e8c97a03fc954a7361b816f4cebe447375 760 868
+	            try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 761 869
+	                signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+a5a745e8c97a03fc954a7361b816f4cebe447375 762 870
+	            except ProcessLookupError:
+a5a745e8c97a03fc954a7361b816f4cebe447375 763 871
+	                pass
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 872 872 11
+	
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 873 873
+	        # Process.wait also waits for buffered pipe output. Read through the
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 874 874
+	        # session lock so shutdown can run alongside a caller or session.close.
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 875 875
+	        # Calling session.close here would recurse when its stop escalates here.
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 876 876
+	        async with asyncio.TaskGroup() as pending:
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 877 877
+	            for session in tuple(self._sessions):
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 878 878
+	                pending.create_task(session.drain_output())
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 879 879
+	            if self._keeper is not None:
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 880 880
+	                pending.create_task(self._keeper.wait())
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 881 881
+	            for process in tuple(self._commands):
+bed1b6bc530f8ef8ce84bbab37cb4113a1d518a8 882 882
+	                pending.create_task(process.wait())
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 864 883 2
+	        if self._cgroup is not None:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 865 884
+	            await self._cgroup.remove()
+a5a745e8c97a03fc954a7361b816f4cebe447375 768 885 10
+	        if self._keeper_pidfd is not None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 769 886
+	            os.close(self._keeper_pidfd)
+a5a745e8c97a03fc954a7361b816f4cebe447375 770 887
+	        if self._init_pidfd is not None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 771 888
+	            os.close(self._init_pidfd)
+a5a745e8c97a03fc954a7361b816f4cebe447375 772 889
+	        # Prefix descriptors belong to the first member and are closed by it.
+a5a745e8c97a03fc954a7361b816f4cebe447375 773 890
+	        for descriptor in self._owned_namespaces:
+a5a745e8c97a03fc954a7361b816f4cebe447375 774 891
+	            os.close(descriptor)
+a5a745e8c97a03fc954a7361b816f4cebe447375 775 892
+	        if self._root_fd is not None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 776 893
+	            os.close(self._root_fd)
+a5a745e8c97a03fc954a7361b816f4cebe447375 777 894
+	        await asyncio.to_thread(_remove, self._bundle or self.root)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 554 895 2
+	        if self.layers is not None:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 555 896
+	            await asyncio.to_thread(_remove, self.layers)
+0348ac3ad409520ae59778c9dc99803d175af05b 358 897 2
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 359 898
+	
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 361 899 17
+	def _check_mounts(mounts: tuple[Mount, ...]) -> None:
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 362 900
+	    """Every mount names an existing host path and an absolute guest path outside system directories and other mounts.
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 363 901
+	
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 364 902
+	    bwrap creates a mount point by mkdir, which fails inside a directory it has already bound read-only.
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 365 903
+	    """
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 366 904
+	    missing = [str(mount.host) for mount in mounts if not mount.host.exists()]
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 367 905
+	    if missing:
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 368 906
+	        raise ValueError(f"Mounted host paths do not exist: {', '.join(missing)}")
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 369 907
+	    for mount in mounts:
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 370 908
+	        if not mount.guest.is_absolute():
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 371 909
+	            raise UnsupportedMachineSpec(f"The local backend mounts only at absolute guest paths: {mount.guest}")
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 372 910
+	        if _within(mount.guest, SYSTEM_DIRECTORIES):
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 373 911
+	            raise UnsupportedMachineSpec(f"The local backend cannot mount inside a host system directory: {mount.guest}")
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 374 912
+	        if any(other is not mount and mount.guest.is_relative_to(other.guest) for other in mounts):
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 375 913
+	            raise UnsupportedMachineSpec(f"The local backend's mount {mount.guest} lies inside another mount")
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 376 914
+	
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 377 915
+	
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 897 916 3
+	def _check_spec(
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 898 917
+	    spec: MachineSpec, cgroup_parent: Path | None = None
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 899 918
+	) -> HostImage | PackageSpec | PreparedImage | RegistryImage:
+a5a745e8c97a03fc954a7361b816f4cebe447375 800 919 1
+	    if not isinstance(spec.source, (HostImage, PackageSpec, PreparedImage, RegistryImage)):
+c075c479801a700462be58a455233b3d8b34d011 356 920 1
+	        raise UnsupportedMachineSpec(
+a5a745e8c97a03fc954a7361b816f4cebe447375 802 921 2
+	            "The local backend requires HostImage, PackageSpec, or a prepared/pinned OCI image, "
+a5a745e8c97a03fc954a7361b816f4cebe447375 803 922
+	            f"not {type(spec.source).__name__}"
+c075c479801a700462be58a455233b3d8b34d011 358 923 1
+	        )
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 905 924 8
+	    if spec.storage_mb is not None or spec.gpus:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 906 925
+	        raise UnsupportedMachineSpec("The local backend does not provide disk quotas or GPU allocations")
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 907 926
+	    if spec.cpus is not None or spec.memory_mb is not None:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 908 927
+	        if cgroup_parent is None:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 909 928
+	            raise UnsupportedMachineSpec("Local CPU and memory limits require an explicit delegated cgroup parent")
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 910 929
+	        check_cgroup_parent(cgroup_parent)
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 911 930
+	    if spec.memory_mb is not None and spec.memory_mb <= 0:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 912 931
+	        raise ValueError("Local memory_mb must be positive")
+a5a745e8c97a03fc954a7361b816f4cebe447375 807 932 5
+	    if (
+a5a745e8c97a03fc954a7361b816f4cebe447375 808 933
+	        isinstance(spec.source, RegistryImage)
+a5a745e8c97a03fc954a7361b816f4cebe447375 809 934
+	        and re.fullmatch(r"[^\s]+@sha256:[0-9a-f]{64}", spec.source.reference) is None
+a5a745e8c97a03fc954a7361b816f4cebe447375 810 935
+	    ):
+a5a745e8c97a03fc954a7361b816f4cebe447375 811 936
+	        raise UnsupportedMachineSpec("Local registry images must be pinned by sha256 digest")
+c075c479801a700462be58a455233b3d8b34d011 361 937 3
+	    return spec.source
+c075c479801a700462be58a455233b3d8b34d011 362 938
+	
+c075c479801a700462be58a455233b3d8b34d011 363 939
+	
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 921 940 3
+	def check_local_environment(
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 922 941
+	    requirements: ExecutionRequirements, spec: MachineSpec, *, cgroup_parent: Path | None = None
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 923 942
+	) -> None:
+c075c479801a700462be58a455233b3d8b34d011 365 943 1
+	    """Check local execution support without acquiring a bubblewrap sandbox."""
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 925 944 1
+	    source = _check_spec(spec, cgroup_parent)
+a5a745e8c97a03fc954a7361b816f4cebe447375 818 945 2
+	    origin = source.source if isinstance(source, PreparedImage) else source
+a5a745e8c97a03fc954a7361b816f4cebe447375 819 946
+	    reference = origin.reference if isinstance(origin, RegistryImage) else None
+c075c479801a700462be58a455233b3d8b34d011 367 947 1
+	    check_execution_requirements(
+a5a745e8c97a03fc954a7361b816f4cebe447375 821 948 5
+	        requirements,
+a5a745e8c97a03fc954a7361b816f4cebe447375 822 949
+	        spec,
+a5a745e8c97a03fc954a7361b816f4cebe447375 823 950
+	        semantics=CommandSemantics.LINUX_PROCESS,
+a5a745e8c97a03fc954a7361b816f4cebe447375 824 951
+	        capabilities=LINUX_PROCESS_CAPABILITIES,
+a5a745e8c97a03fc954a7361b816f4cebe447375 825 952
+	        image_reference=reference,
+c075c479801a700462be58a455233b3d8b34d011 369 953 3
+	    )
+c075c479801a700462be58a455233b3d8b34d011 370 954
+	
+c075c479801a700462be58a455233b3d8b34d011 371 955
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 360 956 3
+	class LocalMachineFactory:
+0348ac3ad409520ae59778c9dc99803d175af05b 361 957
+	    """Run trusted commands on this host in bubblewrap sandboxes, any number of machines at a time.
+0348ac3ad409520ae59778c9dc99803d175af05b 362 958
+	
+070425daf9fd971d6e0cba39ac298678c9e6afda 655 959 2
+	    A machine's commands see the host's programs and private runtime configuration as
+070425daf9fd971d6e0cba39ac298678c9e6afda 656 960
+	    ``system_directories`` says: read-only by default, or writable per machine. They see each directory
+52b8b1adf4d8db34deb185bef4901e62d14550ad 598 961 2
+	    in ``read_only`` at its own path, read-only, and each ``Mount`` of a ``HostImage`` at its guest path,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 599 962
+	    read-only; a guest path inside a system directory is refused. Every other path, including ``/tmp``
+070425daf9fd971d6e0cba39ac298678c9e6afda 659 963 1
+	    and ``HOME``, lies in a root directory of the machine's own that is removed by
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 354 964 7
+author Russell Power
+author-mail <russell.power@gmail.com>
+author-time 1791496427
+author-tz -0700
+committer GitHub
+committer-mail <noreply@github.com>
+committer-time 1791496427
+committer-tz -0700
+summary [shellbox] Mount explicit read-only roots in local machines (#9955)
+previous 2028a0e650f6fef2f651045d92e810f3ca824157 lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	    ``close``; no other host file is visible. The caller keeps each ``read_only`` directory self-contained:
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 355 965
+	    a symlink that leads out of the mounted directories does not resolve in the sandbox.
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 356 966
+	    ``build_python_environment`` builds such a directory for a Python interpreter and its packages.
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 357 967
+	
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 358 968
+	    Commands never inherit the host's environment: they get ``bin_dirs`` ahead of a standard ``PATH``,
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 359 969
+	    ``HOME``, ``LANG``, ``PYTHONHASHSEED`` when the factory has a ``hash_seed``, and the spec's and
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 360 970
+	    command's variables. ``bin_dirs`` only sets ``PATH``; a directory outside the mounted ones is not
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 952 971 2
+	    visible to commands. An explicit delegated ``cgroup_parent`` enables aggregate CPU and memory limits
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 953 972
+	    for every process in each machine. Disk quotas remain unsupported.
+0348ac3ad409520ae59778c9dc99803d175af05b 370 973 4
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 371 974
+	    ``bwrap`` names the executable to use. By default the factory takes the first of the bundled bwrap
+0348ac3ad409520ae59778c9dc99803d175af05b 372 975
+	    and any bwrap on ``PATH`` that can build a sandbox on this host, and raises ``SandboxUnavailable``
+0348ac3ad409520ae59778c9dc99803d175af05b 373 976
+	    when none can.
+a5a745e8c97a03fc954a7361b816f4cebe447375 849 977 3
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 850 978
+	    Prepared images use private rootless umoci bundles, without host program mounts. Registry inputs
+a5a745e8c97a03fc954a7361b816f4cebe447375 851 979
+	    must be digest pinned. Only numeric root image users are supported. ``ttl`` bounds the lifetime of
+fb972712d0f93f3b9bc636493370a36416f6d183 893 980 1
+	    a task; a command timeout or cancellation also closes every container in that task.
+0348ac3ad409520ae59778c9dc99803d175af05b 374 981 4
+	    """
+0348ac3ad409520ae59778c9dc99803d175af05b 375 982
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 376 983
+	    backend: Backend = Backend.LOCAL
+0348ac3ad409520ae59778c9dc99803d175af05b 377 984
+	
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 370 985 7
+	    def __init__(
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 371 986
+	        self,
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 372 987
+	        *,
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 373 988
+	        read_only: tuple[Path, ...] = (),
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 374 989
+	        bin_dirs: tuple[Path, ...] = (),
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 375 990
+	        bwrap: Path | None = None,
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 376 991
+	        hash_seed: str | None = None,
+c075c479801a700462be58a455233b3d8b34d011 401 992 2
+	        package_cache: Path | None = None,
+c075c479801a700462be58a455233b3d8b34d011 402 993
+	        python_version: str = DEFAULT_PYTHON_VERSION,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 626 994 1
+	        system_directories: SystemDirectories = SystemDirectories.READ_ONLY,
+a5a745e8c97a03fc954a7361b816f4cebe447375 867 995 5
+	        ttl: float | None = None,
+a5a745e8c97a03fc954a7361b816f4cebe447375 868 996
+	        image_cache: Path | None = None,
+a5a745e8c97a03fc954a7361b816f4cebe447375 869 997
+	        authfile: Path | None = None,
+a5a745e8c97a03fc954a7361b816f4cebe447375 870 998
+	        policy: Path | None = None,
+a5a745e8c97a03fc954a7361b816f4cebe447375 871 999
+	        umoci: Path = Path("umoci"),
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 981 1000 1
+	        cgroup_parent: Path | None = None,
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 377 1001 1
+	    ):
+a5a745e8c97a03fc954a7361b816f4cebe447375 873 1002 3
+	        if ttl is not None and ttl <= 0:
+a5a745e8c97a03fc954a7361b816f4cebe447375 874 1003
+	            raise ValueError("Local machine TTL must be positive")
+a5a745e8c97a03fc954a7361b816f4cebe447375 875 1004
+	        self.ttl = ttl
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 986 1005 3
+	        self.cgroup_parent = None if cgroup_parent is None else cgroup_parent.resolve()
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 987 1006
+	        if self.cgroup_parent is not None:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 988 1007
+	            check_cgroup_parent(self.cgroup_parent)
+a5a745e8c97a03fc954a7361b816f4cebe447375 876 1008 2
+	        self.image_cache = process_image_cache(image_cache or Path.home() / ".cache/shellbox/images", authfile, policy)
+a5a745e8c97a03fc954a7361b816f4cebe447375 877 1009
+	        self.umoci = umoci
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 378 1010 4
+	        self.read_only = tuple(directory.absolute() for directory in read_only)
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 379 1011
+	        missing = [str(directory) for directory in self.read_only if not directory.is_dir()]
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 380 1012
+	        if missing:
+9255e7ce4bed5c05fd9e8378f3b44e98037fffb5 381 1013
+	            raise ValueError(f"Read-only directories do not exist: {', '.join(missing)}")
+0348ac3ad409520ae59778c9dc99803d175af05b 379 1014 2
+	        self.bin_dirs = tuple(directory.absolute() for directory in bin_dirs)
+0348ac3ad409520ae59778c9dc99803d175af05b 380 1015
+	        self.hash_seed = hash_seed
+c075c479801a700462be58a455233b3d8b34d011 410 1016 2
+	        self.package_cache = package_cache if package_cache is not None else Path.home() / ".cache/shellbox/python"
+c075c479801a700462be58a455233b3d8b34d011 411 1017
+	        self.python_version = python_version
+52b8b1adf4d8db34deb185bef4901e62d14550ad 636 1018 3
+	        self.system_directories = system_directories
+52b8b1adf4d8db34deb185bef4901e62d14550ad 637 1019
+	        self.bwrap = _working_bwrap(_bwrap_candidates(bwrap), system_directories)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 638 1020
+	        logger.info("Local backend sandboxes commands with %s, system directories %s", self.bwrap, system_directories)
+0348ac3ad409520ae59778c9dc99803d175af05b 384 1021 1
+	
+c075c479801a700462be58a455233b3d8b34d011 415 1022 1
+	    def check_environment(self, requirements: ExecutionRequirements, spec: MachineSpec) -> None:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1004 1023 1
+	        check_local_environment(requirements, spec, cgroup_parent=self.cgroup_parent)
+c075c479801a700462be58a455233b3d8b34d011 417 1024 1
+	
+0348ac3ad409520ae59778c9dc99803d175af05b 385 1025 1
+	    async def create(self, spec: MachineSpec) -> LocalMachine:
+fb972712d0f93f3b9bc636493370a36416f6d183 935 1026 6
+	        task = await self.create_task(single_container_task(spec))
+fb972712d0f93f3b9bc636493370a36416f6d183 936 1027
+	        return cast(LocalMachine, task.primary)
+fb972712d0f93f3b9bc636493370a36416f6d183 937 1028
+	
+fb972712d0f93f3b9bc636493370a36416f6d183 938 1029
+	    async def create_task(self, spec: TaskSpec) -> Task:
+fb972712d0f93f3b9bc636493370a36416f6d183 939 1030
+	        """Start named containers with private filesystems and one network."""
+fb972712d0f93f3b9bc636493370a36416f6d183 940 1031
+	        for container in spec.containers:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1013 1032 1
+	            _check_spec(container.machine, self.cgroup_parent)
+fb972712d0f93f3b9bc636493370a36416f6d183 942 1033 7
+	        if len(spec.containers) > 1 and spec.network is not NetworkPolicy.DENY:
+fb972712d0f93f3b9bc636493370a36416f6d183 943 1034
+	            raise UnsupportedMachineSpec("Local multi-container tasks require denied external networking")
+fb972712d0f93f3b9bc636493370a36416f6d183 944 1035
+	        if any(re.fullmatch(r"[a-z][a-z0-9-]{0,62}", container.name) is None for container in spec.containers):
+fb972712d0f93f3b9bc636493370a36416f6d183 945 1036
+	            raise UnsupportedMachineSpec("Local container names must be lowercase DNS labels")
+fb972712d0f93f3b9bc636493370a36416f6d183 946 1037
+	        primary = spec.primary_container
+fb972712d0f93f3b9bc636493370a36416f6d183 947 1038
+	        if primary.entrypoint is not None or primary.arguments is not None:
+fb972712d0f93f3b9bc636493370a36416f6d183 948 1039
+	            raise UnsupportedMachineSpec("The local task's primary container does not support startup overrides")
+a5a745e8c97a03fc954a7361b816f4cebe447375 905 1040 15
+	        members: list[LocalMachine] = []
+a5a745e8c97a03fc954a7361b816f4cebe447375 906 1041
+	        monitors: list[asyncio.Task[Result]] = []
+a5a745e8c97a03fc954a7361b816f4cebe447375 907 1042
+	        expiry: asyncio.Task[None] | None = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 908 1043
+	        closing_tasks: set[asyncio.Task[None]] = set()
+a5a745e8c97a03fc954a7361b816f4cebe447375 909 1044
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 910 1045
+	        async def close() -> None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 911 1046
+	            if expiry is not None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 912 1047
+	                expiry.cancel()
+a5a745e8c97a03fc954a7361b816f4cebe447375 913 1048
+	            await asyncio.gather(*(member._close_local() for member in members))
+a5a745e8c97a03fc954a7361b816f4cebe447375 914 1049
+	            for monitor in monitors:
+a5a745e8c97a03fc954a7361b816f4cebe447375 915 1050
+	                if not monitor.done():
+a5a745e8c97a03fc954a7361b816f4cebe447375 916 1051
+	                    monitor.cancel()
+a5a745e8c97a03fc954a7361b816f4cebe447375 917 1052
+	            await asyncio.gather(*monitors, return_exceptions=True)
+a5a745e8c97a03fc954a7361b816f4cebe447375 918 1053
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 919 1054
+	        try:
+fb972712d0f93f3b9bc636493370a36416f6d183 964 1055 8
+	            aliases = "127.0.0.1 localhost " + " ".join(container.name for container in spec.containers) + "\n"
+fb972712d0f93f3b9bc636493370a36416f6d183 965 1056
+	            primary_machine = await self._create(primary.machine, aliases=aliases)
+fb972712d0f93f3b9bc636493370a36416f6d183 966 1057
+	            members.append(primary_machine)
+fb972712d0f93f3b9bc636493370a36416f6d183 967 1058
+	            containers = {primary.name: primary_machine}
+fb972712d0f93f3b9bc636493370a36416f6d183 968 1059
+	            for container in spec.containers:
+fb972712d0f93f3b9bc636493370a36416f6d183 969 1060
+	                if container.name == primary.name:
+fb972712d0f93f3b9bc636493370a36416f6d183 970 1061
+	                    continue
+fb972712d0f93f3b9bc636493370a36416f6d183 971 1062
+	                member = await self._create(container.machine, peer=primary_machine, aliases=aliases)
+a5a745e8c97a03fc954a7361b816f4cebe447375 926 1063 1
+	                members.append(member)
+fb972712d0f93f3b9bc636493370a36416f6d183 973 1064 2
+	                containers[container.name] = member
+fb972712d0f93f3b9bc636493370a36416f6d183 974 1065
+	            task = Task(containers, spec, close)
+a5a745e8c97a03fc954a7361b816f4cebe447375 929 1066 1
+	            for member in members:
+fb972712d0f93f3b9bc636493370a36416f6d183 976 1067 5
+	                member._task_close = task.close
+fb972712d0f93f3b9bc636493370a36416f6d183 977 1068
+	            for container in spec.containers:
+fb972712d0f93f3b9bc636493370a36416f6d183 978 1069
+	                if container.name == primary.name:
+fb972712d0f93f3b9bc636493370a36416f6d183 979 1070
+	                    continue
+fb972712d0f93f3b9bc636493370a36416f6d183 980 1071
+	                member = containers[container.name]
+a5a745e8c97a03fc954a7361b816f4cebe447375 933 1072 2
+	                image = member.image
+a5a745e8c97a03fc954a7361b816f4cebe447375 934 1073
+	                entrypoint = (
+fb972712d0f93f3b9bc636493370a36416f6d183 983 1074 3
+	                    container.entrypoint
+fb972712d0f93f3b9bc636493370a36416f6d183 984 1075
+	                    if container.entrypoint is not None
+fb972712d0f93f3b9bc636493370a36416f6d183 985 1076
+	                    else (() if image is None else image.entrypoint)
+a5a745e8c97a03fc954a7361b816f4cebe447375 936 1077 1
+	                )
+fb972712d0f93f3b9bc636493370a36416f6d183 987 1078 1
+	                arguments = container.arguments
+18602c0a66995c8b859c4f4818e78a9ea0c2588d 960 1079 1
+	                if arguments is None:
+fb972712d0f93f3b9bc636493370a36416f6d183 989 1080 1
+	                    arguments = image.arguments if container.entrypoint is None and image is not None else ()
+a5a745e8c97a03fc954a7361b816f4cebe447375 940 1081 1
+	                if not entrypoint and not arguments:
+fb972712d0f93f3b9bc636493370a36416f6d183 991 1082 1
+	                    raise UnsupportedMachineSpec(f"Container {container.name} has no startup command")
+a5a745e8c97a03fc954a7361b816f4cebe447375 942 1083 1
+	                monitor = asyncio.create_task(member.run(Command((*entrypoint, *arguments))))
+fb972712d0f93f3b9bc636493370a36416f6d183 993 1084 1
+	                monitor.add_done_callback(lambda finished: _companion_finished(task, finished, closing_tasks))
+a5a745e8c97a03fc954a7361b816f4cebe447375 944 1085 2
+	                monitors.append(monitor)
+a5a745e8c97a03fc954a7361b816f4cebe447375 945 1086
+	            if self.ttl is not None:
+fb972712d0f93f3b9bc636493370a36416f6d183 996 1087 2
+	                expiry = asyncio.create_task(_expire(task.close, self.ttl))
+fb972712d0f93f3b9bc636493370a36416f6d183 997 1088
+	            return task
+a5a745e8c97a03fc954a7361b816f4cebe447375 948 1089 7
+	        except BaseException:
+a5a745e8c97a03fc954a7361b816f4cebe447375 949 1090
+	            await asyncio.shield(asyncio.gather(*(member._close_local() for member in members)))
+a5a745e8c97a03fc954a7361b816f4cebe447375 950 1091
+	            raise
+a5a745e8c97a03fc954a7361b816f4cebe447375 951 1092
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 952 1093
+	    async def _create(
+a5a745e8c97a03fc954a7361b816f4cebe447375 953 1094
+	        self, spec: MachineSpec, peer: LocalMachine | None = None, aliases: str | None = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 954 1095
+	    ) -> LocalMachine:
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1077 1096 1
+	        source = _check_spec(spec, self.cgroup_parent)
+a5a745e8c97a03fc954a7361b816f4cebe447375 956 1097 3
+	        if isinstance(source, (PreparedImage, RegistryImage)):
+a5a745e8c97a03fc954a7361b816f4cebe447375 957 1098
+	            return await self._create_image(spec, source, peer, aliases)
+a5a745e8c97a03fc954a7361b816f4cebe447375 958 1099
+	
+c075c479801a700462be58a455233b3d8b34d011 420 1100 6
+	        host = source if isinstance(source, HostImage) else HostImage()
+c075c479801a700462be58a455233b3d8b34d011 421 1101
+	        if isinstance(source, PackageSpec) and source.pypi_packages is not None:
+c075c479801a700462be58a455233b3d8b34d011 422 1102
+	            installed = await asyncio.to_thread(
+c075c479801a700462be58a455233b3d8b34d011 423 1103
+	                resolve_python_environment, self.package_cache, source.pypi_packages, self.python_version
+c075c479801a700462be58a455233b3d8b34d011 424 1104
+	            )
+c075c479801a700462be58a455233b3d8b34d011 425 1105
+	            host = HostImage(read_only=(installed.root,), bin_dirs=(installed.bin_dir,))
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 451 1106 11
+	        # A read-only directory is a mount at its own path; the factory's and the image's may name the same one.
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 452 1107
+	        read_only = dict.fromkeys((*self.read_only, *(directory.absolute() for directory in host.read_only)))
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 453 1108
+	        mounts = tuple(
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 454 1109
+	            dict.fromkeys(
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 455 1110
+	                (
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 456 1111
+	                    *(Mount(directory, PurePosixPath(directory)) for directory in read_only),
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 457 1112
+	                    *(Mount(mount.host.absolute(), mount.guest) for mount in host.mounts),
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 458 1113
+	                )
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 459 1114
+	            )
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 460 1115
+	        )
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 461 1116
+	        _check_mounts(mounts)
+0348ac3ad409520ae59778c9dc99803d175af05b 390 1117 1
+	        workdir = _absolute_path(spec.workdir or "/")
+52b8b1adf4d8db34deb185bef4901e62d14550ad 663 1118 5
+	        copy_on_write = self.system_directories == SystemDirectories.COPY_ON_WRITE
+52b8b1adf4d8db34deb185bef4901e62d14550ad 664 1119
+	        overlaid_workdir = copy_on_write and _within(workdir, OVERLAID_DIRECTORIES)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 665 1120
+	        if (_within(workdir, SYSTEM_DIRECTORIES) and not overlaid_workdir) or any(
+52b8b1adf4d8db34deb185bef4901e62d14550ad 666 1121
+	            workdir.is_relative_to(mount.guest) for mount in mounts
+52b8b1adf4d8db34deb185bef4901e62d14550ad 667 1122
+	        ):
+771b3a07d69879fa592f00e91f5e0090fc72b9ba 464 1123 1
+	            raise UnsupportedMachineSpec(f"The local backend's workdir {spec.workdir} is a read-only host path")
+52b8b1adf4d8db34deb185bef4901e62d14550ad 669 1124 2
+	        # A workdir in an overlaid directory is made by a command once the machine runs, so it lands in the layer.
+52b8b1adf4d8db34deb185bef4901e62d14550ad 670 1125
+	        root, layers = _machine_directories(None if overlaid_workdir else workdir, copy_on_write=copy_on_write)
+a5a745e8c97a03fc954a7361b816f4cebe447375 985 1126 2
+	        if aliases is not None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 986 1127
+	            (root / "etc/hosts").write_text(aliases)
+0348ac3ad409520ae59778c9dc99803d175af05b 399 1128 1
+	        environment = {
+6f4e24cbcc05899e9539d7b977559c0705fe9692 407 1129 2
+author loom-oa-dev[bot]
+author-mail <298838646+loom-oa-dev[bot]@users.noreply.github.com>
+author-time 1791564610
+author-tz -0700
+committer GitHub
+committer-mail <noreply@github.com>
+committer-time 1791564610
+committer-tz -0700
+summary [rolloutengine] Defer local imports and support wrapped factories (#9980)
+previous faa26343a6e20fcd1e4a5cce3d3d5cdc5dc02e4a lib/shellbox/src/shellbox/backends/local/machine.py
+filename lib/shellbox/src/shellbox/backends/local/machine.py
+	            "PATH": os.pathsep.join(
+6f4e24cbcc05899e9539d7b977559c0705fe9692 408 1130
+	                [
+c075c479801a700462be58a455233b3d8b34d011 443 1131 1
+	                    *(str(directory.absolute()) for directory in host.bin_dirs),
+6f4e24cbcc05899e9539d7b977559c0705fe9692 410 1132 4
+	                    *map(str, self.bin_dirs),
+6f4e24cbcc05899e9539d7b977559c0705fe9692 411 1133
+	                    DEFAULT_PATH,
+6f4e24cbcc05899e9539d7b977559c0705fe9692 412 1134
+	                ]
+6f4e24cbcc05899e9539d7b977559c0705fe9692 413 1135
+	            ),
+0348ac3ad409520ae59778c9dc99803d175af05b 401 1136 5
+	            "HOME": str(HOME),
+0348ac3ad409520ae59778c9dc99803d175af05b 402 1137
+	            "LANG": "C.UTF-8",
+0348ac3ad409520ae59778c9dc99803d175af05b 403 1138
+	        }
+0348ac3ad409520ae59778c9dc99803d175af05b 404 1139
+	        if self.hash_seed is not None:
+0348ac3ad409520ae59778c9dc99803d175af05b 405 1140
+	            environment["PYTHONHASHSEED"] = self.hash_seed
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1122 1141 9
+	        machine = LocalMachine(
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1123 1142
+	            spec,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1124 1143
+	            bwrap=self.bwrap,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1125 1144
+	            root=root,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1126 1145
+	            layers=layers,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1127 1146
+	            mounts=mounts,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1128 1147
+	            environment=environment,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1129 1148
+	            cgroup_parent=self.cgroup_parent,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1130 1149
+	        )
+52b8b1adf4d8db34deb185bef4901e62d14550ad 685 1150 1
+	        tools = source.tools if isinstance(source, PackageSpec) else ()
+c075c479801a700462be58a455233b3d8b34d011 456 1151 1
+	        try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1003 1152 1
+	            await machine._start_keeper(peer)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 687 1153 1
+	            await _start(machine, workdir if overlaid_workdir else None, tools)
+c075c479801a700462be58a455233b3d8b34d011 470 1154 4
+	        except BaseException:
+c075c479801a700462be58a455233b3d8b34d011 471 1155
+	            await machine.close()
+c075c479801a700462be58a455233b3d8b34d011 472 1156
+	            raise
+c075c479801a700462be58a455233b3d8b34d011 473 1157
+	        return machine
+52b8b1adf4d8db34deb185bef4901e62d14550ad 692 1158 1
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 1010 1159 32
+	    async def _create_image(
+a5a745e8c97a03fc954a7361b816f4cebe447375 1011 1160
+	        self, spec: MachineSpec, source: PreparedImage | RegistryImage, peer: LocalMachine | None, aliases: str | None
+a5a745e8c97a03fc954a7361b816f4cebe447375 1012 1161
+	    ) -> LocalMachine:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1013 1162
+	        if self.read_only or self.bin_dirs or self.system_directories is not SystemDirectories.READ_ONLY:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1014 1163
+	            raise UnsupportedMachineSpec("Prepared local images cannot use host program mounts or overlays")
+a5a745e8c97a03fc954a7361b816f4cebe447375 1015 1164
+	        parent = Path(tempfile.mkdtemp(prefix="shellbox-image-"))
+a5a745e8c97a03fc954a7361b816f4cebe447375 1016 1165
+	        bundle = parent / "bundle"
+a5a745e8c97a03fc954a7361b816f4cebe447375 1017 1166
+	        machine = None
+a5a745e8c97a03fc954a7361b816f4cebe447375 1018 1167
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 1019 1168
+	        async def prepare() -> PreparedLocalImage:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1020 1169
+	            prepared = (
+a5a745e8c97a03fc954a7361b816f4cebe447375 1021 1170
+	                source
+a5a745e8c97a03fc954a7361b816f4cebe447375 1022 1171
+	                if isinstance(source, PreparedImage)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1023 1172
+	                else await asyncio.to_thread(self.image_cache.prepare, source)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1024 1173
+	            )
+a5a745e8c97a03fc954a7361b816f4cebe447375 1025 1174
+	            return await asyncio.to_thread(prepare_local_image, prepared, bundle, umoci=self.umoci)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1026 1175
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 1027 1176
+	        preparation = asyncio.create_task(prepare())
+a5a745e8c97a03fc954a7361b816f4cebe447375 1028 1177
+	        try:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1029 1178
+	            image = await asyncio.shield(preparation)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1030 1179
+	            if image.user not in (None, "", "0", "0:0"):
+a5a745e8c97a03fc954a7361b816f4cebe447375 1031 1180
+	                raise UnsupportedMachineSpec("Prepared local images currently support only root USER")
+a5a745e8c97a03fc954a7361b816f4cebe447375 1032 1181
+	            effective = replace(spec, workdir=spec.workdir or image.workdir)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1033 1182
+	            machine = LocalMachine(
+a5a745e8c97a03fc954a7361b816f4cebe447375 1034 1183
+	                effective,
+a5a745e8c97a03fc954a7361b816f4cebe447375 1035 1184
+	                bwrap=self.bwrap,
+a5a745e8c97a03fc954a7361b816f4cebe447375 1036 1185
+	                root=image.root,
+a5a745e8c97a03fc954a7361b816f4cebe447375 1037 1186
+	                layers=None,
+a5a745e8c97a03fc954a7361b816f4cebe447375 1038 1187
+	                mounts=(),
+a5a745e8c97a03fc954a7361b816f4cebe447375 1039 1188
+	                environment={"PATH": DEFAULT_PATH, "HOME": "/root", **image.environment},
+a5a745e8c97a03fc954a7361b816f4cebe447375 1040 1189
+	                image=image,
+a5a745e8c97a03fc954a7361b816f4cebe447375 1041 1190
+	                bundle=parent,
+5da78e6d09f3b0d6956cfc2507cbca1540b88c27 1172 1191 1
+	                cgroup_parent=self.cgroup_parent,
+a5a745e8c97a03fc954a7361b816f4cebe447375 1042 1192 3
+	            )
+a5a745e8c97a03fc954a7361b816f4cebe447375 1043 1193
+	            await machine._start_keeper(peer)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1044 1194
+	            if aliases is not None:
+fb972712d0f93f3b9bc636493370a36416f6d183 1095 1195 3
+	                hosts = await machine._control(
+fb972712d0f93f3b9bc636493370a36416f6d183 1096 1196
+	                    "mkdir -p /etc && cat > /etc/hosts", PurePosixPath("/"), stdin=aliases.encode()
+fb972712d0f93f3b9bc636493370a36416f6d183 1097 1197
+	                )
+a5a745e8c97a03fc954a7361b816f4cebe447375 1046 1198 1
+	                if hosts.exit_code != 0:
+fb972712d0f93f3b9bc636493370a36416f6d183 1099 1199 1
+	                    raise RuntimeError(f"Cannot prepare task aliases: {hosts.stderr.decode(errors='replace')}")
+a5a745e8c97a03fc954a7361b816f4cebe447375 1048 1200 4
+	            result = await machine._control('mkdir -p -- "$1"', _absolute_path(effective.workdir))
+a5a745e8c97a03fc954a7361b816f4cebe447375 1049 1201
+	            if result.exit_code != 0:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1050 1202
+	                raise RuntimeError(f"Cannot create image workdir: {result.stderr.decode(errors='replace')}")
+a5a745e8c97a03fc954a7361b816f4cebe447375 1051 1203
+	            return machine
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1204 1204 1
+	        except BaseException as error:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1053 1205 2
+	            # A cancelled to_thread still writes its bundle. Reclaim it only
+a5a745e8c97a03fc954a7361b816f4cebe447375 1054 1206
+	            # after the trusted unpacker has stopped.
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1207 1207 9
+	            async def cleanup() -> None:
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1208 1208
+	                try:
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1209 1209
+	                    await preparation
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1210 1210
+	                finally:
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1211 1211
+	                    if machine is not None:
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1212 1212
+	                        await machine._close_local()
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1213 1213
+	                    else:
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1214 1214
+	                        await asyncio.to_thread(_remove, parent)
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1215 1215
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 1055 1216 1
+	            try:
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1217 1217 4
+	                await finish_owned(own_cleanup(cleanup()))
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1218 1218
+	            except BaseException as cleanup_error:
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1219 1219
+	                if cleanup_error is not error:
+a49cbeb27d6bdcee9f38f6ecf144a1103834c281 1220 1220
+	                    error.add_note(f"Local image cleanup failed ({type(cleanup_error).__name__})")
+a5a745e8c97a03fc954a7361b816f4cebe447375 1062 1221 11
+	            raise
+a5a745e8c97a03fc954a7361b816f4cebe447375 1063 1222
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 1064 1223
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 1065 1224
+	async def _expire(close: Callable[[], Awaitable[None]], ttl: float) -> None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1066 1225
+	    await asyncio.sleep(ttl)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1067 1226
+	    await close()
+a5a745e8c97a03fc954a7361b816f4cebe447375 1068 1227
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 1069 1228
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 1070 1229
+	def _log_task_failure(task: asyncio.Task) -> None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1071 1230
+	    if not task.cancelled() and (error := task.exception()) is not None:
+a5a745e8c97a03fc954a7361b816f4cebe447375 1072 1231
+	        if isinstance(error, MachineTerminated):
+fb972712d0f93f3b9bc636493370a36416f6d183 1125 1232 1
+	            return  # Closing a task interrupts its still-running companion monitors.
+a5a745e8c97a03fc954a7361b816f4cebe447375 1074 1233 3
+	        logger.error("Local sandbox lifecycle failed", exc_info=(type(error), error, error.__traceback__))
+a5a745e8c97a03fc954a7361b816f4cebe447375 1075 1234
+	
+a5a745e8c97a03fc954a7361b816f4cebe447375 1076 1235
+	
+fb972712d0f93f3b9bc636493370a36416f6d183 1129 1236 3
+	def _companion_finished(task: Task, monitor: asyncio.Task[Result], closing_tasks: set[asyncio.Task[None]]) -> None:
+fb972712d0f93f3b9bc636493370a36416f6d183 1130 1237
+	    _log_task_failure(monitor)
+fb972712d0f93f3b9bc636493370a36416f6d183 1131 1238
+	    reclaim = asyncio.create_task(task.close())
+a5a745e8c97a03fc954a7361b816f4cebe447375 1080 1239 4
+	    closing_tasks.add(reclaim)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1081 1240
+	    reclaim.add_done_callback(closing_tasks.discard)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1082 1241
+	    reclaim.add_done_callback(_log_task_failure)
+a5a745e8c97a03fc954a7361b816f4cebe447375 1083 1242
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 693 1243 39
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 694 1244
+	def _machine_directories(workdir: PurePosixPath | None, *, copy_on_write: bool) -> tuple[Path, Path | None]:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 695 1245
+	    """A new machine's root, with ``workdir`` made in it, and its layers when its system directories are overlaid."""
+52b8b1adf4d8db34deb185bef4901e62d14550ad 696 1246
+	    root = Path(tempfile.mkdtemp(prefix="shellbox-local-"))
+52b8b1adf4d8db34deb185bef4901e62d14550ad 697 1247
+	    layers = None
+52b8b1adf4d8db34deb185bef4901e62d14550ad 698 1248
+	    try:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 699 1249
+	        _prepare_root(root, workdir)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 700 1250
+	        if copy_on_write:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 701 1251
+	            layers = Path(tempfile.mkdtemp(prefix="shellbox-layers-"))
+52b8b1adf4d8db34deb185bef4901e62d14550ad 702 1252
+	            _prepare_layers(layers)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 703 1253
+	    except BaseException:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 704 1254
+	        _remove(root)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 705 1255
+	        if layers is not None:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 706 1256
+	            _remove(layers)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 707 1257
+	        raise
+52b8b1adf4d8db34deb185bef4901e62d14550ad 708 1258
+	    return root, layers
+52b8b1adf4d8db34deb185bef4901e62d14550ad 709 1259
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 710 1260
+	
+52b8b1adf4d8db34deb185bef4901e62d14550ad 711 1261
+	async def _start(machine: LocalMachine, overlaid_workdir: PurePosixPath | None, tools: tuple[str, ...]) -> None:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 712 1262
+	    """Make a workdir that lies in the machine's layer, then check that each requested tool runs."""
+52b8b1adf4d8db34deb185bef4901e62d14550ad 713 1263
+	    if overlaid_workdir is not None:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 714 1264
+	        made = await machine._control('exec mkdir -p -- "$1"', overlaid_workdir)
+52b8b1adf4d8db34deb185bef4901e62d14550ad 715 1265
+	        if made.exit_code != 0:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 716 1266
+	            raise RuntimeError(f"Cannot create workdir {overlaid_workdir}: {made.stderr.decode(errors='replace')}")
+52b8b1adf4d8db34deb185bef4901e62d14550ad 717 1267
+	    if not tools:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 718 1268
+	        return
+52b8b1adf4d8db34deb185bef4901e62d14550ad 719 1269
+	    result = await machine.run(
+52b8b1adf4d8db34deb185bef4901e62d14550ad 720 1270
+	        Command(
+52b8b1adf4d8db34deb185bef4901e62d14550ad 721 1271
+	            (
+52b8b1adf4d8db34deb185bef4901e62d14550ad 722 1272
+	                "/bin/sh",
+52b8b1adf4d8db34deb185bef4901e62d14550ad 723 1273
+	                "-c",
+52b8b1adf4d8db34deb185bef4901e62d14550ad 724 1274
+	                'for tool do path=$(command -v "$tool") && test -x "$path" || exit; done',
+52b8b1adf4d8db34deb185bef4901e62d14550ad 725 1275
+	                "sh",
+52b8b1adf4d8db34deb185bef4901e62d14550ad 726 1276
+	                *tools,
+52b8b1adf4d8db34deb185bef4901e62d14550ad 727 1277
+	            )
+52b8b1adf4d8db34deb185bef4901e62d14550ad 728 1278
+	        )
+52b8b1adf4d8db34deb185bef4901e62d14550ad 729 1279
+	    )
+52b8b1adf4d8db34deb185bef4901e62d14550ad 730 1280
+	    if result.exit_code != 0:
+52b8b1adf4d8db34deb185bef4901e62d14550ad 731 1281
+	        raise UnsupportedMachineSpec("Requested tools must be executable in the sandbox PATH")

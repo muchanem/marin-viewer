@@ -4,6 +4,12 @@ Radiology is a native, read-only macOS repository browser. The active implementa
 
 ## Current accepted state
 
+**Marin viewer shell (2026-11-01, branch `mark/shell`):** opening a prepared wordbase PR
+(⇧⌘O or `--viewer-pr N`) turns the reader window into the viewer: PR description, system map
+and PR map above the split view, the step sidebar, the session panel in the inspector, review
+notes and code windows. `ViewerStore` holds the PR and the state that the diff reader observes.
+[Shell, seam API and merge mapping](plans/shell.md).
+
 **Publication batch (2026-10-31):** the user requested bundling all local changes
 and pushing directly to GitHub `main`. The starting local branch, local `main`
 and fetched `origin/main` all pointed to `6d446b9`, allowing one new commit and a

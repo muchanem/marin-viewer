@@ -371,33 +371,44 @@ once and then kept with a `lint:` field listing what still fails.
 - bold labels.
 
 **Context for descriptions.** A file described alone cannot say who calls it or what part it plays,
-so a description run covers a unit with its surroundings: one directory, or a slice of a package
-that fits in about half the model's context. The prompt holds:
-- the source of every file in the unit;
-- the package README;
-- the signatures and wordbase `l1` lines of the modules the unit imports and of those that import it;
-- the subsystem page, if it exists.
+so a description run covers a unit with its surroundings. A unit is one source directory under
+`lib/`, split into slices only when its own files and tests pass the budget. Every prompt stays
+within 256K input tokens (o200k count, which matches GPT-6.1 Terra's billing), under Terra's 272K
+price step. Everything in the prompt is full source, with no cuts or signature-only files. It is
+filled in this order:
+1. the unit's own files;
+2. the package README;
+3. the subsystem page, existing entries and, on a regeneration, the diff;
+4. the tests that exercise the unit;
+5. neighbours, as many full modules as fit: modules the unit imports and modules that import it,
+   from the whole checkout except `vendor/` (`lib/`, `experiments/`, `scripts/`, `infra/`, root
+   `tests/`). When they don't all fit, the choice goes round-robin across packages and prefers
+   non-test code, and the prompt lists what was left out.
+
+Test directories are not units: tests are not systems. Each test file under `lib/` belongs to the
+unit it imports the most names from, and that unit writes the test a one-sentence `l1` and nothing
+more. Tests that import no described code get `l1`s in one batch at the end.
 
 The run writes an entry for every file in the unit. The poller's regenerations take the same shape:
-a changed file is described with its directory and its neighbours' entries in context, and
-unchanged siblings keep their entries unless the change alters what they do.
+a changed file is described with its unit, and unchanged siblings keep their entries unless the
+change alters what they do. A changed test is rewritten by its owner unit, or in the batch.
 
-**First full pass.** The repository has 16 packages under `lib/` and about 1,950 Python files.
-Describing all of them is a separate job on the GLM-5.3 fleet. The pass runs in two rounds.
-1. Directory units, with each package processed leaves first, so a unit's imports already have
-   entries when it runs.
-2. Subsystem pages, written from the finished file entries.
+**First full pass.** Decided 2026-11-02: GPT-6.1 Terra through OpenRouter on the flex tier, at
+reasoning effort medium. The pass runs from the sidecar on this machine, many requests at a time.
+It needs no Iris job, because Terra is an API. Estimated at about $17 for 184 prompts and 23.6M
+input tokens at Marin `1d274b5` (`state/reports/describe-comparison.md` has the comparison
+against Sonnet 5.5, Opus 5.5 and GLM-5.3, and the estimate). The pass runs in two rounds:
+1. Every source unit, then the orphan test batch. Units can run in any order, since each prompt
+   carries its callers' full source.
+2. Subsystem pages, written from the finished file entries with source excerpts, then the cold
+   reader. The model is undecided; Mark is leaning toward Fable 5.1.
 
-The job is a few Iris tasks: a coordinator and 4 to 8 workers. Each worker runs many concurrent
-requests through a sliding window (`wait -n` style). It sizes concurrency from live readings of KV,
-waiting and preemptions on the fleet, following the shed rule, and fixes no number in advance.
-Per-request overhead is small and per-task overhead is large, so tasks stay few and fat. The job
-verifies completion by counting files with entries against files expected. Mark approved GLM-5.3 use for
-this project without further approval from him or the `glm_infer` session (2026-11-01). The fleet's
-shed rule in Marin's CLAUDE.md §11 still applies, because it protects other tenants. GLM-5.3 may also
-serve the poller's per-file regenerations through the router port-forward, if its prose passes the
-20-file comparison against Claude. Until the pass has run, entries appear
-only for files that commits or PRs touch, and the poller fills them in.
+There is no round that re-describes units once their importers have entries (dropped
+2026-11-02). The pass verifies completion by counting files with entries against files expected,
+and resumes by skipping units whose entries cover their files at the pass's commit. GLM-5.3 stays
+available for this project without further approval (2026-11-01), under the fleet's shed rule.
+Until the pass has run, entries appear only for files that commits or PRs touch, and the poller
+fills them in.
 
 ## 9. Building it with subagents
 
@@ -410,7 +421,7 @@ Each workstream owns its directories. All of them read sections 6 and 7 as the c
 | 2. Shell | strip, diagrams, left tabs, right panel, chips, menus, ⌘>, windows | Every interaction in `demo/smoke.js` works on the fixture in the app |
 | 3. Sidecar | `sidecar/` sessions, tools, protocol, layout, posting | Protocol tests pass. A live session on #10640 answers a chip question and issues `focus_code_path` |
 | 4. Pipeline | poller, prep, description runs, prompts, lint | One tick on a quiet `main` and one on a new commit both print correct summaries. Preparing a live review request (such as #10330) writes valid section 6 files |
-| 5. First pass | Iris GLM job: a few fat tasks over directory units | Every Python file under `lib/` has an entry whose lint result is recorded, and a count of inputs seen equals inputs expected. Launch is pre-approved; follow the shed rule |
+| 5. First pass | `npm run first-pass` on GPT-6.1 Terra flex through OpenRouter | Every Python file under `lib/` has an entry whose lint result is recorded, and a count of inputs seen equals inputs expected |
 
 Workstream 0 runs first. Workstreams 1, 3 and 4 then run in parallel against the fixture.
 Workstream 2 starts once 1 shows rows. Agents run Swift checks with Radiology's `make check` and

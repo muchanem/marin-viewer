@@ -56,6 +56,20 @@ Validation:
 Limits: offscreen snapshots draw the toolbar's selected segment blank, while the running app
 draws it. Radiology's sidebar opens at 144 pt in the stock reader and the viewer alike, so step
 titles truncate until the sidebar is widened. By file and Blame wait for the diff reader.
+## 2026-11-01 — Marin viewer poller and preparation pipeline (Claude, workstream 4)
+
+`npm run poll` (sidecar/src/poll.ts, sidecar/src/pipeline/) implements DESIGN.md section 8. Each tick fast-forwards the Marin clone's main. It describes changed `lib/**/*.py` files one directory unit at a time on Sonnet 5.5, refreshes subsystem pages, prepares PRs in Opus 5.5 background sessions with validation and a Sonnet cold reader, commits the wordbase and prints one summary line. `npm run compare` runs the 20-file comparison. [plans/pipeline.md](plans/pipeline.md) holds the design, the measurements and the departures from DESIGN.md. The main departure is that preparation builds no SCIP indexes.
+
+Evidence from this round, all on Marin main `1d274b5`:
+- `npm test`: 201 tests passed in 14 files. The 144 tests that already existed still pass. `tsc --noEmit` is clean.
+- An init tick, a quiet tick and a tick on new commits all printed correct summaries. The new commits were simulated with `--reset-described 9e566ed --describe-to 41a4198`, without moving the clone: 4 files in 4 units, 2 subsystem pages, $2.80. A cached rerun cost $1.49 and kept one entry. Wordbase commits `4ac31ec` and `a038d2e`.
+- #10330 was prepared: 15 steps, 3 diagrams, 11 notes and 21 files. Validation and `check_fixture.py --strict-boxes --pr 10330` were clean, lint found nothing and the cold reader raised 1 gap. Cost $3.19, wordbase commit `46e3b49`. The full `check_fixture.py` run still passes on the whole wordbase, including #10640, which shows the same 2 warnings and 2 mismatches it had before.
+- Comparison: `state/reports/describe-comparison.md`. Every model described all 20 files in 4 units. Sonnet 5.5 cost $0.763 in 162 s and wrote 28.9K output tokens. Lint found 17 hits in its first drafts and 1 after the rewrites. Opus 5.5 cost $2.00 in 412 s and wrote 52.8K output tokens, with 5 lint hits in the first drafts and 0 after. GLM-5.3 cost $0 in 823 s and wrote 157.6K output tokens, most of them reasoning, with 7 lint hits in the first drafts and 1 after. Each model needed a rewrite on 3 units. The texts are comparably concrete and checkable. Opus describes more private symbols, and GLM adds `l3` caveats.
+- The estimated Sonnet 5.5 first pass over all 1,955 files costs about $69 (range $60 to $82).
+- Live spend was $12.43, and GLM-5.3 cost $0. The `gh` CLI made 10 calls: 2 to list PRs on the quiet tick, and 4 on each #10330 tick, 2 to list PRs plus `pr view` and the review comments.
+- The API credit ran out once, at $8.69 of spend. The poller now reports that case and stops model work for the tick. Mark added credit.
+
+Limits: the poller was never left running, and each tick here ran with `--once`. Ticks have not yet updated an existing preparation. The first full pass has not run.
 
 ## 2026-10-31 — Bundle all local changes for GitHub main (Codex)
 

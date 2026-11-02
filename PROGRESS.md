@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-11-02 — GPT-6.1 Terra joins the description comparison (Claude, workstream 4)
+
+`npm run compare` has a fourth model, `openai/gpt-6.1-terra` through OpenRouter (`sidecar/src/pipeline/openrouter.ts`), run at effort medium on the priority tier. The key comes from `OPENROUTER_API_KEY` in the viewer's `.env`, then `OR_KEY_SCALE_UP` in the parent's. The report gains Terra's column in every table, a cost source for each model, and an Estimates section computed by `sidecar/src/pipeline/estimate.ts`. [plans/pipeline.md](plans/pipeline.md) records the tier prices, the billing finding and the effort probe.
+
+- `npm test`: 213 tests passed in 15 files. The 12 new tests mock OpenRouter.
+- Terra described all 20 files for $0.372 (from `usage.cost`) in 80 s, with no lint hits and no rewrites. Every call reported `service_tier: priority`. Its descriptions are about half as long as Sonnet's.
+- Estimated full first pass: Terra $32 on priority, $16 on default and $8 on flex, against Sonnet $65, Sonnet on the Batch API $32 and Opus $176. On flex the 4 comparison units would have cost $0.093.
+- OpenRouter billed every uncached prompt token at the cache-write price. Neither the reply nor the generation record says which reasoning effort was applied. A 4-call probe showed it honoured: low gave 169 reasoning tokens, medium 287 and high 338.
+- This round spent $0.383 on OpenRouter.
+
 ## 2026-11-01 — Marin viewer poller and preparation pipeline (Claude, workstream 4)
 
 `npm run poll` (sidecar/src/poll.ts, sidecar/src/pipeline/) implements DESIGN.md section 8. Each tick fast-forwards the Marin clone's main. It describes changed `lib/**/*.py` files one directory unit at a time on Sonnet 5.5, refreshes subsystem pages, prepares PRs in Opus 5.5 background sessions with validation and a Sonnet cold reader, commits the wordbase and prints one summary line. `npm run compare` runs the 20-file comparison. [plans/pipeline.md](plans/pipeline.md) holds the design, the measurements and the departures from DESIGN.md. The main departure is that preparation builds no SCIP indexes.

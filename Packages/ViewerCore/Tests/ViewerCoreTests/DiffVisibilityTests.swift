@@ -88,23 +88,40 @@ struct DiffVisibilityTests {
         #expect(visibility.isVisible(0, wholeFile: true) && !visibility.isVisible(0))
     }
 
-    @Test func excerptKeepsDeletionsAfterInsideLinesOnly() {
+    @Test func excerptKeepsDeletionsOnBothEdges() {
         // d(old 1) c(1) c(2) d(old 4) a(3) c(4) d(old 6) c(5)
         let rows = Fixtures.rows("dccdacdc")
         #expect(rows.map(\.newLine) == [nil, 1, 2, nil, 3, 4, nil, 5])
         let visibility = DiffVisibility(rows: rows, mode: .excerpt(3...4))
-        // The deletion before new line 3 follows new line 2 (outside), so it
-        // is hidden; the one after new line 4 follows an inside row, so shown.
-        #expect(visibility.base == IndexSet([4, 5, 6]))
+        // The deletion just before new line 3 and the one just after new
+        // line 4 are both inside. The demo hid the first one, because its
+        // `rangeVisible` looked only at the row before a deletion.
+        #expect(visibility.base == IndexSet([3, 4, 5, 6]))
         let segments = visibility.segments()
-        #expect(segments.map(Self.shape) == ["gap 0..<4", "rows 4..<7", "gap 7..<8"])
-        guard case .gap(let end) = segments[2] else { return }
+        #expect(segments.map(Self.shape) == ["gap 0..<3", "rows 3..<7", "gap 7..<8"])
+        guard case .gap(let top) = segments[0], case .gap(let end) = segments[2] else { return }
+        #expect(top.label == "3 hidden lines at the top, 1 changed")
         #expect(end.label == "1 unchanged line to the end")
         #expect(visibility.excerptLines == 3...4)
 
-        // A leading deletion is never inside, even when the excerpt starts at 1.
-        #expect(!DiffVisibility(rows: rows, mode: .excerpt(1...5)).base.contains(0))
-        #expect(DiffVisibility(rows: rows, mode: .excerpt(1...5)).base == IndexSet(integersIn: 1...7))
+        // A leading deletion is inside when the excerpt starts at line 1.
+        #expect(DiffVisibility(rows: rows, mode: .excerpt(1...5)).base == IndexSet(integersIn: 0...7))
+        // A deletion between two outside rows stays hidden.
+        #expect(!DiffVisibility(rows: rows, mode: .excerpt(4...5)).base.contains(3))
+    }
+
+    @Test func gapsThatHideChangesAreNotCalledUnchanged() {
+        // c(1) a(2) c(3) c(4) d(old 4) c(5): an excerpt of line 5 hides the
+        // added line 2 and the deletion before line 5 is shown with it.
+        let rows = Fixtures.rows("caccdc")
+        let segments = DiffVisibility(rows: rows, mode: .excerpt(5...5)).segments()
+        #expect(segments.map(Self.shape) == ["gap 0..<4", "rows 4..<6"])
+        guard case .gap(let top) = segments[0] else { return }
+        #expect(top.changedRows == 1)
+        #expect(top.label == "4 hidden lines at the top, 1 changed")
+        // One hidden changed line.
+        let one = DiffGap(rows: 3..<4, rowCount: 9, changedRows: 1)
+        #expect(one.label == "1 hidden line, 1 changed")
     }
 
     @Test func realExcerptOfAnAddedFile() throws {
@@ -114,8 +131,10 @@ struct DiffVisibilityTests {
         let segments = visibility.segments()
         #expect(segments.map(Self.shape) == ["gap 0..<124", "rows 124..<223"])
         guard case .gap(let top) = segments[0] else { return }
-        // Every hidden row is an added line, and the demo still says "unchanged".
-        #expect(top.label == "124 unchanged lines at the top")
+        // Every hidden row is an added line. The demo said "124 unchanged
+        // lines at the top" here.
+        #expect(top.changedRows == 124)
+        #expect(top.label == "124 hidden lines at the top, 124 changed")
         #expect(top.expanders.map(\.rows) == [109..<124, 0..<124])
     }
 

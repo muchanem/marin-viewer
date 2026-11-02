@@ -79,8 +79,13 @@ enum SystemNodeMark: Equatable, Sendable {
     case dimmed
     case plain
 
+    /// A box in PR review: the PR's subsystem is here, and the PR touches or misses the rest. A
+    /// box that stands for several packages (`systems:`) is here when one of them is the PR's
+    /// subsystem, and touched when the PR changes any of them.
     static func mark(_ node: DiagramNode, system: String?, changed: [String]) -> SystemNodeMark {
-        mark(id: node.id, paths: node.paths, system: system, changed: changed)
+        if let system, node.standsFor(system: system) { return .here }
+        guard let touched = node.isTouched(byChangedPaths: changed) else { return .plain }
+        return touched ? .touched : .dimmed
     }
 
     static func mark(id: String, paths: [String]?, system: String?, changed: [String]) -> SystemNodeMark {
@@ -88,6 +93,22 @@ enum SystemNodeMark: Equatable, Sendable {
         guard let paths, !paths.isEmpty else { return .plain }
         let touched = changed.contains { path in paths.contains { $0.hasSuffix("/") ? path.hasPrefix($0) : path == $0 } }
         return touched ? .touched : .dimmed
+    }
+
+    /// A box while reading a subsystem's page outside PR review: the box that holds the open
+    /// file is here, by its most specific path, else the subsystem's own box. Nothing is dimmed,
+    /// since there is no change to miss.
+    static func readingMarks(_ nodes: [DiagramNode], system: String, openPath: String?) -> [String: SystemNodeMark] {
+        var marks: [String: SystemNodeMark] = [:]
+        if let openPath {
+            let best = nodes.compactMap { node -> (id: String, length: Int)? in
+                let lengths = node.coveredPaths.filter { $0.hasSuffix("/") ? openPath.hasPrefix($0) : openPath == $0 }.map(\.count)
+                return lengths.max().map { (node.id, $0) }
+            }.max { $0.length < $1.length }
+            if let best { marks[best.id] = .here }
+        }
+        if marks.isEmpty, let own = nodes.first(where: { $0.standsFor(system: system) }) { marks[own.id] = .here }
+        return marks
     }
 }
 

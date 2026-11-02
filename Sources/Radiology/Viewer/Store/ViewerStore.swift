@@ -86,6 +86,20 @@ final class ViewerStore {
     var notesError: String?
     private(set) var isPosting = false
     private(set) var layouts: [DiagramKey: DiagramLayoutPhase] = [:]
+
+    // MARK: Reading outside PR review (ViewerStore+Reading.swift)
+
+    /// The subsystem pages under `wordbase/systems/`, read once.
+    var systemPages: [SystemPage] = []
+    /// The page the strip shows outside PR review: the open file's subsystem, or the one last
+    /// opened from the strip. Nil until a file of a described package opens.
+    var readingSystem: SystemPage?
+    /// The file open in the main reader, relative to the Marin clone, when it is a Marin file.
+    var readingPath: String?
+    /// The reading strip's maps, by subsystem name.
+    var systemLayouts: [String: DiagramLayoutPhase] = [:]
+    /// The reading strip's description layer: 1, 2 or 3.
+    var systemDescriptionLevel = 1
     /// The PR's session in the main window's panel.
     private(set) var mainSession: ViewerSession?
     private(set) var forks: [ViewerSession] = []

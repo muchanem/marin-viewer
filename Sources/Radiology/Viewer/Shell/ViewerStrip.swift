@@ -2,62 +2,81 @@ import AppKit
 import SwiftUI
 import ViewerCore
 
-/// The strip of three cards over the work area (DESIGN.md §2): the PR description with its
-/// layers, the "In Marin" subsystem map, and the "Inside this PR" map with its step diagrams.
-struct ViewerStrip: View {
-    @Environment(ViewerStore.self) private var store
-    @Environment(ViewerWindowModel.self) private var window
+/// What a strip card's content wants at full size: a diagram's drawing with its labels at the
+/// base sizes, or a fixed size for cards that are not diagrams.
+struct StripNeed: Equatable, Sendable {
+    var width: CGFloat
+    var height: CGFloat
+    /// A card that keeps its width when the strip is short of room: only drawings shrink.
+    var isFixed = false
 
-    @State private var width: CGFloat = 0
+    /// A laid-out diagram's drawing at full size; a placeholder while it lays out.
+    static func diagram(_ phase: DiagramLayoutPhase?) -> StripNeed {
+        guard let layout = phase?.result else { return StripNeed(width: 360, height: 120) }
+        let size = DiagramViewport.fullSize(of: layout)
+        return StripNeed(width: size.width, height: size.height)
+    }
 
-    var body: some View {
-        // Column weights 1.25 : 1 : 1.2, as in the demo.
-        let unit = max(0, width - Self.spacing * 2) / 3.45
-        HStack(alignment: .top, spacing: Self.spacing) {
-            PRDescriptionCard().frame(width: unit * 1.25)
-            SystemMapCard().frame(width: unit)
-            PRMapCard().frame(width: unit * 1.2)
+    /// A card with only a short message, which wraps to a narrow column.
+    static let message = StripNeed(width: 150, height: 0, isFixed: true)
+}
+
+/// How the strip divides its width and how tall it is (DESIGN.md §2: one row of three cards).
+///
+/// The two maps take the width their drawings want at full size, and the description card
+/// takes the rest, down to `descriptionMinimum` (a fifth of the strip, 220 to 300 points).
+/// When there is not that much room, the maps share what is left in proportion and their
+/// text shrinks, never below
+/// `DiagramViewport.legibleScale`; past that a map scrolls inside its card. The strip is as
+/// tall as the taller map as drawn, between `minimumContent` and `maximumContent`.
+enum StripPlan {
+    static let gap: CGFloat = 8
+    static let horizontalInset: CGFloat = 12
+    static let verticalInset: CGFloat = 8
+    /// At least about 32 characters of body text, so the description stays a readable column.
+    static func descriptionMinimum(width: CGFloat) -> CGFloat { min(300, max(220, width * 0.2)) }
+    /// Room for four lines of the description's sentence and its More link.
+    static let minimumContent: CGFloat = 92
+    /// The strip never takes more than this for its drawings; taller maps scroll.
+    static let maximumContent: CGFloat = 176
+
+    struct Result: Equatable {
+        var description: CGFloat
+        var cards: [CGFloat]
+        var content: CGFloat
+    }
+
+    static func plan(width: CGFloat, needs: [StripNeed]) -> Result {
+        let padding = ViewerCardMetrics.padding * 2
+        let available = max(0, width - gap * CGFloat(needs.count))
+        let wants = needs.map { $0.width + padding }
+        let total = wants.reduce(0, +)
+        var cards = wants
+        var description = available - total
+        let minimum = descriptionMinimum(width: width)
+        if description < minimum {
+            description = min(minimum, available)
+            let fixed = zip(wants, needs).filter { $0.1.isFixed }.map(\.0).reduce(0, +)
+            let scalable = total - fixed
+            let room = max(0, available - description - fixed)
+            cards = zip(wants, needs).map { want, need in
+                need.isFixed ? want : (scalable > 0 ? want * room / scalable : 0)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: Self.height(diagram: diagramHeight(unit: unit)))
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color.viewerBackground)
-        .overlay(alignment: .bottom) { Divider() }
+        let heights = zip(cards, needs).map { card, need -> CGFloat in
+            guard need.width > 0 else { return need.height }
+            let zoom = max(DiagramViewport.legibleScale, min(DiagramViewport.fullScale, (card - padding) / need.width))
+            return (need.height * zoom).rounded(.up)
+        }
+        let content = min(maximumContent, max(minimumContent, heights.max() ?? 0))
+        return Result(description: description.rounded(.down), cards: cards.map { $0.rounded(.down) }, content: content)
     }
 
-    static let spacing: CGFloat = 10
-
-    /// The taller of the two diagrams as their cards draw them, so the strip ends where the
-    /// drawings do. Until either is laid out, the card's full diagram height.
-    private func diagramHeight(unit: CGFloat) -> CGFloat {
-        let pr: DiagramKey = window.zoomedStep.map(DiagramKey.step) ?? .pr
-        let heights = [
-            Self.fittedHeight(store.layouts[.system], width: unit - ViewerCardMetrics.padding * 2),
-            Self.fittedHeight(store.layouts[pr], width: unit * 1.2 - ViewerCardMetrics.padding * 2),
-        ].compactMap { $0 }
-        return heights.max() ?? DiagramMetrics.card.height
+    /// The cards' height for `content` points of drawing: padding, the header line and its gap.
+    static func cardHeight(content: CGFloat) -> CGFloat {
+        ViewerCardMetrics.padding * 2 + headerHeight + ViewerCardMetrics.spacing + content
     }
 
-    /// The height `DiagramCard` gives a laid-out diagram in a card `width` wide: scaled down to
-    /// the width, never up, and at most the card's diagram height (an overflowing one scrolls).
-    static func fittedHeight(_ phase: DiagramLayoutPhase?, width: CGFloat) -> CGFloat? {
-        guard case .ready(let layout)? = phase, layout.width > 0, layout.height > 0 else { return nil }
-        if layout.overflow { return DiagramMetrics.card.height }
-        let scale = min(1, max(0, width) / layout.width, DiagramMetrics.card.height / layout.height)
-        return (layout.height * scale).rounded(.up)
-    }
-
-    /// The cards' height for a diagram `diagram` points tall: padding, the header line, the
-    /// header gap and the drawing. Never shorter than the description card's sentence and More.
-    static func height(diagram: CGFloat) -> CGFloat {
-        let content = max(diagram, minimumContent)
-        return ViewerCardMetrics.padding * 2 + headerHeight + ViewerCardMetrics.spacing + content
-    }
-
-    /// Room for about three lines of the description's sentence and its More link.
-    static let minimumContent: CGFloat = 84
     /// One line of the caption-sized card header.
     static let headerHeight: CGFloat = {
         let font = NSFont.preferredFont(forTextStyle: .caption1)
@@ -65,42 +84,101 @@ struct ViewerStrip: View {
     }()
 }
 
-/// "Pull request": one sentence, More for the paragraph, Full description for the rest, Less.
+/// The strip's row: a description card and two cards sized by `StripPlan`.
+struct StripRow<Description: View, Middle: View, Trailing: View>: View {
+    let needs: [StripNeed]
+    @ViewBuilder var description: Description
+    @ViewBuilder var middle: Middle
+    @ViewBuilder var trailing: Trailing
+
+    @State private var width: CGFloat = 0
+
+    var body: some View {
+        let plan = StripPlan.plan(width: width, needs: needs)
+        HStack(alignment: .top, spacing: StripPlan.gap) {
+            description.frame(width: plan.description)
+            middle.frame(width: plan.cards.first ?? 0)
+            trailing.frame(width: plan.cards.last ?? 0)
+        }
+        .frame(height: StripPlan.cardHeight(content: plan.content))
+        // minWidth makes the frame take the offered width whatever the cards ask for, so the
+        // measured width follows the window as it shrinks.
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .padding(.horizontal, StripPlan.horizontalInset)
+        .padding(.vertical, StripPlan.verticalInset)
+        .background(Color.viewerBackground)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+}
+
+/// The strip of three cards over the work area during PR review (DESIGN.md §2): the PR
+/// description with its layers, the "In Marin" subsystem map, and the "Inside this PR" map with
+/// its step diagrams.
+struct ViewerStrip: View {
+    @Environment(ViewerStore.self) private var store
+    @Environment(ViewerWindowModel.self) private var window
+
+    var body: some View {
+        let shownMap: DiagramKey = window.zoomedStep.map(DiagramKey.step) ?? .pr
+        let systemNeed = store.diagram(.system) == nil ? StripNeed.message : .diagram(store.layouts[.system])
+        StripRow(needs: [systemNeed, .diagram(store.layouts[shownMap])]) {
+            PRDescriptionCard()
+        } middle: {
+            SystemMapCard()
+        } trailing: {
+            PRMapCard()
+        }
+    }
+}
+
+/// A description in layers inside a strip card: the sentence, More for the paragraph, Full
+/// description for the rest, Less.
+struct LayeredCardText: View {
+    let layers: Layers
+    @Binding var level: Int
+
+    var body: some View {
+        let maximum = layers.l3?.isEmpty == false ? 3 : (layers.l2?.isEmpty == false ? 2 : 1)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(viewerInline(layers.l1)).font(ViewerFonts.body)
+                if level >= 2, let l2 = layers.l2 {
+                    Text(viewerInline(l2)).font(ViewerFonts.summary).foregroundStyle(Color.viewerInk.opacity(0.9))
+                }
+                if level >= 3 {
+                    ForEach(Array((layers.l3 ?? []).enumerated()), id: \.offset) { _, paragraph in
+                        Text(viewerInline(paragraph)).font(ViewerFonts.summary).foregroundStyle(Color.viewerInk.opacity(0.9))
+                    }
+                }
+                if maximum > 1 {
+                    Button(level < maximum ? (level == 1 ? "More" : "Full description") : "Less") {
+                        level = level < maximum ? level + 1 : 1
+                    }
+                    .buttonStyle(.link).font(ViewerFonts.meta)
+                }
+            }
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollIndicators(.automatic)
+    }
+}
+
+/// "Pull request": the PR's layered description.
 struct PRDescriptionCard: View {
     @Environment(ViewerStore.self) private var store
     @Environment(ViewerWindowModel.self) private var window
 
     var body: some View {
         if let pr = store.pr {
-            let layers = pr.header.layers
-            let level = window.descriptionLevel
-            let maximum = layers.l3?.isEmpty == false ? 3 : (layers.l2?.isEmpty == false ? 2 : 1)
+            @Bindable var window = window
             ViewerCard {
-                CardHeader(title: "Pull request", hint: "prepared \(Self.day(pr.header.preparedAt)), before your review")
+                CardHeader(title: "Pull request", hint: "prepared \(Self.day(pr.header.preparedAt))")
             } content: {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(viewerInline(layers.l1)).font(ViewerFonts.body)
-                        if level >= 2, let l2 = layers.l2 {
-                            Text(viewerInline(l2)).font(ViewerFonts.summary).foregroundStyle(Color.viewerInk.opacity(0.9))
-                        }
-                        if level >= 3 {
-                            ForEach(Array((layers.l3 ?? []).enumerated()), id: \.offset) { _, paragraph in
-                                Text(viewerInline(paragraph)).font(ViewerFonts.summary).foregroundStyle(Color.viewerInk.opacity(0.9))
-                            }
-                        }
-                        if maximum > 1 {
-                            Button(level < maximum ? (level == 1 ? "More" : "Full description") : "Less") {
-                                window.descriptionLevel = level < maximum ? level + 1 : 1
-                            }
-                            .buttonStyle(.link).font(ViewerFonts.meta)
-                        }
-                    }
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .scrollIndicators(.automatic)
+                LayeredCardText(layers: pr.header.layers, level: $window.descriptionLevel)
             }
+            .help("Prepared \(Self.day(pr.header.preparedAt)), before your review")
         }
     }
 
@@ -115,12 +193,26 @@ struct CardHeader: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title.uppercased()).font(ViewerFonts.cardTitle).tracking(0.6).foregroundStyle(.secondary)
+                .lineLimit(1).layoutPriority(1)
             Spacer(minLength: 4)
             if let hint {
                 Text(hint).font(ViewerFonts.meta).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.tail)
             }
         }
+        .frame(height: StripPlan.headerHeight)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A card's quiet one-line message, centred in its content.
+struct CardMessage: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(ViewerFonts.meta).foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -134,13 +226,14 @@ struct SystemMapCard: View {
         ViewerCard {
             CardHeader(title: "In Marin", hint: store.pr?.system.map { "where \($0.name) sits" })
         } content: {
-            if store.diagram(.system) == nil {
-                Text("No wordbase system page covers this PR's files.").font(ViewerFonts.meta).foregroundStyle(.secondary)
-            } else {
+            if let diagram = store.diagram(.system) {
                 let changed = store.pr?.changedPaths ?? []
                 let system = store.pr?.system?.name
+                let sources = Dictionary(diagram.nodes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
                 DiagramCard(phase: store.layouts[.system], style: { node in
-                    DiagramNodeStyle(tone: Self.tone(SystemNodeMark.mark(id: node.id, paths: node.paths, system: system, changed: changed)))
+                    let mark = sources[node.id].map { SystemNodeMark.mark($0, system: system, changed: changed) }
+                        ?? SystemNodeMark.mark(id: node.id, paths: node.paths, system: system, changed: changed)
+                    return DiagramNodeStyle(tone: Self.tone(mark))
                 }, onTap: { node in
                     window.lastAskTarget = Chip(kind: .box, commit: store.pr?.head ?? "", label: "component \(node.label)")
                 }, onOpenLarger: { window.enlargedDiagram = .system }) { node in
@@ -149,6 +242,8 @@ struct SystemMapCard: View {
                     }
                     .keyboardShortcut(">", modifiers: .command)
                 }
+            } else {
+                CardMessage(text: "No subsystem page covers this PR's files.")
             }
         }
     }
@@ -189,15 +284,19 @@ struct PRMapCard: View {
     @ViewBuilder private var header: some View {
         if let id = window.zoomedStep, let step = store.pr?.step(id) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Button("This PR") { window.zoomOut() }.buttonStyle(.link).font(ViewerFonts.meta)
+                Button("Inside this PR") { window.zoomOut() }
+                    .buttonStyle(.link).font(ViewerFonts.cardTitle)
                     .help("Back to the PR map (Escape)")
-                Text("/").font(ViewerFonts.meta).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
                 Text(verbatim: "Step \(id): \(step.title)").font(ViewerFonts.meta.weight(.medium)).lineLimit(1)
+                    .truncationMode(.tail)
                 Spacer(minLength: 4)
-                Text("click a box to open its code").font(ViewerFonts.meta).foregroundStyle(.tertiary).lineLimit(1)
             }
+            .frame(height: StripPlan.headerHeight)
+            .help("Click a box to open its code. Escape goes back to the PR map.")
         } else {
-            CardHeader(title: "Inside this PR", hint: "click: open step · double-click: step diagram")
+            CardHeader(title: "Inside this PR", hint: "double-click a box for its step")
+                .help("Click a box to open its step. Double-click a box marked + to open its step diagram.")
         }
     }
 
@@ -260,7 +359,7 @@ struct DiagramBoxMenu: View {
     }
 }
 
-/// The larger view of a diagram that overflows its card, at twice the card's scale floor.
+/// The larger view of a diagram, with text at full size.
 struct EnlargedDiagramSheet: View {
     @Environment(ViewerStore.self) private var store
     @Environment(ViewerWindowModel.self) private var window
@@ -275,9 +374,11 @@ struct EnlargedDiagramSheet: View {
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
             if let layout = store.layouts[key]?.result {
-                let zoom = min(1.6, 1 / max(layout.scale, 0.01))
+                let region = DiagramViewport.content(of: layout)
+                // Full-size text, a little larger when the drawing is small.
+                let zoom = 1.15 / max(CGFloat(layout.scale), 0.01)
                 ScrollView([.horizontal, .vertical]) {
-                    DiagramCanvas(layout: layout, style: { node in
+                    DiagramCanvas(layout: layout, region: region, zoom: zoom, style: { node in
                         DiagramNodeStyle(isCode: node.at != nil && key != .pr, hasDiagram: key == .pr && store.hasStepDiagram(node.step))
                     }, onTap: { node in
                         if let at = node.at, key != .pr { store.reveal(path: at.path, function: at.function); dismiss() }
@@ -285,12 +386,10 @@ struct EnlargedDiagramSheet: View {
                     }) { node in
                         DiagramBoxMenu(node: node, key: key)
                     }
-                    .scaleEffect(zoom, anchor: .topLeading)
-                    .frame(width: layout.width * zoom, height: layout.height * zoom, alignment: .topLeading)
                     .padding(8)
                 }
-                .frame(minWidth: 520, idealWidth: min(1100, layout.width * zoom + 40), minHeight: 260,
-                       idealHeight: min(700, layout.height * zoom + 40))
+                .frame(minWidth: 520, idealWidth: min(1200, region.width * zoom + 40), minHeight: 220,
+                       idealHeight: min(720, region.height * zoom + 40))
             }
         }
         .padding(16)

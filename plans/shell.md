@@ -162,9 +162,52 @@ gap a labelled edge crosses so the label clears both boxes. Measured on #10640, 
 steps 2 and 4 overflow and the rest fit. The PR map overflows because its "loopback" label widens
 one gap.
 
-The strip is as tall as the taller of its two diagrams as drawn: an overflowing diagram is 196 pt,
-a fitted one is its height scaled to the card's width. It never shrinks below room for the
-description's sentence and More.
+### Toolbar (2026-11-02, `mark/ui-polish-1`)
+
+The PR is the window's title and subtitle (`ViewerPRTitle`): "#10640 Add persistent container
+tasks…" over "marin · Merged · rjpower · 30 files · +4882 −388 · base … · head …". DESIGN.md asks
+for the demo's crumb with a state pill. The crumb was a toolbar item, and at 1180 pt the system put
+it, By step / By file and Blame into the » overflow menu, leaving only the sidebar toggle. The
+system title truncates instead, so every control stays visible at 1180; the state moved from a
+pill into the subtitle. Blame is a `Toggle` with `.toggleStyle(.button)` and a
+`person.text.rectangle` icon, so its on state is the native pressed bezel rather than faint text.
+Outside PR review the title is the repository's and Radiology hides it
+(`ViewerTitleOrReaderTitle`).
+
+### Strip sizing (2026-11-02, `mark/ui-polish-1`)
+
+The sidecar centres each diagram in a 460×196 card. The strip ignores that card: `DiagramViewport`
+crops to the drawing's bounding box (`content(of:)`) and draws it by its text size, so labels stay
+sharp at any zoom (`DiagramCanvas` draws text at base × layout scale × zoom rather than scaling a
+bitmap). `StripPlan` (in `ViewerStrip.swift`) gives each map the width its drawing wants at full
+size (labels 10.5 pt) and the description card the rest, down to a fifth of the strip (220 to
+300 pt). When the strip is short of room, the description keeps that minimum and the maps share
+the rest in proportion. A message card ("No subsystem page covers this PR's files.") keeps 150 pt.
+The strip's height is planned for labels of at least 0.9 of the base size (`legibleScale`), between
+92 pt (four lines of description) and 176 pt of drawing. A map shrinks to 0.85 before it scrolls
+inside its card, with Open Larger. Measured: #10640's maps fit at 1180, 1440 and 1492 pt; #10330's PR
+map (1211×288 at full size) scrolls.
+
+`StripRow` measures its width with `.frame(minWidth: 0, maxWidth: .infinity)`. With only
+`maxWidth`, the row's measured width followed its cards and never shrank, so a window made narrower
+clipped the strip on both sides.
+
+### The strip while reading (not in PR review)
+
+When the open file is in the Marin checkout and a subsystem page covers it, the main window shows
+`ViewerReadingStrip` (DESIGN.md §2): the page's description in layers, an "In Marin" card listing
+the packages that use it and that it uses (each opens that page), and the page's map with the box
+that holds the open file marked (`SystemNodeMark.readingMarks`: the box whose `paths` or `systems`
+cover the file most specifically, else the page's own box). Clicking a box that stands for another
+package opens that package's page; a box that stands for several (`systems:`) lists them in its
+menu. `ViewerStore+Reading.swift` loads the 16 pages once (`SystemPage.readAll`), follows the open
+file (`followOpenFile`) and lays out each page's map on demand.
+
+### `systems:` boxes
+
+`DiagramNode.systems` names the packages one box stands for. In PR review the box is "here" when
+one of them is the PR's subsystem (`standsFor(system:)`) and touched when the PR changes any of
+them; each package counts as `lib/<name>/` alongside the box's `paths` (`coveredPaths`).
 
 ## Verification
 

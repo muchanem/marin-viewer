@@ -11,12 +11,43 @@ struct SystemPage: Sendable, Equatable {
     let layers: Layers?
     let members: [String]
     let diagram: Diagram?
+    /// The packages this one builds on, and the packages that build on it.
+    var uses: [String] = []
+    var usedBy: [String] = []
+    /// When the page was written, as an ISO timestamp.
+    var updated: String?
 
     /// The first directory member, such as `lib/shellbox/`: the focused tree's root.
     var rootDirectory: String? { members.first { $0.hasSuffix("/") } }
 
     func covers(_ path: String) -> Bool {
         members.contains { $0.hasSuffix("/") ? path.hasPrefix($0) : path == $0 }
+    }
+
+    /// The page at `url`, or nil when it is not a system entry.
+    static func read(_ url: URL) -> SystemPage? {
+        guard let text = try? String(contentsOf: url, encoding: .utf8),
+              let entry = try? WordbaseEntry(markdown: text), entry.header.kind == .system else { return nil }
+        let header = entry.header
+        return SystemPage(name: header.name ?? url.deletingPathExtension().lastPathComponent, layers: header.layers,
+                          members: header.members ?? [], diagram: header.diagram, uses: header.uses ?? [],
+                          usedBy: header.usedBy ?? [], updated: header.updated)
+    }
+
+    /// Every page under `wordbase/systems/`, nested ones included.
+    static func readAll(wordbase: URL) -> [SystemPage] {
+        let directory = wordbase.appending(path: "systems", directoryHint: .isDirectory)
+        guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil) else { return [] }
+        return enumerator.compactMap { ($0 as? URL).flatMap { $0.pathExtension == "md" ? read($0) : nil } }
+            .sorted { $0.name < $1.name }
+    }
+
+    /// The page whose members cover `path` most specifically.
+    static func covering(_ path: String, in pages: [SystemPage]) -> SystemPage? {
+        pages.compactMap { page -> (SystemPage, Int)? in
+            let lengths = page.members.filter { $0.hasSuffix("/") ? path.hasPrefix($0) : path == $0 }.map(\.count)
+            return lengths.max().map { (page, $0) }
+        }.max { $0.1 < $1.1 }?.0
     }
 }
 
@@ -54,8 +85,14 @@ struct ViewerPR: Sendable {
         return parts.joined(separator: " · ")
     }
 
-    /// "MERGED", "OPEN": the toolbar's state pill.
+    /// "MERGED", "OPEN".
     var stateTitle: String { (header.state ?? "open").uppercased() }
+
+    /// The window subtitle: "marin · Merged · rjpower · 30 files · +4882 −388 · base 8a92f90 ·
+    /// head 01a8bb8".
+    var subtitle: String {
+        [repoName, (header.state ?? "open").capitalized, metaLine].joined(separator: " · ")
+    }
 
     /// The step diagrams' count, for the preparation record.
     var stepDiagramCount: Int { wordbase.diagrams.steps.count }
@@ -101,15 +138,8 @@ actor ViewerPRLoader {
 
     /// The subsystem whose members cover the most changed paths.
     static func system(covering changed: [String], in wordbase: URL) -> SystemPage? {
-        let directory = wordbase.appending(path: "systems", directoryHint: .isDirectory)
-        guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil) else { return nil }
         var best: (page: SystemPage, count: Int)?
-        for case let url as URL in enumerator where url.pathExtension == "md" {
-            guard let text = try? String(contentsOf: url, encoding: .utf8),
-                  let entry = try? WordbaseEntry(markdown: text), entry.header.kind == .system else { continue }
-            let name = entry.header.name ?? url.deletingPathExtension().lastPathComponent
-            let page = SystemPage(name: name, layers: entry.header.layers, members: entry.header.members ?? [],
-                                  diagram: entry.header.diagram)
+        for page in SystemPage.readAll(wordbase: wordbase) {
             let count = changed.count { page.covers($0) }
             if count > 0, count > (best?.count ?? 0) { best = (page, count) }
         }

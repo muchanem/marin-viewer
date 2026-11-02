@@ -27,7 +27,11 @@ struct DiffBodyContent {
     }
 
     var diffRows: [DiffRow] { file.diff.rows }
-    var gutterWidth: CGFloat { DiffReaderStyle.gutterWidth(blame: showBlame) }
+    var gutterWidth: CGFloat { DiffReaderStyle.gutterWidth(blame: showBlame, digits: numberDigits, fontSize: fontSize) }
+    /// Digits of the file's largest line number, old or new.
+    var numberDigits: Int {
+        String(diffRows.reduce(0) { max($0, $1.oldLine ?? 0, $1.newLine ?? 0) }).count
+    }
 
     func layout(width: CGFloat) -> DiffCardLayout {
         DiffCardLayout(lines: rows.lines, fontSize: fontSize, availableWidth: width, gutterWidth: gutterWidth)

@@ -1,8 +1,11 @@
 import SwiftUI
 import ViewerCore
 
-/// The main window's toolbar while a PR is open: the PR crumb with its state pill and counts,
-/// the By step / By file switch, Blame, and the panel toggle.
+/// The main window's toolbar while a PR is open: the sidebar toggle, the PR as the window's
+/// title and subtitle (`ViewerPRTitle`), the By step / By file switch, Blame, and the panel
+/// toggle. The title is the system's, so it truncates as the window narrows while the controls
+/// keep their place. The earlier custom crumb item was the first thing the toolbar moved into
+/// its overflow menu, and it took the controls with it.
 struct ViewerToolbar: ToolbarContent {
     @Environment(ViewerStore.self) private var store
     @Binding var sidebarVisibility: NavigationSplitViewVisibility
@@ -16,24 +19,24 @@ struct ViewerToolbar: ToolbarContent {
             }
             .help("Show or Hide the Navigation Sidebar (⌃⌘S)")
         }
-        ToolbarItem(placement: .navigation) {
-            PRCrumb()
-        }
-        ToolbarItem(placement: .principal) {
+        ToolbarItemGroup(placement: .primaryAction) {
             // By step / By file and Blame sit together, as in DESIGN.md §2 and the demo.
             @Bindable var store = store
-            HStack(spacing: 8) {
-                Picker("Main view", selection: $store.mode) {
-                    ForEach(ViewerMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
-                }
-                .pickerStyle(.segmented)
-                .fixedSize()
-                .help("Read one step's code, or every changed file (⌥⌘3, ⌥⌘4)")
-                Toggle("Blame", isOn: $store.blame)
-                    .toggleStyle(.button)
-                    .fixedSize()
-                    .help("Show who last changed each line")
+            Picker("Main View", selection: $store.mode) {
+                ForEach(ViewerMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
             }
+            .pickerStyle(.segmented)
+            .fixedSize()
+            .help("Read one step's code, or every changed file (⌥⌘3, ⌥⌘4)")
+            Toggle(isOn: $store.blame) {
+                Label("Blame", systemImage: "person.text.rectangle")
+            }
+            .toggleStyle(.button)
+            .labelStyle(.titleAndIcon)
+            .help(store.blame ? "Hide who last changed each line" : "Show who last changed each line")
+        }
+        if #available(macOS 26.0, *) {
+            ToolbarSpacer(.fixed, placement: .primaryAction)
         }
         ToolbarItemGroup(placement: .primaryAction) {
             Button(isPanelPresented ? "Hide Session Panel" : "Show Session Panel", systemImage: "sidebar.right") {
@@ -44,27 +47,17 @@ struct ViewerToolbar: ToolbarContent {
     }
 }
 
-/// "marin / #10640 Add persistent container tasks…", the state pill, and the PR's counts.
-struct PRCrumb: View {
-    @Environment(ViewerStore.self) private var store
+/// The open PR as the window's title, "#10640 Add persistent container tasks…", and subtitle,
+/// "marin · Merged · rjpower · 30 files · +4882 −388 · base 8a92f90 · head 01a8bb8". The demo
+/// draws these as a crumb with a state pill; the system title truncates gracefully instead, so
+/// the state moves into the subtitle.
+struct ViewerPRTitle: ViewModifier {
+    let pr: ViewerPR
 
-    var body: some View {
-        if let pr = store.pr {
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    (Text(pr.repoName).foregroundStyle(.secondary) + Text(" / ").foregroundStyle(.tertiary)
-                        + Text(verbatim: "#\(pr.number) ") + Text(pr.title).foregroundStyle(.secondary))
-                        .font(.headline)
-                        .lineLimit(1).truncationMode(.tail)
-                    ViewerPill(text: pr.stateTitle, fill: .viewerStateFill, ink: .viewerStateInk)
-                }
-                Text(pr.metaLine).font(ViewerFonts.meta).foregroundStyle(.secondary).lineLimit(1)
-            }
-            .frame(maxWidth: 560, alignment: .leading)
-            .padding(.horizontal, 4)
-            .help("\(pr.header.repo ?? "marin")#\(pr.number): \(pr.title)\n\(pr.metaLine)")
-            .accessibilityElement(children: .combine)
-        }
+    func body(content: Content) -> some View {
+        content
+            .navigationTitle(Text(verbatim: "#\(pr.number) \(pr.title)"))
+            .navigationSubtitle(Text(verbatim: pr.subtitle))
     }
 }
 
@@ -134,5 +127,21 @@ struct ViewerToastView: View {
             .padding(.bottom, 18)
             .transition(.opacity)
             .accessibilityAddTraits(.updatesFrequently)
+    }
+}
+
+/// In PR review the window shows the PR as its title (`ViewerPRTitle`). Otherwise the title is
+/// the repository's, and Radiology hides it so that its repository menu names the window.
+/// One title modifier only: SwiftUI keeps the innermost `navigationTitle`.
+struct ViewerTitleOrReaderTitle: ViewModifier {
+    let pr: ViewerPR?
+    let readerTitle: String
+
+    func body(content: Content) -> some View {
+        if let pr {
+            content.modifier(ViewerPRTitle(pr: pr))
+        } else {
+            content.navigationTitle(readerTitle).modifier(ReaderToolbarTitleVisibility())
+        }
     }
 }

@@ -208,7 +208,7 @@ struct ViewerSidebarFooter: View {
     var body: some View {
         @Bindable var store = store
         HStack(spacing: Theme.spacing) {
-            Text(text).font(Theme.Fonts.meta).foregroundStyle(.secondary).lineLimit(2)
+            Text(text).font(Theme.Fonts.meta).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail).help(text)
             Spacer(minLength: 0)
             if mode == .changes {
                 Toggle("Hide tests", isOn: $store.hidesTests).toggleStyle(.checkbox).font(Theme.Fonts.meta)
@@ -253,7 +253,7 @@ extension ViewerStore {
             let visible = visibleChanges.count
             return "\(visible) of \(pr.changes.count) files" + (hidesTests ? " · tests hidden" : "")
         case .files:
-            return "Changed files first · numbers are code path steps"
+            return "Badges are code path steps"
         case .search:
             return searchMatches > 0 ? "\(searchMatches) matches · ripgrep over the whole checkout" : "ripgrep over the whole checkout"
         case .codePaths:

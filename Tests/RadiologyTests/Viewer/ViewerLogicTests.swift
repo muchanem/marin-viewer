@@ -61,6 +61,69 @@ import ViewerCore
         #expect(SystemNodeMark.mark(id: "x", paths: nil, system: "shellbox", changed: changed) == .plain)
     }
 
+    @Test func aBoxStandingForSeveralPackagesIsHereAndTouchedThroughThem() throws {
+        let nodes = try JSONDecoder().decode([DiagramNode].self, from: Data(#"""
+        [{"id":"backends","label":"Backends","sub":"","systems":["local","docker"]},
+         {"id":"iris","label":"Iris","sub":"","paths":["lib/iris/"]},
+         {"id":"note","label":"Note","sub":""}]
+        """#.utf8))
+        let changed = ["lib/docker/src/docker/machine.py"]
+        #expect(SystemNodeMark.mark(nodes[0], system: "local", changed: changed) == .here)
+        #expect(SystemNodeMark.mark(nodes[0], system: "shellbox", changed: changed) == .touched)
+        #expect(SystemNodeMark.mark(nodes[1], system: "shellbox", changed: changed) == .dimmed)
+        #expect(SystemNodeMark.mark(nodes[2], system: "shellbox", changed: changed) == .plain)
+    }
+
+    @Test func readingMarksTheMostSpecificBoxHoldingTheOpenFile() throws {
+        let nodes = try JSONDecoder().decode([DiagramNode].self, from: Data(#"""
+        [{"id":"zephyr","label":"Zephyr","sub":"","paths":["lib/zephyr/"]},
+         {"id":"execution","label":"Execution","sub":"","paths":["lib/zephyr/src/zephyr/coordinator.py","lib/zephyr/src/zephyr/worker.py"]},
+         {"id":"iris","label":"Iris","sub":"","systems":["iris"]}]
+        """#.utf8))
+        #expect(SystemNodeMark.readingMarks(nodes, system: "zephyr", openPath: "lib/zephyr/src/zephyr/coordinator.py") == ["execution": .here])
+        #expect(SystemNodeMark.readingMarks(nodes, system: "zephyr", openPath: "lib/zephyr/src/zephyr/plan.py") == ["zephyr": .here])
+        #expect(SystemNodeMark.readingMarks(nodes, system: "zephyr", openPath: "lib/iris/src/iris/x.py") == ["iris": .here])
+        #expect(SystemNodeMark.readingMarks(nodes, system: "zephyr", openPath: "README.md") == ["zephyr": .here])
+    }
+
+    @Test func stripGivesMapsTheirFullWidthAndTheDescriptionTheRest() {
+        let maps = [StripNeed(width: 500, height: 150), StripNeed(width: 600, height: 120)]
+        let padding = ViewerCardMetrics.padding * 2
+        let wide = StripPlan.plan(width: 1800, needs: maps)
+        #expect(wide.cards == [500 + padding, 600 + padding].map { $0.rounded(.down) })
+        #expect(wide.description == (1800 - 2 * StripPlan.gap - 1100 - 2 * padding).rounded(.down))
+        #expect(wide.content == 150)
+
+        // Short of room, the description keeps its minimum and the maps shrink in proportion,
+        // planning their height for text no smaller than the legible scale.
+        let narrow = StripPlan.plan(width: 1000, needs: maps)
+        #expect(narrow.description == StripPlan.descriptionMinimum(width: 1000))
+        #expect(narrow.cards[0] < 500 + padding && narrow.cards[1] < 600 + padding)
+        #expect(narrow.content >= (150 * DiagramViewport.legibleScale).rounded(.up))
+
+        // A message card keeps its width; only the drawing gives way.
+        let message = StripPlan.plan(width: 1000, needs: [.message, maps[1]])
+        #expect(message.cards[0] == (StripNeed.message.width + padding).rounded(.down))
+    }
+
+    @Test func theGutterHasOneNumberColumnOfAtLeastFourDigits() {
+        let four = DiffReaderStyle.gutterWidth(blame: false, digits: 4)
+        #expect(DiffReaderStyle.gutterWidth(blame: false, digits: 2) == four)
+        #expect(DiffReaderStyle.gutterWidth(blame: false, digits: 5) > four)
+        #expect(DiffReaderStyle.gutterWidth(blame: true, digits: 4) == four + DiffReaderStyle.blameColumnWidth)
+        #expect(four < 60)
+    }
+
+    @Test func systemPagesCoverPathsByTheirMostSpecificMember() {
+        func page(_ name: String, _ members: [String]) -> SystemPage {
+            SystemPage(name: name, layers: nil, members: members, diagram: nil)
+        }
+        let pages = [page("marin", ["lib/marin/"]), page("transform", ["lib/marin/src/marin/transform/"]), page("iris", ["lib/iris/"])]
+        #expect(SystemPage.covering("lib/marin/src/marin/transform/x.py", in: pages)?.name == "transform")
+        #expect(SystemPage.covering("lib/marin/src/marin/run.py", in: pages)?.name == "marin")
+        #expect(SystemPage.covering("docs/index.md", in: pages) == nil)
+    }
+
     @Test func viewerTabsLeadWithTheCodePathAndKeepRadiologysOtherwise() {
         #expect(BrowserMode.available(reviewing: false, viewerPR: true) == [.steps, .changes, .files, .search])
         #expect(BrowserMode.available(reviewing: true, viewerPR: false) == [.changes, .files, .codePaths, .search])

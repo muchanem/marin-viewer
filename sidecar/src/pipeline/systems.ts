@@ -185,6 +185,8 @@ export interface InputOptions {
   budget?: number;
   /** A cap on the excerpts' share of the budget. */
   excerptBudget?: number;
+  /** A file above this many tokens is given as its definition lines; `EXCERPT_FULL_MAX` by default. */
+  excerptFullMax?: number;
   /** The current page's layers, for the poller's refresh; the full run starts fresh. */
   existing?: string | null;
   count?: TokenCounter;
@@ -312,7 +314,7 @@ export async function systemInputs(o: InputOptions): Promise<SystemInputs> {
     let body = text;
     let full = true;
     let n = count(body);
-    if (n > EXCERPT_FULL_MAX) {
+    if (n > (o.excerptFullMax ?? EXCERPT_FULL_MAX)) {
       body = signatures(text, 200).join("\n");
       full = false;
       n = count(body);
@@ -531,6 +533,11 @@ export interface SystemPageResult {
   gapsBefore: Gap[] | null;
   /** Null when no rewrite happened, or the second read failed. */
   gapsAfter: Gap[] | null;
+  /**
+   * Which version was saved after a rewrite: the first draft when the cold reader found more gaps
+   * in the rewrite and the draft had no lint hits or problems, else the rewrite. Null with no rewrite.
+   */
+  kept: "draft" | "rewrite" | null;
   coldErrors: string[];
   lint: string[];
   /** Map or layer problems left after the rewrite; a map problem drops the map. */
@@ -604,6 +611,7 @@ export async function writeSystemPage(o: WriteOptions): Promise<SystemPageResult
   let hits = parseProblem ? [] : lintPage(page);
   let problems = parseProblem ? [parseProblem] : checkPage(page, ctx);
   let rewritten = false;
+  const draft = parseProblem ? null : { page: structuredClone(page), clean: !hits.length && !problems.length };
   if (gapsBefore?.length || hits.length || problems.length) {
     turns.push({
       role: "user",
@@ -626,6 +634,14 @@ export async function writeSystemPage(o: WriteOptions): Promise<SystemPageResult
     problems = checkPage(page, ctx);
   }
   const gapsAfter = rewritten ? await cold("cold-after", page) : null;
+  // A rewrite that leaves more unchecked claims than the draft is worse; keep the draft when it was clean.
+  let kept: SystemPageResult["kept"] = rewritten ? "rewrite" : null;
+  if (rewritten && draft?.clean && gapsBefore && gapsAfter && gapsAfter.length > gapsBefore.length) {
+    page = draft.page;
+    hits = [];
+    problems = [];
+    kept = "draft";
+  }
 
   let diagramDropped = false;
   if (problems.some((p) => p.startsWith("diagram:")) && page.diagram !== undefined) {
@@ -639,6 +655,7 @@ export async function writeSystemPage(o: WriteOptions): Promise<SystemPageResult
     page,
     gapsBefore,
     gapsAfter,
+    kept,
     lint: hits,
     problems,
     diagramDropped,
@@ -720,5 +737,5 @@ export async function refreshSystem(p: { repo: MarinRepo; commit: string; wordba
   // A page with a map and no valid new one keeps its map and its uses/used_by, since every name there needs a box.
   const keepUses = !!prev?.front.diagram && r.page.diagram === undefined;
   await saveSystemPage(p.wordbase, inputs, { ...r, problems: r.problems.filter((x) => !(keepUses && x.startsWith("diagram:"))) }, p.by, { keepUses });
-  return { system, file, created: !prev, lint: r.lint, gaps: r.gapsAfter ?? r.gapsBefore ?? [], completions: r.calls.map((c) => c.completion), cost_usd: r.cost_usd };
+  return { system, file, created: !prev, lint: r.lint, gaps: (r.kept === "draft" ? r.gapsBefore : (r.gapsAfter ?? r.gapsBefore)) ?? [], completions: r.calls.map((c) => c.completion), cost_usd: r.cost_usd };
 }

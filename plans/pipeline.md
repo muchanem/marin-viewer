@@ -360,6 +360,11 @@ same writer.
 
   Map problems, lint hits and cold-reader gaps all go back in the one rewrite. A map that still fails
   is dropped, and its problems are recorded in `lint:`.
+- **Keeping the better version.** When the cold reader finds more gaps in the rewrite than in the
+  first draft, and the draft had no lint hits or problems, the draft is saved. The state file records
+  both counts and `kept: draft` or `kept: rewrite`.
+- **Whole excerpts.** `--excerpt-full-max <tokens>` raises the 12,000-token limit above which a file
+  is given as its definition lines.
 - **Caching.** The rewrite reads the writer's prompt from cache. The cold reader's prompt puts CODE
   before DESCRIPTION, and the code half is sent as its own cached block (`cachePrefix`), so the second
   read takes it from cache.
@@ -391,8 +396,14 @@ same writer.
   same text at about 0.71 of Fable 5.1's count.
 - **Cold reader.** 52 gaps before the rewrites and 19 after. The rewrite cut gaps on 11 pages. fray
   had none and took no rewrite. finelog and rolloutengine stayed at 1. haliax went from 2 to 5: the
-  rewrite added claims its inputs do not show.
+  rewrite added claims its inputs do not show. The haliax redo below replaced that page.
 - **Time.** 20.4 min of wall clock for the 15 pages, up to 4 pages in flight. A page took 35 to 204 s.
+- **haliax redo** (Mark, 2026-11-02). Run with `--redo haliax --excerpt-budget 150000
+  --excerpt-full-max 150000`, so all 20 entry points went in whole, none as definition lines and none
+  left out. Before, 6 went in and 14 were left out. The prompt was 99K o200k tokens (162K counted by
+  Claude). The cold reader found 3 gaps in the draft and 3 in the rewrite, so the rewrite was kept.
+  It cost $3.57: Fable 5.1 $2.63, Opus 5.5 $0.94. Both cold reads after the first took the code from
+  cache. Wordbase commit `9a9bdd9`. The run's total is now $26.76.
 
 ## Measured on 2026-11-02: full context
 

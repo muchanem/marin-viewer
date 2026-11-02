@@ -46,6 +46,7 @@ struct ViewerStepRow: View {
                 HStack(spacing: 6) {
                     Text(step.title).font(ViewerFonts.stepTitle)
                         .foregroundStyle(isSelected ? Color.viewerAccent : .primary)
+                        .fixedSize(horizontal: false, vertical: true)
                     if isMoved {
                         ViewerPill(text: "moved by session", fill: .viewerNoteSoft, ink: .viewerNote)
                     }
@@ -66,9 +67,9 @@ struct ViewerStepMenu: View {
     let step: PRStep
 
     var body: some View {
-        Button("Ask About Step \(step.id)") { store.ask(ChipFactory.step(step, commit: store.pr?.head ?? ""), from: window) }
+        Button(String("Ask About Step \(step.id)")) { store.ask(ChipFactory.step(step, commit: store.pr?.head ?? ""), from: window) }
             .keyboardShortcut(">", modifiers: .command)
-        Button("Show Step \(step.id)") { store.focus(step: step.id) }
+        Button(String("Show Step \(step.id)")) { store.focus(step: step.id) }
         if store.hasStepDiagram(step.id) {
             Button("Open Step Diagram") { window.zoomedStep = step.id; store.focus(step: step.id) }
         }
@@ -128,9 +129,9 @@ struct ViewerFocusedFilesView: View {
                 HStack(spacing: 4) {
                     Image(systemName: isOpen ? "chevron.down" : "chevron.right").font(Theme.Fonts.disclosure)
                         .foregroundStyle(.secondary).frame(width: 10)
-                    Text("\(label)/").font(ViewerFonts.body.weight(.medium))
+                    Text(verbatim: "\(label)/").font(ViewerFonts.body.weight(.medium))
                     Spacer(minLength: 4)
-                    Text("\(count) changed").font(ViewerFonts.meta).foregroundStyle(.secondary)
+                    Text(verbatim: "\(count) changed").font(ViewerFonts.meta).foregroundStyle(.secondary)
                 }
                 .padding(.leading, CGFloat(depth) * 6)
                 .contentShape(.rect)
@@ -150,14 +151,14 @@ struct ViewerFocusedFilesView: View {
                 .onTapGesture { store.open(path: path) }
                 .contextMenu { ViewerFileMenu(path: path) }
         case .unchangedFolders(let count, let names):
-            Text("+ \(count) unchanged \(count == 1 ? "folder" : "folders") (\(names.map { URL(filePath: $0).lastPathComponent }.joined(separator: ", ")))")
+            Text(verbatim: "+ \(count) unchanged \(count == 1 ? "folder" : "folders") (\(names.map { URL(filePath: $0).lastPathComponent }.joined(separator: ", ")))")
                 .font(ViewerFonts.meta).foregroundStyle(.secondary).lineLimit(2)
                 .help(names.joined(separator: ", "))
         case .elsewhere(let count):
             HStack {
                 Text("Elsewhere").font(ViewerFonts.body.weight(.medium))
                 Spacer(minLength: 4)
-                Text("\(count) changed").font(ViewerFonts.meta).foregroundStyle(.secondary)
+                Text(verbatim: "\(count) changed").font(ViewerFonts.meta).foregroundStyle(.secondary)
             }
             .padding(.top, 6)
         case .elsewhereFile(let file):
@@ -175,13 +176,13 @@ struct ViewerFocusedFilesView: View {
                 .fontWeight(current ? .semibold : .regular)
                 .lineLimit(1).truncationMode(.middle)
             ForEach(file.steps, id: \.self) { step in
-                Text("\(step)").font(ViewerFonts.pill.monospacedDigit()).foregroundStyle(Color.viewerAccent)
+                Text(verbatim: "\(step)").font(ViewerFonts.pill.monospacedDigit()).foregroundStyle(Color.viewerAccent)
                     .padding(.horizontal, 4).background(Color.viewerAccentSoft, in: .rect(cornerRadius: 3))
                     .help("Code path step \(step)")
             }
             Spacer(minLength: 4)
             if let additions = file.additions, let deletions = file.deletions {
-                Text("+\(additions) −\(deletions)").font(ViewerFonts.meta.monospacedDigit()).foregroundStyle(.secondary)
+                Text(verbatim: "+\(additions) −\(deletions)").font(ViewerFonts.meta.monospacedDigit()).foregroundStyle(.secondary)
             }
         }
         .contentShape(.rect)

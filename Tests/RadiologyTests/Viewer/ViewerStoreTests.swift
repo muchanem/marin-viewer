@@ -70,6 +70,26 @@ struct ViewerStoreTests {
         #expect(store.draftNotePaths == [ViewerFixture.src + "http_service.py", ViewerFixture.src + "task.py"])
     }
 
+    @Test func stepDiagramsZoomAndTheirBoxesOpenCodeOrSayWhyNot() throws {
+        let fixture = try ViewerFixture.make()
+        defer { fixture.remove() }
+        let (store, _) = try store(fixture)
+        let window = store.mainWindow
+        store.openStepDiagram(1, in: window)
+        #expect(window.zoomedStep == nil && store.focusedStepID == 1)
+        #expect(store.toast?.text == "Step 1 has no diagram of its own; its code is short enough to read directly.")
+
+        store.openStepDiagram(2, in: window)
+        #expect(window.zoomedStep == 2 && store.focusedStepID == 2 && store.mode == .byStep)
+        let at = try ViewerFixture.location(ViewerFixture.src + "backends/local/machine.py", function: "LocalMachineFactory.create_task")
+        store.openCode(of: .init(id: "ct", label: "create_task", at: at, x: 0, y: 0, w: 90, h: 34))
+        #expect(store.mode == .byStep && store.revealRequest?.inStep == true && window.zoomedStep == 2)
+        store.openCode(of: .init(id: "cl", label: "caller", x: 0, y: 0, w: 90, h: 34))
+        #expect(store.toast?.text == "caller is outside this repository.")
+        window.zoomOut()
+        #expect(window.zoomedStep == nil)
+    }
+
     @Test func revealStaysByStepInsideTheStepAndSwitchesByFileOutside() throws {
         let fixture = try ViewerFixture.make()
         defer { fixture.remove() }

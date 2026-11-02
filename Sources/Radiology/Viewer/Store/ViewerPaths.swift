@@ -33,6 +33,7 @@ struct ViewerPaths: Sendable, Equatable {
                   marin: arguments.marin.map { URL(filePath: $0, directoryHint: .isDirectory) },
                   wordbase: arguments.wordbase.map { URL(filePath: $0, directoryHint: .isDirectory) },
                   state: arguments.state.map { URL(filePath: $0, directoryHint: .isDirectory) },
+                  prompts: arguments.prompts.map { URL(filePath: $0, directoryHint: .isDirectory) },
                   sidecar: arguments.sidecar.map { URL(filePath: $0, directoryHint: .isDirectory) },
                   node: arguments.node.map { URL(filePath: $0) })
     }
@@ -67,13 +68,14 @@ struct ViewerPaths: Sendable, Equatable {
 /// Viewer launch arguments, in the style of `LaunchArguments`:
 /// `--viewer-pr N` opens prepared PR N from the wordbase in the main window, `--viewer-root PATH`
 /// moves the data root, and `--viewer-marin`, `--viewer-wordbase`, `--viewer-state`,
-/// `--viewer-sidecar` and `--viewer-node` move one path each.
+/// `--viewer-prompts`, `--viewer-sidecar` and `--viewer-node` move one path each.
 struct ViewerLaunchArguments: Sendable, Equatable {
     let pullRequest: Int?
     let root: String?
     let marin: String?
     let wordbase: String?
     let state: String?
+    let prompts: String?
     let sidecar: String?
     let node: String?
 
@@ -83,6 +85,7 @@ struct ViewerLaunchArguments: Sendable, Equatable {
         marin = Self.value(of: "--viewer-marin", in: arguments)
         wordbase = Self.value(of: "--viewer-wordbase", in: arguments)
         state = Self.value(of: "--viewer-state", in: arguments)
+        prompts = Self.value(of: "--viewer-prompts", in: arguments)
         sidecar = Self.value(of: "--viewer-sidecar", in: arguments)
         node = Self.value(of: "--viewer-node", in: arguments)
     }

@@ -15,6 +15,20 @@ import ViewerCore
         #expect(StepOrdering.normalized([6, 6, 9, 1], steps: Array(1...8)) == [6, 1, 2, 3, 4, 5, 7, 8])
     }
 
+    @Test func boxMenusOfferTheStepDiagramOnlyOnThePRMap() throws {
+        let session = DiagramLayoutResult.Node(id: "session", label: "ProcessSession", step: 4, x: 0, y: 0, w: 90, h: 34)
+        let hasDiagram: (Int) -> Bool = { [2, 4, 6, 7].contains($0) }
+        #expect(DiagramBoxAction.actions(for: session, in: .pr, hasStepDiagram: hasDiagram) == [.ask, .goToStep(4), .openStepDiagram(4)])
+        #expect(DiagramBoxAction.actions(for: session, in: .pr, hasStepDiagram: hasDiagram)
+            .map { $0.title(label: session.label) } == ["Ask About ProcessSession", "Go to Step 4", "Open Step Diagram"])
+        let spec = DiagramLayoutResult.Node(id: "spec", label: "TaskSpec", step: 1, x: 0, y: 0, w: 90, h: 34)
+        #expect(DiagramBoxAction.actions(for: spec, in: .pr, hasStepDiagram: hasDiagram) == [.ask, .goToStep(1)])
+        let at = try ViewerFixture.location("lib/shellbox/src/shellbox/http_service.py", function: "_pump")
+        let pump = DiagramLayoutResult.Node(id: "pu", label: "_pump", step: 6, at: at, x: 0, y: 0, w: 90, h: 34)
+        #expect(DiagramBoxAction.actions(for: pump, in: .step(6), hasStepDiagram: hasDiagram)
+            == [.ask, .openCode(at), .openCodeInNewWindow(path: at.path), .goToStep(6)])
+    }
+
     @Test func chipLabelsMatchTheDemo() throws {
         let shortener = PathShortener(system: SystemPage(name: "shellbox", layers: nil, members: ["lib/shellbox/"], diagram: nil))
         let src = ViewerFixture.src

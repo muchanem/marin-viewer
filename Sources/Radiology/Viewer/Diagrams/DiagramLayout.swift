@@ -119,6 +119,8 @@ enum DiagramMetrics {
     static let horizontalPadding: CGFloat = 16
     static let minWidth: CGFloat = 56
     static let maxWidth: CGFloat = 240
+    /// Room for the PR map's "+" mark.
+    static let plusWidth: CGFloat = 10
 
     static func labelFont(code: Bool, scale: CGFloat = 1) -> NSFont {
         code ? .monospacedSystemFont(ofSize: codeLabelSize * scale, weight: .regular)
@@ -148,10 +150,11 @@ enum DiagramMetrics {
     }
 
     /// The `sizes` field of a `layout` request.
-    static func sizes(for diagram: Diagram, key: DiagramKey) -> JSONValue {
+    /// `extra` widens a box, as the PR map does for the "+" of a step with its own diagram.
+    static func sizes(for diagram: Diagram, key: DiagramKey, extra: (DiagramNode) -> CGFloat = { _ in 0 }) -> JSONValue {
         .object(Dictionary(uniqueKeysWithValues: diagram.nodes.map { node in
             let size = size(of: node, code: isCode(node, in: key))
-            return (node.id, JSONValue.object(["w": .number(size.width), "h": .number(size.height)]))
+            return (node.id, JSONValue.object(["w": .number(min(maxWidth, size.width + extra(node))), "h": .number(size.height)]))
         }))
     }
 }

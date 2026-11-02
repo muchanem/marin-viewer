@@ -32,7 +32,7 @@ struct ViewerWindowChrome: ViewModifier {
         }
         .overlay {
             if let number = store.loadingPR {
-                ProgressView("Opening #\(number)…")
+                ProgressView(String("Opening #\(number)…"))
                     .padding(16).background(.regularMaterial, in: .rect(cornerRadius: 10))
             }
         }

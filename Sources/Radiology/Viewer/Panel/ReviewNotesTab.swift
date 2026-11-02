@@ -57,7 +57,7 @@ struct ReviewNoteCard: View {
                 ViewerPill(text: note.status.rawValue, fill: Self.fill(note.status), ink: Self.ink(note.status))
                     .strikethrough(note.status == .rejected)
                 ViewerPill(text: note.severity.rawValue, fill: .viewerSoft, ink: Color(red: 0x4a / 255, green: 0x53 / 255, blue: 0x61 / 255))
-                Button("\(store.shortener.short(note.path)):\(note.line)") { store.revealNote(note.id) }
+                Button(String("\(store.shortener.short(note.path)):\(note.line)")) { store.revealNote(note.id) }
                     .buttonStyle(.link).font(ViewerFonts.mono)
                     .help("Open \(note.path) at line \(note.line)")
                 Text(note.who).font(ViewerFonts.meta).foregroundStyle(.secondary).lineLimit(1)
@@ -123,8 +123,8 @@ struct PostConfirmationSheet: View {
     var body: some View {
         let repo = store.pr?.header.repo ?? "marin-community/marin"
         VStack(alignment: .leading, spacing: 10) {
-            Text("Post \(store.notes.approved.count) Approved \(store.notes.approved.count == 1 ? "Note" : "Notes")").font(.headline)
-            Text("These comments will post as one pending review on \(repo)#\(store.pr?.number ?? 0) from your account:")
+            Text(verbatim: "Post \(store.notes.approved.count) Approved \(store.notes.approved.count == 1 ? "Note" : "Notes")").font(.headline)
+            Text(verbatim: "These comments will post as one pending review on \(repo)#\(store.pr?.number ?? 0) from your account:")
                 .font(ViewerFonts.summary)
             ScrollView {
                 Text(store.notes.postConfirmationText)

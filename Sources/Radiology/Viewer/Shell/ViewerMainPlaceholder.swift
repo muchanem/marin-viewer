@@ -34,7 +34,7 @@ struct ViewerMainPlaceholder: View {
     private func stepView(_ step: PRStep) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("STEP \(step.id) OF \(store.stepOrder.count)").font(ViewerFonts.cardTitle).tracking(0.6).foregroundStyle(.secondary)
+                Text(verbatim: "STEP \(step.id) OF \(store.stepOrder.count)").font(ViewerFonts.cardTitle).tracking(0.6).foregroundStyle(.secondary)
                 Text(step.title).font(.title3.weight(.semibold))
                 Text(viewerInline(step.l1)).font(ViewerFonts.body).foregroundStyle(.secondary)
                 if let l2 = step.l2, !l2.isEmpty {
@@ -46,7 +46,7 @@ struct ViewerMainPlaceholder: View {
                 excerptCard(excerpt).id("excerpt:\(excerpt.path)")
             }
             if let next = store.step(after: step.id) {
-                Button("Next: step \(next.id) · \(next.title)") { store.focus(step: next.id) }.buttonStyle(.link)
+                Button(String("Next: step \(next.id) · \(next.title)")) { store.focus(step: next.id) }.buttonStyle(.link)
             }
         }
     }
@@ -60,7 +60,7 @@ struct ViewerMainPlaceholder: View {
                     Text(excerpt.functions.joined(separator: ", ")).font(ViewerFonts.mono)
                 }
                 if let range = excerpt.lineRange {
-                    Text("lines \(range.lowerBound)–\(range.upperBound) at \(store.pr?.head.prefix(7) ?? "")")
+                    Text(verbatim: "lines \(range.lowerBound)–\(range.upperBound) at \(store.pr?.head.prefix(7) ?? "")")
                         .font(ViewerFonts.meta).foregroundStyle(.secondary)
                 }
                 if highlighted, let reveal {
@@ -96,12 +96,12 @@ struct ViewerMainPlaceholder: View {
     }
 
     private var seamNote: some View {
-        Text("The diff reader draws this view. Until it merges, this lists what it will show\(store.blame ? ", with blame on" : "").")
+        Text(verbatim: "The diff reader draws this view. Until it merges, this lists what it will show\(store.blame ? ", with blame on" : "").")
             .font(ViewerFonts.meta).foregroundStyle(.secondary)
     }
 
     private func revealLine(_ reveal: RevealRequest) -> some View {
-        Text("→ \(store.shortener.short(reveal.path))\(reveal.line.map { ":\($0)" } ?? "")\(reveal.function.map { " · \($0)" } ?? "")")
+        Text(verbatim: "→ \(store.shortener.short(reveal.path))\(reveal.line.map { ":\($0)" } ?? "")\(reveal.function.map { " · \($0)" } ?? "")")
             .font(ViewerFonts.mono).foregroundStyle(Color.viewerNote)
             .padding(.horizontal, 6).padding(.vertical, 2)
             .background(Color.viewerNoteSoft, in: .rect(cornerRadius: 4))
@@ -111,7 +111,7 @@ struct ViewerMainPlaceholder: View {
     @ViewBuilder private func notesInline(path: String) -> some View {
         if let note = store.focusedNote, note.path == path {
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(note.status.rawValue) · line \(note.line)").font(ViewerFonts.pill).foregroundStyle(Color.viewerNote)
+                Text(verbatim: "\(note.status.rawValue) · line \(note.line)").font(ViewerFonts.pill).foregroundStyle(Color.viewerNote)
                 Text(viewerInline(note.l1)).font(ViewerFonts.summary)
             }
             .padding(8)
@@ -127,7 +127,7 @@ struct ViewerMainPlaceholder: View {
                 Text(store.shortener.short(path)).font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
                 Spacer(minLength: 8)
                 if let additions = change?.additions, let deletions = change?.deletions {
-                    Text("+\(additions)").foregroundStyle(Color.viewerOK) + Text(" −\(deletions)").foregroundStyle(Color.viewerBad)
+                    Text(verbatim: "+\(additions)").foregroundStyle(Color.viewerOK) + Text(verbatim: " −\(deletions)").foregroundStyle(Color.viewerBad)
                 }
             }
             .font(ViewerFonts.meta.monospacedDigit())

@@ -28,6 +28,8 @@ struct ViewerStrip: View {
 
     /// Header, a 196-point diagram and the card's padding.
     static let height: CGFloat = 238
+    /// With the strip's vertical padding.
+    static let totalHeight: CGFloat = height + 20
 }
 
 /// "Pull request": one sentence, More for the paragraph, Full description for the rest, Less.
@@ -109,7 +111,7 @@ struct SystemMapCard: View {
                 }, onTap: { node in
                     window.lastAskTarget = Chip(kind: .box, commit: store.pr?.head ?? "", label: "component \(node.label)")
                 }, onOpenLarger: { window.enlargedDiagram = .system }) { node in
-                    Button("Ask About \(node.label)") {
+                    Button(String("Ask About \(node.label)")) {
                         store.ask(Chip(kind: .box, commit: store.pr?.head ?? "", label: "component \(node.label)"), from: window)
                     }
                     .keyboardShortcut(">", modifiers: .command)
@@ -157,7 +159,7 @@ struct PRMapCard: View {
                 Button("This PR") { window.zoomOut() }.buttonStyle(.link).font(ViewerFonts.meta)
                     .help("Back to the PR map (Escape)")
                 Text("/").font(ViewerFonts.meta).foregroundStyle(.tertiary)
-                Text("Step \(id): \(step.title)").font(ViewerFonts.meta.weight(.medium)).lineLimit(1)
+                Text(verbatim: "Step \(id): \(step.title)").font(ViewerFonts.meta.weight(.medium)).lineLimit(1)
                 Spacer(minLength: 4)
                 Text("click a box to open its code").font(ViewerFonts.meta).foregroundStyle(.tertiary).lineLimit(1)
             }
@@ -174,13 +176,7 @@ struct PRMapCard: View {
             window.lastAskTarget = chip(node)
             if let step = node.step { store.focus(step: step) }
         }, onDoubleTap: { node in
-            guard let step = node.step else { return }
-            if store.hasStepDiagram(step) {
-                window.zoomedStep = step
-                store.focus(step: step)
-            } else {
-                store.showToast("Step \(step) has no diagram of its own; its code is short enough to read directly.")
-            }
+            if let step = node.step { store.openStepDiagram(step, in: window) }
         }, onOpenLarger: { window.enlargedDiagram = .pr }) { node in
             DiagramBoxMenu(node: node, key: .pr)
         }
@@ -191,7 +187,7 @@ struct PRMapCard: View {
             DiagramNodeStyle(isCode: node.at != nil)
         }, onTap: { node in
             window.lastAskTarget = chip(node)
-            openCode(node)
+            store.openCode(of: node)
         }, onOpenLarger: { window.enlargedDiagram = .step(id) }) { node in
             DiagramBoxMenu(node: node, key: .step(id))
         }
@@ -199,14 +195,6 @@ struct PRMapCard: View {
 
     private func chip(_ node: DiagramLayoutResult.Node) -> Chip {
         ChipFactory.box(label: node.label, at: node.at, commit: store.pr?.head ?? "", shortener: store.shortener)
-    }
-
-    private func openCode(_ node: DiagramLayoutResult.Node) {
-        guard let at = node.at else {
-            store.showToast("\(node.label) is outside this repository.")
-            return
-        }
-        store.reveal(path: at.path, function: at.function)
     }
 }
 
@@ -218,22 +206,23 @@ struct DiagramBoxMenu: View {
     let key: DiagramKey
 
     var body: some View {
-        Button("Ask About \(node.label)") {
-            store.ask(ChipFactory.box(label: node.label, at: node.at, commit: store.pr?.head ?? "", shortener: store.shortener), from: window)
-        }
-        .keyboardShortcut(">", modifiers: .command)
-        if let at = node.at {
-            Button("Open Its Code") { store.reveal(path: at.path, function: at.function) }
-            Button("Open Its Code in New Window") { store.openInNewWindow(path: at.path) }
-        }
-        if let step = node.step {
-            Button("Go to Step \(step)") { store.focus(step: step) }
-            if store.hasStepDiagram(step), key == .pr {
-                Button("Open Step Diagram") {
-                    window.zoomedStep = step
-                    store.focus(step: step)
-                }
+        ForEach(DiagramBoxAction.actions(for: node, in: key, hasStepDiagram: store.hasStepDiagram), id: \.self) { action in
+            if action == .ask {
+                Button(action.title(label: node.label)) { perform(action) }.keyboardShortcut(">", modifiers: .command)
+            } else {
+                Button(action.title(label: node.label)) { perform(action) }
             }
+        }
+    }
+
+    private func perform(_ action: DiagramBoxAction) {
+        switch action {
+        case .ask:
+            store.ask(ChipFactory.box(label: node.label, at: node.at, commit: store.pr?.head ?? "", shortener: store.shortener), from: window)
+        case .openCode(let at): store.reveal(path: at.path, function: at.function)
+        case .openCodeInNewWindow(let path): store.openInNewWindow(path: path)
+        case .goToStep(let step): store.focus(step: step)
+        case .openStepDiagram(let step): store.openStepDiagram(step, in: window)
         }
     }
 }

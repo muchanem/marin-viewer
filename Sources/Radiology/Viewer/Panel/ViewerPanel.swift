@@ -15,7 +15,7 @@ struct ViewerPanel: View {
                 PanelHeader(session: session)
                 Picker("Panel", selection: $window.panelTab) {
                     Text("Session").tag(ViewerWindowModel.PanelTab.session)
-                    Text("Review notes (\(store.notes.notes.count))").tag(ViewerWindowModel.PanelTab.notes)
+                    Text(verbatim: "Review notes (\(store.notes.notes.count))").tag(ViewerWindowModel.PanelTab.notes)
                     Text("Context").tag(ViewerWindowModel.PanelTab.context)
                 }
                 .pickerStyle(.segmented)
@@ -57,7 +57,7 @@ struct PanelHeader: View {
         HStack(alignment: .top, spacing: Theme.spacing) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.title).font(.headline)
-                Text("\(session.stateLabel) · cwd \(store.pr?.repoName ?? "marin") @ \(store.pr?.head.prefix(7) ?? "")")
+                Text(verbatim: "\(session.stateLabel) · cwd \(store.pr?.repoName ?? "marin") @ \(store.pr?.head.prefix(7) ?? "")")
                     .font(ViewerFonts.meta).foregroundStyle(.secondary).lineLimit(2)
                     .help(store.headWorktree?.path ?? store.paths.marin.path)
             }
@@ -204,8 +204,8 @@ struct SessionComposer: View {
                 .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Color.viewerRule) }
             HStack(alignment: .firstTextBaseline) {
                 Text("⌘> asks about the selection or the focused file, step, box or note. Right-click works too.")
-                    .font(ViewerFonts.meta).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 6)
+                    .font(ViewerFonts.meta).foregroundStyle(.secondary).lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Button("Send", action: send)
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(session.isBusy || (session.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && session.chips.isEmpty))
@@ -309,16 +309,18 @@ struct MemoriesView: View {
                         .background(.background, in: .rect(cornerRadius: 6))
                 }
                 ForEach(session.memories) { memory in
-                    HStack(alignment: .top, spacing: 6) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(memory.target).font(ViewerFonts.mono).foregroundStyle(Color.viewerAccent)
-                            Text(viewerInline(memory.text)).font(ViewerFonts.summary).fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 0)
-                        Button("Drop This Note", systemImage: "xmark") { store.dropMemory(memory, from: session) }
-                            .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(memory.target).font(ViewerFonts.mono).foregroundStyle(Color.viewerAccent)
+                            .padding(.trailing, 18)
+                        Text(viewerInline(memory.text)).font(ViewerFonts.summary).fixedSize(horizontal: false, vertical: true)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(8)
+                    .overlay(alignment: .topTrailing) {
+                        Button("Drop This Note", systemImage: "xmark") { store.dropMemory(memory, from: session) }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless)
+                            .padding(6)
+                    }
                     .background(.background, in: .rect(cornerRadius: 6))
                     .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Color.viewerRule) }
                 }

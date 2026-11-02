@@ -49,7 +49,7 @@ struct PRCrumb: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     (Text(pr.repoName).foregroundStyle(.secondary) + Text(" / ").foregroundStyle(.tertiary)
-                        + Text("#\(pr.number) ") + Text(pr.title).foregroundStyle(.secondary))
+                        + Text(verbatim: "#\(pr.number) ") + Text(pr.title).foregroundStyle(.secondary))
                         .font(.headline)
                         .lineLimit(1).truncationMode(.tail)
                     ViewerPill(text: pr.stateTitle, fill: .viewerStateFill, ink: .viewerStateInk)
@@ -73,10 +73,10 @@ struct OpenPRSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Open a Prepared PR").font(.headline)
-            Text("PRs the poller prepared in \(store.paths.prsDirectory.path).").font(ViewerFonts.meta).foregroundStyle(.secondary)
+            Text(verbatim: "PRs the poller prepared in \(store.paths.prsDirectory.path).").font(ViewerFonts.meta).foregroundStyle(.secondary)
             List(store.preparedPRs, id: \.self, selection: $selection) { number in
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("#\(number)").font(ViewerFonts.body.weight(.medium))
+                    Text(verbatim: "#\(number)").font(ViewerFonts.body.weight(.medium))
                     Text(Self.title(of: number, in: store.paths)).font(ViewerFonts.meta).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .tag(number)

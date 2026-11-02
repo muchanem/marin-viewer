@@ -146,3 +146,33 @@ enum ChipFactory {
         return Chip(kind: lines.count > 1 ? .selection : .line, path: path, lines: lines, commit: commit, label: location)
     }
 }
+
+/// What a diagram box's context menu offers, in order.
+enum DiagramBoxAction: Hashable {
+    case ask
+    case openCode(CodeLocation)
+    case openCodeInNewWindow(path: String)
+    case goToStep(Int)
+    case openStepDiagram(Int)
+
+    func title(label: String) -> String {
+        switch self {
+        case .ask: "Ask About \(label)"
+        case .openCode: "Open Its Code"
+        case .openCodeInNewWindow: "Open Its Code in New Window"
+        case .goToStep(let step): "Go to Step \(step)"
+        case .openStepDiagram: "Open Step Diagram"
+        }
+    }
+
+    /// Only the PR map offers a step's own diagram; inside a step diagram the box is already there.
+    static func actions(for node: DiagramLayoutResult.Node, in key: DiagramKey, hasStepDiagram: (Int) -> Bool) -> [Self] {
+        var actions: [Self] = [.ask]
+        if let at = node.at { actions += [.openCode(at), .openCodeInNewWindow(path: at.path)] }
+        if let step = node.step {
+            actions.append(.goToStep(step))
+            if key == .pr, hasStepDiagram(step) { actions.append(.openStepDiagram(step)) }
+        }
+        return actions
+    }
+}

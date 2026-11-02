@@ -96,6 +96,12 @@ struct ViewerFixture {
 
     func remove() { try? FileManager.default.removeItem(at: root) }
 
+    /// ViewerCore's `CodeLocation` is built from wordbase JSON, so tests decode one too.
+    static func location(_ path: String, function: String) throws -> CodeLocation {
+        let json = try JSONEncoder().encode(["path": path, "function": function])
+        return try JSONDecoder().decode(CodeLocation.self, from: json)
+    }
+
     static func change(_ path: String, _ status: FileChange.Status = .modified, add: Int = 3, del: Int = 1) -> FileChange {
         FileChange(path: path, oldPath: nil, status: status, beforeBlob: "", afterBlob: "", additions: add, deletions: del)
     }

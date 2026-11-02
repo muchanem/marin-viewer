@@ -28,6 +28,7 @@ struct RadiologyApp: App {
                     let arguments = ViewerLaunchArguments(CommandLine.arguments)
                     if let number = arguments.pullRequest {
                         await viewer.openPR(number)
+                        await ViewerAppDelegate.snapshotIfRequested()
                     } else {
                         await model.launch(using: LaunchArguments(CommandLine.arguments))
                     }

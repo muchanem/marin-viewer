@@ -156,7 +156,7 @@ struct DiagramCard<Menu: View>: View {
                 .aspectRatio(layout.width / layout.height, contentMode: .fit)
             }
         case .failed(let message):
-            Text("The diagram could not be laid out: \(message)")
+            Text(verbatim: "The diagram could not be laid out: \(message)")
                 .font(ViewerFonts.meta).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loading, nil:

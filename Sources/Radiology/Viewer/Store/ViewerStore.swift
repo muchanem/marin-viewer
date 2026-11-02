@@ -207,6 +207,27 @@ final class ViewerStore {
 
     func hasStepDiagram(_ step: Int?) -> Bool { step.map { pr?.wordbase.diagrams.diagram(forStep: $0) != nil } ?? false }
 
+    /// Double-clicking a PR map box: zooms the window's map into that step's diagram and shows
+    /// the step, or says why there is no diagram to zoom into.
+    func openStepDiagram(_ step: Int, in window: ViewerWindowModel) {
+        guard hasStepDiagram(step) else {
+            showToast("Step \(step) has no diagram of its own; its code is short enough to read directly.")
+            return
+        }
+        window.zoomedStep = step
+        focus(step: step)
+    }
+
+    /// Clicking a box inside a step diagram opens its code, staying by step when the code is in
+    /// the step.
+    func openCode(of node: DiagramLayoutResult.Node) {
+        guard let at = node.at else {
+            showToast("\(node.label) is outside this repository.")
+            return
+        }
+        reveal(path: at.path, function: at.function)
+    }
+
     private func requestLayouts(for pr: ViewerPR) {
         var keys: [DiagramKey] = [.system, .pr]
         keys += pr.wordbase.diagrams.steps.keys.compactMap(Int.init).sorted().map(DiagramKey.step)
@@ -223,7 +244,9 @@ final class ViewerStore {
             let result = try await sidecar.request([
                 "type": "layout",
                 "diagram": try JSONValue.encoding(diagram),
-                "sizes": DiagramMetrics.sizes(for: diagram, key: key),
+                "sizes": DiagramMetrics.sizes(for: diagram, key: key) { node in
+                    key == .pr && self.hasStepDiagram(node.step) ? DiagramMetrics.plusWidth : 0
+                },
             ])
             guard pr?.number == number else { return }
             layouts[key] = .ready(try result.decode(DiagramLayoutResult.self))

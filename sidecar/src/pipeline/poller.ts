@@ -11,10 +11,10 @@ import { ClaudeBackend, GlmBackend, type Backend } from "./backends.js";
 import { describeUnit, writeEntries } from "./describe.js";
 import { Gh, isCreditError } from "./exec.js";
 import { BackgroundSessions, fetchHeads, preparePr, searchPrs, type SearchedPr } from "./prepare.js";
-import { MarinRepo, type Change } from "./repo.js";
+import { isTestPath, MarinRepo, type Change } from "./repo.js";
 import { refreshSystem } from "./systems.js";
 import { Ledger, paceUsd, readJson, stateFiles, writeJson, type MainState, type PrsState, type QueueState } from "./state.js";
-import { buildContext, groupByDirectory, loadUnit } from "./units.js";
+import { ContextBuilder, describeStats, groupByDirectory, loadUnit, unitLabel, type Unit } from "./units.js";
 import { runChecker } from "./validate.js";
 
 export interface PollerOptions {
@@ -258,6 +258,46 @@ export class Poller {
     return s;
   }
 
+  /**
+   * The prompts a set of changed paths needs. Source files regenerate their directory (each slice
+   * that holds one); a changed test rides with its owner unit when that unit's slice regenerates,
+   * and otherwise goes to an orphan batch, as do tests that import none of the described code.
+   */
+  private async planJobs(paths: string[], head: string): Promise<{ jobs: { unit: Unit; siblings: string[] }[]; builder: ContextBuilder }> {
+    const builder = new ContextBuilder(this.repo, head, { wordbase: this.config.wordbase, prompts: this.config.prompts });
+    const jobs: { unit: Unit; siblings: string[] }[] = [];
+    if (!paths.length) return { jobs, builder };
+    const tests = paths.filter(isTestPath);
+    const units: Unit[] = [];
+    for (const u of groupByDirectory(paths.filter((p) => !isTestPath(p)), head)) {
+      const l = await loadUnit(this.repo, u);
+      if (l.targets.length) units.push({ ...l, testTargets: [] });
+    }
+    const owners = await builder.owners();
+    const orphans: string[] = [];
+    for (const t of tests) {
+      const owner = owners.get(t);
+      const u = owner ? units.find((x) => x.dir === owner) : undefined;
+      if (u) u.testTargets!.push(t);
+      else orphans.push(t);
+    }
+    for (const u of units) {
+      const planned = await builder.plan(u);
+      orphans.push(...planned.overflow.filter((t) => (u.testTargets ?? []).includes(t)));
+      if (planned.units.length > 1) this.print(`  split ${u.dir} into ${planned.units.length} slices: ${planned.units.map((x) => `${x.files.length} files, ${(x.tests ?? []).length} tests`).join("; ")}`);
+      for (const x of planned.units) {
+        if (!x.targets.length) {
+          // A slice with no changed source is not regenerating; its changed tests go to the orphan batch.
+          orphans.push(...(x.testTargets ?? []));
+          continue;
+        }
+        jobs.push({ unit: x, siblings: planned.units.length > 1 ? u.files.filter((f) => !x.files.includes(f)) : [] });
+      }
+    }
+    for (const b of await builder.orphanBatches([...new Set(orphans)].sort())) jobs.push({ unit: b, siblings: [] });
+    return { jobs, builder };
+  }
+
   private async describe(main: MainState, head: string, s: TickSummary): Promise<void> {
     if (!main.described) {
       // A fresh poller starts from the current main. Describing all of lib/ is the first pass's job.
@@ -283,10 +323,11 @@ export class Poller {
     if (changes.length || s.describedCommits) this.print(`describe: ${s.describedCommits} commits ${from.slice(0, 7)}..${head.slice(0, 7)} change ${changes.length} Python files under lib/`);
     if (this.opts.dryRun) {
       for (const c of changes) this.print(`  ${c.status}: ${c.from ? `${c.from} -> ` : ""}${c.path}`);
-      const planned = groupByDirectory([...new Set([...queue.files.map((q) => q.path), ...changes.filter((c) => c.status !== "deleted").map((c) => c.path)])], head);
-      for (const u of planned) {
-        const l = await loadUnit(this.repo, u);
-        this.print(`  would describe ${l.dir}: ${l.targets.length} targets, ${l.files.length - l.targets.length} siblings in context`);
+      const wanted = [...new Set([...queue.files.map((q) => q.path), ...changes.filter((c) => c.status !== "deleted").map((c) => c.path)])];
+      const { jobs, builder } = await this.planJobs(wanted, head);
+      for (const j of jobs) {
+        const ctx = await builder.build(j.unit, { siblings: j.siblings });
+        this.print(`  would describe ${unitLabel(j.unit)}: ${j.unit.targets.length} targets, ${(j.unit.testTargets ?? []).length} test targets; ${describeStats(ctx.stats)}`);
       }
       return;
     }
@@ -328,31 +369,29 @@ export class Poller {
     const monthUsd = await this.ledger.monthToDate(this.now());
     const pace = paceUsd(this.opts.monthlyBudgetUsd, this.now());
     let deferred: string[] = [];
-    let units = groupByDirectory(wanted, head);
-    if (monthUsd > pace && units.length) {
+    let todo = wanted;
+    if (monthUsd > pace && wanted.length) {
       this.print(`  budget: month $${monthUsd.toFixed(2)} is ahead of pace $${pace.toFixed(2)}; deferring ${wanted.length} regenerations`);
       deferred = wanted;
-      units = [];
+      todo = [];
     }
-    const loaded = [];
-    for (const u of units) {
-      const l = await loadUnit(this.repo, u);
-      if (l.targets.length) loaded.push(l);
-    }
+    const { jobs, builder } = await this.planJobs(todo, head);
+    const jobTargets = (u: Unit) => [...u.targets, ...(u.testTargets ?? [])];
     let tickCost = 0;
-    const results = await pool(loaded, this.opts.unitConcurrency, async (unit) => {
+    const results = await pool(jobs, this.opts.unitConcurrency, async ({ unit, siblings }) => {
+      const label = unitLabel(unit);
       if (tickCost >= this.opts.maxTickUsd || this.creditsOut) {
-        deferred.push(...unit.targets);
+        deferred.push(...jobTargets(unit));
         return null;
       }
       try {
-        const ctx = await buildContext(this.repo, unit, { wordbase: this.config.wordbase, diffFrom: from === head ? null : from });
+        const ctx = await builder.build(unit, { diffFrom: from === head ? null : from, siblings });
         const r = await describeUnit(this.backend, this.config.prompts, ctx);
         tickCost += r.cost_usd;
         await this.ledger.add({
           at: new Date().toISOString(),
           kind: "describe",
-          run: `poll ${unit.dir}`,
+          run: `poll ${label}`,
           model: this.backend.name,
           cost_usd: r.cost_usd,
           input_tokens: r.completions.reduce((a, c) => a + c.input_tokens, 0),
@@ -361,10 +400,12 @@ export class Poller {
         });
         const w = await writeEntries(this.config.wordbase, r, { commit: head, by: `${this.backend.name} poll ${head.slice(0, 7)}` });
         for (const f of w.files) touched.add(f);
-        if (w.l1Changed.length) systems.add(unit.package);
-        for (const f of w.files) if (!existsSync(systemEntryPath(this.config.wordbase, unit.package))) systems.add(unit.package);
+        if (unit.kind !== "orphans") {
+          if (w.l1Changed.length) systems.add(unit.package);
+          for (const f of w.files) if (!existsSync(systemEntryPath(this.config.wordbase, unit.package))) systems.add(unit.package);
+        }
         this.print(
-          `  unit ${unit.dir}: ${w.files.length} written, ${w.kept.length} kept, ${unit.files.length - unit.targets.length} siblings in context, ${ctx.stats.chars} chars, ${r.rewritten ? `rewritten once (${r.rewriteReason.slice(0, 3).join("; ")}${r.rewriteReason.length > 3 ? `; +${r.rewriteReason.length - 3}` : ""}), ` : ""}lint ${w.lintHits}, $${r.cost_usd.toFixed(3)}, ${(r.latency_ms / 1000).toFixed(0)} s`,
+          `  unit ${label}: ${w.files.length - w.tests.length} written, ${w.tests.length} test l1s, ${w.kept.length} kept; ${describeStats(ctx.stats)}; ${r.rewritten ? `rewritten once (${r.rewriteReason.slice(0, 3).join("; ")}${r.rewriteReason.length > 3 ? `; +${r.rewriteReason.length - 3}` : ""}), ` : ""}lint ${w.lintHits}, $${r.cost_usd.toFixed(3)}, ${(r.latency_ms / 1000).toFixed(0)} s`,
         );
         s.units++;
         s.files += w.files.length;
@@ -373,9 +414,9 @@ export class Poller {
       } catch (e) {
         tickCost += (e as { cost_usd?: number }).cost_usd ?? 0;
         s.errors++;
-        this.print(`ERROR unit ${unit.dir}: ${(e as Error).message}`);
+        this.print(`ERROR unit ${label}: ${(e as Error).message}`);
         this.noteCredit(e);
-        deferred.push(...unit.targets);
+        deferred.push(...jobTargets(unit));
         return null;
       }
     });

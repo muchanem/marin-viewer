@@ -37,8 +37,10 @@ prints `ERROR <step>: <message>`, counts it in the summary and lets the tick go 
    describes nothing. Later ticks take `git diff --name-status -M` over `described..main`, limited to
    `lib/**/*.py`.
    - Deletions set `deleted: <sha>` on the entry. Renames move the entry file.
-   - The other changes, plus any deferred queue, are grouped by directory into units. Each unit is one
-     model call (`describe.ts`) with one rewrite when the reply fails the schema or the lint.
+   - The other changes, plus any deferred queue, are grouped by directory into units, and each unit's
+     slices that hold a changed source file run (`Poller.planJobs`). A changed test file rides with
+     its owner unit's slice, or goes to an orphan batch when that slice is not running. Each prompt is
+     one model call (`describe.ts`) with one rewrite when the reply fails the schema or the lint.
    - A unit whose new `l1` lines differ, or whose package has no page yet, queues its subsystem page
      (`systems.ts`). Each page gets one cold-reader pass and one rewrite.
    - `check_fixture.py --entry` validates every entry written. The wordbase is then committed as
@@ -55,18 +57,54 @@ prints `ERROR <step>: <message>`, counts it in the summary and lets the tick go 
 
 ## Description context
 
-`units.ts` `buildContext` assembles one prompt per unit from `prompts/describe-unit.md`:
+`units.ts` `ContextBuilder` assembles one prompt per unit from `prompts/describe-unit.md` (rules of
+2026-11-02). Nothing is cut: every file in a prompt is its full source, and the whole prompt
+(template, style guide and every block) stays within `PROMPT_BUDGET`, 256K tokens. Tokens are counted
+with js-tiktoken 1.0.21's `o200k_base` (`tokens.ts`). OpenRouter does not publish GPT-6.1 Terra's
+tokenizer, but Terra billed o200k plus 6 tokens of framing on all 8 prompts measured.
 
-- `SOURCE` blocks for the targets in full, and for siblings in full while the total stays under 70% of
-  400,000 characters. The siblings past that come as signatures only.
-- The package README, cut at 20,000 characters.
-- `NEIGHBOURS`: up to 30 modules that the unit imports or that import it, each with its wordbase `l1`
-  and its signatures. The import graph comes from one `git grep` per commit, resolved through
-  `ModuleIndex` (src layout, relative imports, `from pkg import submodule`).
-- `SUBSYSTEM` (the package page) and `EXISTING` (the targets' current entries).
-- `DIFF` of the range for the targets, cut at 40,000 characters.
-- `TARGETS`: the files that need entries. The model may answer `{"keep": true}` only for a target that
-  already has an entry.
+A unit is one directory of source files under `lib/`. Test files are not units:
+
+- **Owner.** Each test under `lib/` belongs to the source directory it imports the most names from
+  (`assignOwners`; a tie goes to the test's own package). The owner carries the test in full in every
+  prompt and writes its one-sentence `l1` in the reply's `tests` map. Test entries have `l1` and
+  `test: true` only (`buildTestEntry`).
+- **Orphans.** Tests that import no described code (`conftest.py`, helpers that import only other
+  tests or third-party code) go into orphan batches by directory, as many per batch as fit, with no
+  neighbours (`packOrphans`, `orphanBatches`).
+- **Poller.** A changed test rides with its owner when the owner's slice regenerates in the same tick;
+  otherwise it goes to an orphan batch.
+
+The budget fills in this order: the unit's own files, the README, the unit's own tests, the subsystem
+page, existing entries and diff (these are reserved first, so they always fit), then the other tests
+that import the unit, then neighbours. Neighbours are modules the unit imports or that import it,
+anywhere in the checkout but `vendor/` (upstream evalchemy, harbor and skyrl, which Marin's own linters
+exclude) and ignored paths. They are offered by `diversityOrder`: non-test code first, round-robin over
+packages (`experiments`, `scripts`, `tests` and `infra` count as packages), the unit's own package
+first. `fillBudget` skips one that does not fit and tries the next, and the exact count of the
+assembled prompt has the last word. What is left out is listed in a `LEFT OUT` block and in the log
+line (`describeStats`).
+
+A directory whose own files plus own tests pass the room after the fixed blocks is split by
+`planSlices` into slices of about equal size, each filled to at most 80% of that room, so neighbours
+keep some space. Each test rides with the file it imports the most names from. The other slices'
+files are offered as neighbours. An owned test that cannot fit beside its file goes to an orphan
+batch (`PlannedUnit.overflow`).
+
+The import graph is one `git grep` per commit over every covered `.py`. `ModuleIndex` maps modules
+with the src layout under `lib/` and from the repository root elsewhere (`experiments.grug.base`). A
+module name two packages share (`tests.conftest`) resolves to the importer's own package.
+`resolveNames` counts imported names per edge, which the owner rule uses. Multi-line imports count as
+one name, because the grep sees only the first line.
+
+The blocks are `SOURCE`, `README`, `TEST`, `NEIGHBOUR`, `SUBSYSTEM`, `EXISTING`, `DIFF` (uncut),
+`LEFT OUT`, `TARGETS` and `TEST TARGETS`. The model may answer `{"keep": true}` only for a target that
+already has an entry.
+
+`npm run compare -- --estimate` plans and builds every prompt of a first pass at the comparison's
+commit without calling a model (`pass.ts`), under the current rules and under the earlier rules in
+which test directories were units and a source unit carried every test that imports it. The results
+go into the comparison JSON and the report.
 
 `describe.ts` checks the reply with zod and then for missing or extra keys, `keep` without an entry and
 multi-sentence `l1`. It lints every text field with `sidecar/src/lint.ts`. `buildEntry` keeps the
@@ -222,6 +260,30 @@ Three failures turned up on 2026-11-01 and are fixed.
   stream as server-sent events.
 - Wrong timestamps. The model wrote local times marked `Z` in `prepared_at` and `updated`. The
   poller now sets both from its own clock.
+
+## Measured on 2026-11-02: full context
+
+- **Comparison.** GPT-6.1 Terra (effort medium, priority) on the same 4 units with the full context:
+  $1.317, 88 s, no lint hits, no rewrites, 637 output tokens per file. Prompts:
+  - `local`: 82.7K tokens;
+  - `daytona`: 56.0K;
+  - `actor`: 86.6K;
+  - `finelog/client`: 250.7K, with 50 neighbours shown and 5 left out.
+
+  The old prompts were 19.7K to 31.2K tokens.
+- **Tokenizer.** Terra's billed `prompt_tokens` was o200k plus 6 on all 8 prompts, old and new.
+- **Full first pass at 1d274b5** (`--estimate`), current rules:
+  - 183 source prompts and 1 orphan batch of 33 tests;
+  - 23.6M input tokens;
+  - Terra $17 on flex, $34 on default, $68 on priority, with test `l1` output assumed at 80 tokens.
+- **The same pass under the earlier rules** (test directories as units, every importing test
+  mandatory): 253 prompts, 34.0M tokens, $24, $49 and $98. Of its 16 splits, 14 are source directories
+  that carry tests as heavily imported as `rigging`'s, and 2 are test directories.
+- **Splits under the current rules.** One: `lib/iris/src/iris/cluster/controller`, 41 files into slices
+  of 33 and 8 files carrying 17 and 8 owned tests.
+- **Ceilings.** No prompt passes 272K. Under the current rules, 58 of 184 prompts fill past 240K and
+  57 leave neighbours out. Those 58 hold 63% of the pass's tokens, so the neighbour fill drives the
+  cost. The median prompt is 92K.
 
 ## Departures from DESIGN.md
 

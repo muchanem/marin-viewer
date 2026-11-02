@@ -21,6 +21,7 @@
     "@anthropic-ai/sdk": "0.135.0",
     "@modelcontextprotocol/sdk": "1.32.1",
     "elkjs": "0.12.0",
+    "js-tiktoken": "1.0.21",
     "yaml": "2.9.1",
     "zod": "4.6.7"
   },

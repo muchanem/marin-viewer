@@ -325,7 +325,7 @@ The fresh checkout/build gate on SHEFFIELD (2026-10-04, macOS 26.5 / Swift 6.3.3
 
 ## Subsystem documentation
 
-- [plans/pipeline.md](plans/pipeline.md) — Marin viewer poller (`npm run poll`): main fast-forward, directory-unit descriptions, subsystem pages, PR preparation runs, validation, cold reader, budget pacing, GLM-5.3 gate, state files, measurements and departures from DESIGN.md section 8.
+- [plans/pipeline.md](plans/pipeline.md) — Marin viewer poller (`npm run poll`): main fast-forward, directory-unit descriptions (full-context prompts within 256K o200k tokens, tests owned by source units, orphan batches, slices), subsystem pages, PR preparation runs, validation, cold reader, budget pacing, GLM-5.3 gate, state files, measurements and departures from DESIGN.md section 8.
 - [plans/indexing-personalities.md](plans/indexing-personalities.md) — Default/seL4 UI, persistent repository choice, editable TOML, packaged pipeline, isolated execution, cache/reuse identity and validation.
 - [plans/sel4-indexing.md](plans/sel4-indexing.md) — prepared seL4 configuration matrix, original-source unity wrappers, compiler union/local identities, verified app cache, reproduction and refresh limitations.
 - [plans/clang-best-effort.md](plans/clang-best-effort.md) — automatic C/C++ semantic indexing without build information, inferred input policy, persistent coverage labels, cancellation, cache transitions and real validation.

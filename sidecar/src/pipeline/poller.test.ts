@@ -57,8 +57,13 @@ class FakeBackend implements Backend {
     if (p.startsWith("# Cold reader")) text = '{"gaps": []}';
     else if (p.startsWith("# Describe a subsystem")) text = JSON.stringify({ l1: "Frames bytes for pipes." });
     else {
-      const targets = /=== BEGIN TARGETS ===\n([\s\S]*?)\n=== END TARGETS ===/.exec(p)![1]!.split("\n");
-      text = JSON.stringify(Object.fromEntries(targets.map((t) => [t, { l1: `Handles ${path.basename(t)} at this commit.`, system: "pkg" }])));
+      const list = (name: string) => /=== BEGIN (.+?) ===\n([\s\S]*?)\n=== END \1 ===/g;
+      const block = (name: string) => [...p.matchAll(list(name))].find((m) => m[1] === name)?.[2] ?? "none";
+      const targets = block("TARGETS") === "none" ? [] : block("TARGETS").split("\n");
+      const tests = block("TEST TARGETS") === "none" ? [] : block("TEST TARGETS").split("\n");
+      const out: Record<string, unknown> = Object.fromEntries(targets.map((t) => [t, { l1: `Handles ${path.basename(t)} at this commit.`, system: "pkg" }]));
+      if (tests.length) out.tests = Object.fromEntries(tests.map((t) => [t, { l1: `Checks ${path.basename(t)}.` }]));
+      text = JSON.stringify(out);
     }
     return { text, model: this.name, input_tokens: 100, output_tokens: 10, cache_read_tokens: 0, cost_usd: 0.01, latency_ms: 1 };
   }
@@ -125,7 +130,7 @@ describe("Poller.tick", () => {
     const unitPrompt = backend.prompts.find((p) => p.startsWith("# Describe a unit"))!;
     expect(unitPrompt).toMatch(/=== BEGIN SOURCE lib\/pkg\/src\/pkg\/b.py ===/); // the sibling is context
     expect(unitPrompt).toMatch(/=== BEGIN TARGETS ===\nlib\/pkg\/src\/pkg\/a.py\n=== END TARGETS ===/);
-    expect(unitPrompt).toMatch(/## Imports the unit\n\n### lib\/pkg\/src\/pkg\/sub\/d.py\nl1: no entry\n\`\`\`python\nclass D:\n    def run\(self\):/); // d imports a from another directory
+    expect(unitPrompt).toMatch(/=== BEGIN NEIGHBOUR lib\/pkg\/src\/pkg\/sub\/d.py \(imports the unit\) ===\nfrom pkg.a import a\n\nclass D:\n    def run\(self\):/); // d imports a from another directory, in full
     expect(unitPrompt).toMatch(/return 2/);
     const e = (await readEntry(fileEntryPath(config.wordbase, "lib/pkg/src/pkg/a.py")))!;
     expect(e.front.commit).toBe(git(config.marin, "rev-parse", "HEAD"));
@@ -166,8 +171,8 @@ describe("Poller.tick", () => {
     const s = await poller({ dryRun: true }, dry).tick();
     expect(dry.prompts).toHaveLength(0);
     expect(s.describedCommits).toBe(2);
-    expect(lines).toContain("  would describe lib/pkg/src/pkg: 1 targets, 0 siblings in context");
-    expect(lines).toContain("  would describe lib/pkg/src/pkg/sub: 1 targets, 0 siblings in context");
+    expect(lines.some((l) => l.startsWith("  would describe lib/pkg/src/pkg: 1 targets, 0 test targets; "))).toBe(true);
+    expect(lines.some((l) => l.startsWith("  would describe lib/pkg/src/pkg/sub: 1 targets, 0 test targets; "))).toBe(true);
     expect(JSON.parse(readFileSync(mainFile, "utf8")).described).toBe(JSON.parse(before).described);
     const real = new FakeBackend();
     const s2 = await poller({ describeTo: third }, real).tick();
@@ -204,6 +209,38 @@ describe("Poller.tick", () => {
     expect(s.errors).toBe(1);
     expect(s.prsListed).toBe(0);
     expect(lines.some((l) => /^ERROR preparing PRs: gh search prs failed.*Bad credentials/.test(l))).toBe(true);
+  });
+
+  it("writes a changed test's l1 with its owner unit, and sends the rest to an orphan batch", async () => {
+    mkdirSync(path.join(upstream, "lib/pkg/tests"), { recursive: true });
+    writeFileSync(path.join(upstream, "lib/pkg/src/pkg/e.py"), "def e():\n    return 5\n");
+    writeFileSync(path.join(upstream, "lib/pkg/tests/test_e.py"), "from pkg.e import e\n\ndef test_e():\n    assert e() == 5\n");
+    writeFileSync(path.join(upstream, "lib/pkg/tests/conftest.py"), "import pytest\n");
+    git(upstream, "add", ".");
+    git(upstream, "commit", "-q", "-m", "tests");
+    const backend = new FakeBackend();
+    await make(emptyGh(), backend).tick();
+    const unit = backend.prompts.find((p) => p.startsWith("# Describe a unit") && p.includes("=== BEGIN TARGETS ===\nlib/pkg/src/pkg/e.py"))!;
+    expect(unit).toMatch(/=== BEGIN TEST lib\/pkg\/tests\/test_e.py \(one of the unit's own tests\) ===/);
+    expect(unit).toMatch(/=== BEGIN TEST TARGETS ===\nlib\/pkg\/tests\/test_e.py\n=== END TEST TARGETS ===/);
+    const orphans = backend.prompts.filter((p) => p.includes("a batch of test files that import none of the described code"));
+    expect(orphans).toHaveLength(1);
+    expect(orphans[0]).toMatch(/=== BEGIN TEST TARGETS ===\nlib\/pkg\/tests\/conftest.py\n=== END TEST TARGETS ===/);
+    expect(orphans[0]).not.toMatch(/BEGIN NEIGHBOUR/);
+    const t = (await readEntry(fileEntryPath(config.wordbase, "lib/pkg/tests/test_e.py")))!;
+    expect(t.front.l1).toBe("Checks test_e.py.");
+    expect(t.front.l2).toBeUndefined();
+    expect(t.symbols).toEqual([]);
+
+    // A test that changes while its owner does not goes to the orphan batch.
+    writeFileSync(path.join(upstream, "lib/pkg/tests/test_e.py"), "from pkg.e import e\n\ndef test_e():\n    assert e() > 4\n");
+    git(upstream, "commit", "-q", "-am", "test only");
+    const again = new FakeBackend();
+    await make(emptyGh(), again).tick();
+    const units = again.prompts.filter((p) => p.startsWith("# Describe a unit"));
+    expect(units).toHaveLength(1);
+    expect(units[0]).toMatch(/a batch of test files/);
+    expect(units[0]).toMatch(/=== BEGIN TEST TARGETS ===\nlib\/pkg\/tests\/test_e.py\n=== END TEST TARGETS ===/);
   });
 
   it("goes on with the old main when the fetch fails", async () => {

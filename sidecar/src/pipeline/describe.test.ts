@@ -12,7 +12,7 @@ const PROMPTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..",
 const T = ["lib/s/src/s/a.py", "lib/s/src/s/b.py"];
 
 function ctx(targets = T): UnitContext {
-  return { unit: { dir: "lib/s/src/s", package: "s", commit: "c".repeat(40), files: targets, targets }, inputs: "=== BEGIN TARGETS ===\nx\n=== END TARGETS ===\n", existing: new Map(), stats: { sourceChars: 0, signatureOnly: [], neighbours: 0, chars: 0 } };
+  return { unit: { dir: "lib/s/src/s", package: "s", commit: "c".repeat(40), files: targets, targets }, inputs: "=== BEGIN TARGETS ===\nx\n=== END TARGETS ===\n", existing: new Map(), stats: { tokens: 0, budget: 256_000, chars: 0, sourceTokens: 0, tests: [], testsDropped: [], neighbours: [], neighboursDropped: [], outsideLib: [], overBudget: false } };
 }
 
 function fake(replies: string[]): Backend & { turns: Turn[][] } {
@@ -52,6 +52,19 @@ describe("reply parsing and checks", () => {
     expect(c.problems.join("\n")).toMatch(/keys that are not targets: lib\/s\/src\/s\/c.py/);
     expect(c.problems.join("\n")).toMatch(/keep given to a file without an existing entry/);
     expect(c.problems.join("\n")).toMatch(/l1 must be a single sentence/);
+  });
+
+  it("reads the tests map, checks it against the test targets and lints it", () => {
+    const tests = ["lib/s/tests/test_a.py", "lib/s/tests/test_b.py"];
+    const reply = JSON.parse(good);
+    reply.tests = { "lib/s/tests/test_a.py": { l1: "Checks the header parser." }, "lib/s/tests/test_c.py": { l1: "Checks a thing — twice." } };
+    const c = checkOutput(JSON.stringify(reply), T, new Set(), "s", tests);
+    expect(c.output && Object.keys(c.output)).toEqual(T);
+    expect(c.tests["lib/s/tests/test_a.py"]!.l1).toBe("Checks the header parser.");
+    expect(c.problems).toEqual(["tests missing an l1: lib/s/tests/test_b.py", "tests that are not test targets: lib/s/tests/test_c.py"]);
+    expect(c.lint.get("lib/s/tests/test_c.py")).toEqual(['l1: dash "—"']);
+    reply.tests = { "lib/s/tests/test_a.py": { l2: "no l1" } };
+    expect(checkOutput(JSON.stringify(reply), T, new Set(), "s", tests).problems[0]).toMatch(/tests map does not match/);
   });
 
   it("rejects a reply that does not match the schema", () => {
@@ -120,7 +133,7 @@ describe("writing entries", () => {
     dirs.push(wb);
     const file = fileEntryPath(wb, "lib/s/src/s/a.py");
     await saveEntry(file, { front: { kind: "file", path: "lib/s/src/s/a.py", commit: "old", l1: "Old text.", system: "s" }, preamble: "", symbols: [{ name: "old", fields: { l1: "x" } }], notes: [{ text: "2026-11-01 · abc1234 · session x · `parse`: note" }], other: [{ heading: "Extra", body: "kept" }] });
-    const result = { output: JSON.parse(good.replace('"system":"s","symbols"', '"system":"s","changed_symbols":["parse"],"symbols"')), lint: new Map([["lib/s/src/s/b.py", ['l1: dash "x"']]]), completions: [], rewritten: false, rewriteReason: [], cost_usd: 0, latency_ms: 0 };
+    const result = { tests: {}, output: JSON.parse(good.replace('"system":"s","symbols"', '"system":"s","changed_symbols":["parse"],"symbols"')), lint: new Map([["lib/s/src/s/b.py", ['l1: dash "x"']]]), completions: [], rewritten: false, rewriteReason: [], cost_usd: 0, latency_ms: 0 };
     const w = await writeEntries(wb, result, { commit: "n".repeat(40), by: "fake poll nnnnnnn", now: "2026-11-01T00:00:00Z" });
     expect(w.files).toHaveLength(2);
     expect(w.l1Changed.sort()).toEqual(T);
@@ -133,6 +146,22 @@ describe("writing entries", () => {
     expect(a.other).toEqual([{ heading: "Extra", body: "kept" }]);
     const b = (await readEntry(fileEntryPath(wb, "lib/s/src/s/b.py")))!;
     expect(b.front.lint).toEqual(['l1: dash "x"']);
+  });
+
+  it("writes a test file's entry as its l1 alone and keeps its notes", async () => {
+    const wb = mkdtempSync(path.join(tmpdir(), "wb-"));
+    dirs.push(wb);
+    const file = fileEntryPath(wb, "lib/s/tests/test_a.py");
+    await saveEntry(file, { front: { kind: "file", path: "lib/s/tests/test_a.py", l1: "Old.", l2: "Old paragraph.", system: "s" }, preamble: "", symbols: [{ name: "test_x", fields: { l1: "x" } }], notes: [{ text: "a note" }], other: [] });
+    const result = { output: {}, tests: { "lib/s/tests/test_a.py": { l1: "Checks that `parse` rejects a short header." } }, lint: new Map(), completions: [], rewritten: false, rewriteReason: [], cost_usd: 0, latency_ms: 0 };
+    const w = await writeEntries(wb, result, { commit: "n".repeat(40), by: "fake", now: "2026-11-02T00:00:00Z" });
+    expect(w.tests).toEqual(["lib/s/tests/test_a.py"]);
+    const e = (await readEntry(file))!;
+    expect(e.front.l1).toBe("Checks that `parse` rejects a short header.");
+    expect(e.front.l2).toBeUndefined();
+    expect(e.front.test).toBe(true);
+    expect(e.symbols).toEqual([]);
+    expect(e.notes.map((n) => n.text)).toEqual(["a note"]);
   });
 
   it("builds an entry without empty layers", () => {

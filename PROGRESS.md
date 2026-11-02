@@ -1,5 +1,19 @@
 # Progress
 
+## 2026-11-02 — Full-context description prompts; tests ride with their owner unit (Claude, workstream 4)
+
+`sidecar/src/pipeline/units.ts` now builds description prompts with `ContextBuilder`, following [plans/pipeline.md](plans/pipeline.md) "Description context". Every file is given in full, with no README cut and no signature-only files. The whole prompt fits within 256K o200k tokens, counted with js-tiktoken 1.0.21 (`tokens.ts`). Imports are resolved across the whole checkout except `vendor/`, and neighbours are picked round-robin across packages. Test files are no longer units. Each test belongs to the source directory it imports the most names from, which writes the test's one-sentence `l1` in a `tests` map. Tests that import no described code go to orphan batches. The poller (`Poller.planJobs`), `prompts/describe-unit.md` and the comparison all use this builder. `npm run compare -- --estimate` sizes a full first pass without calling a model (`pass.ts`).
+
+- `npm test`: 232 tests passed in 16 files. The new mock tests cover the budget filler, the diversity order, the test-first rule, splitting, owners, orphans and the poller's routing of tests. The typecheck is clean.
+- Terra with the full context described the 4 units for $1.317 in 88 s, with no lint hits and no rewrites. Its prompts were 476K tokens against 99K before. OpenRouter billed o200k plus 6 framing tokens on every prompt, so o200k serves as Terra's tokenizer.
+- Full first pass at 1d274b5, on the current rules:
+  - 184 prompts and 23.6M input tokens;
+  - Terra $17 on flex, $34 on default and $68 on priority;
+  - one split, `lib/iris/src/iris/cluster/controller` (2 slices).
+- The same pass on the earlier rules (test directories as units): 253 prompts and 34.0M input tokens; $24, $49 and $98 on the same tiers; 16 splits.
+- No prompt goes over 272K tokens.
+- This round spent $1.32 on OpenRouter.
+
 ## 2026-11-02 — GPT-6.1 Terra joins the description comparison (Claude, workstream 4)
 
 `npm run compare` has a fourth model, `openai/gpt-6.1-terra` through OpenRouter (`sidecar/src/pipeline/openrouter.ts`), run at effort medium on the priority tier. The key comes from `OPENROUTER_API_KEY` in the viewer's `.env`, then `OR_KEY_SCALE_UP` in the parent's. The report gains Terra's column in every table, a cost source for each model, and an Estimates section computed by `sidecar/src/pipeline/estimate.ts`. [plans/pipeline.md](plans/pipeline.md) records the tier prices, the billing finding and the effort probe.

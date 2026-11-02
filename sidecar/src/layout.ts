@@ -8,8 +8,9 @@
 //   edges that cross a group border are straight segments clipped to the boxes.
 // - grid: table-style sizing from the agent's col/row/span. Each column is as wide as its widest
 //   single-span box and each row as tall as its tallest box; a spanning box covers its columns
-//   plus the gaps between them and widens the last of them only if it still does not fit. Gaps
-//   are fixed. Group boxes enclose their members; every edge is a straight clipped segment, like
+//   plus the gaps between them and widens the last of them only if it still does not fit. A gap
+//   is fixed unless a labelled edge between neighbouring cells crosses it, which widens it to fit
+//   the label. Group boxes enclose their members; every edge is a straight clipped segment, like
 //   the demo's clip().
 //
 // Box sizes come from the app's measured text (`sizes`) when it sends them, else from an
@@ -82,6 +83,8 @@ export interface LayoutOptions {
   direction?: "RIGHT" | "DOWN" | undefined;
   /** Measured box sizes from the app's font, by node id, in layout units (scale 1). */
   sizes?: Record<string, { w: number; h: number }> | undefined;
+  /** Measured edge label sizes from the app's font, by label text, in layout units (scale 1). */
+  edgeLabels?: Record<string, { w: number; h: number }> | undefined;
   /** Smallest scale fitting may use; default 0.8. */
   minScale?: number | undefined;
   /** auto mode only; false turns ELK wrapping off (for comparison). */
@@ -107,7 +110,16 @@ export function measureNode(label: string, sub?: string): { w: number; h: number
   return { w: Math.round(Math.min(240, Math.max(56, w))), h: sub ? 34 : 26 };
 }
 
+/** An edge label's box: the text plus 4 px on each side. */
+export function measureEdgeLabel(label: string): { w: number; h: number } {
+  return { w: Math.round(label.length * EDGE_CHAR + 8), h: 14 };
+}
+
 type SizeOf = (n: Diagram["nodes"][number]) => { w: number; h: number };
+type LabelSizeOf = (label: string) => { w: number; h: number };
+
+// Room around an edge label in a grid gap, so the label clears both boxes and the arrowhead.
+const LABEL_CLEARANCE = 12;
 
 const r = (n: number | undefined) => Math.round((n ?? 0) * 10) / 10;
 
@@ -140,11 +152,20 @@ export async function layoutDiagram(input: DiagramInput | Diagram, options: Layo
     else if (!(sz.w > 0 && sz.h > 0)) throw new Error(`sizes for ${JSON.stringify(id)} must be positive`);
   }
   const sizeOf: SizeOf = (n) => sizes[n.id] ?? measureNode(n.label, n.sub);
+  const labels = options.edgeLabels ?? {};
+  const used = new Set(d.edges.map((e) => e[2]).filter((l): l is string => !!l));
+  for (const [text, sz] of Object.entries(labels)) {
+    if (!used.has(text)) warnings.push(`edgeLabels names unknown label ${JSON.stringify(text)}`);
+    else if (!(sz.w > 0 && sz.h > 0)) throw new Error(`edgeLabels for ${JSON.stringify(text)} must be positive`);
+  }
+  const labelSizeOf: LabelSizeOf = (text) => labels[text] ?? measureEdgeLabel(text);
   const minScale = options.minScale ?? DEFAULT_MIN_SCALE;
   if (!(minScale > 0 && minScale <= 1)) throw new Error(`minScale must be in (0, 1], got ${minScale}`);
-  const natural = mode === "grid" ? layoutGrid(d, groupOf, sizeOf) : await layoutAuto(d, groupOf, direction, options.wrapping ?? true, sizeOf);
+  const natural = mode === "grid"
+    ? layoutGrid(d, groupOf, sizeOf, labelSizeOf)
+    : await layoutAuto(d, groupOf, direction, options.wrapping ?? true, sizeOf, labelSizeOf);
   natural.warnings.unshift(...warnings);
-  return fitToCard(d, mode, natural, minScale);
+  return fitToCard(d, mode, natural, minScale, labelSizeOf);
 }
 
 function validate(d: Diagram): Map<string, number> {
@@ -190,11 +211,15 @@ export function clip(a: Box, b: Box): [[number, number], [number, number]] {
   return [[ax + dx * ta, ay + dy * ta], [bx - dx * tb, by - dy * tb]];
 }
 
-function straight(a: Box, b: Box, label?: string): { points: [number, number][]; label_box?: Box } {
+/** A straight edge. Its label sits above the midpoint of a mostly horizontal edge and beside the
+ *  midpoint of a mostly vertical one, so it never covers the line's ends. */
+function straight(a: Box, b: Box, label: string | undefined, labelSizeOf: LabelSizeOf): { points: [number, number][]; label_box?: Box } {
   const [p, q] = clip(a, b);
   if (!label) return { points: [p, q] };
-  const w = label.length * EDGE_CHAR + 8;
-  return { points: [p, q], label_box: { x: (p[0] + q[0]) / 2 - w / 2, y: (p[1] + q[1]) / 2 - 16, w, h: 14 } };
+  const { w, h } = labelSizeOf(label);
+  const mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+  const horizontal = Math.abs(q[0] - p[0]) >= Math.abs(q[1] - p[1]);
+  return { points: [p, q], label_box: horizontal ? { x: mx - w / 2, y: my - h - 2, w, h } : { x: mx + 4, y: my - h / 2, w, h } };
 }
 
 // ---------------------------------------------------------------------------
@@ -226,7 +251,7 @@ interface FlatNode {
 }
 
 /** One flat ELK run. Returns node positions and routes for edges whose ends are both in it. */
-async function runFlat(nodes: FlatNode[], edges: { i: number; from: string; to: string; label?: string | undefined }[], direction: string, wrapping: boolean, padding: string) {
+async function runFlat(nodes: FlatNode[], edges: { i: number; from: string; to: string; label?: string | undefined }[], direction: string, wrapping: boolean, padding: string, labelSizeOf: LabelSizeOf) {
   elk ??= new ElkConstructor();
   const graph: ElkNode = {
     id: "root",
@@ -236,7 +261,7 @@ async function runFlat(nodes: FlatNode[], edges: { i: number; from: string; to: 
       id: `e${e.i}`,
       sources: [e.from],
       targets: [e.to],
-      ...(e.label ? { labels: [{ text: e.label, width: Math.round(e.label.length * EDGE_CHAR + 8), height: 14 }] } : {}),
+      ...(e.label ? { labels: [{ text: e.label, width: labelSizeOf(e.label).w, height: labelSizeOf(e.label).h }] } : {}),
     })),
   };
   const out = await elk.layout(graph);
@@ -257,7 +282,7 @@ async function runFlat(nodes: FlatNode[], edges: { i: number; from: string; to: 
   return { width: out.width ?? 0, height: out.height ?? 0, boxes, routes };
 }
 
-async function layoutAuto(d: Diagram, groupOf: Map<string, number>, direction: string, wrapping: boolean, sizeOf: SizeOf): Promise<Natural> {
+async function layoutAuto(d: Diagram, groupOf: Map<string, number>, direction: string, wrapping: boolean, sizeOf: SizeOf, labelSizeOf: LabelSizeOf): Promise<Natural> {
   const size = new Map(d.nodes.map((n) => [n.id, sizeOf(n)]));
   const edgeList = d.edges.map(([from, to, label], i) => ({ i, from, to, label }));
   const boxes = new Map<string, Box>();
@@ -269,7 +294,7 @@ async function layoutAuto(d: Diagram, groupOf: Map<string, number>, direction: s
     d.groups.map(async (_g, gi) => {
       const members = d.nodes.filter((n) => groupOf.get(n.id) === gi);
       const own = edgeList.filter((e) => groupOf.get(e.from) === gi && groupOf.get(e.to) === gi);
-      const res = await runFlat(members.map((n) => ({ id: n.id, width: size.get(n.id)!.w, height: size.get(n.id)!.h })), own, direction, wrapping, `[top=${GROUP_HEADER + 4},left=${GROUP_PAD},bottom=${GROUP_PAD},right=${GROUP_PAD}]`);
+      const res = await runFlat(members.map((n) => ({ id: n.id, width: size.get(n.id)!.w, height: size.get(n.id)!.h })), own, direction, wrapping, `[top=${GROUP_HEADER + 4},left=${GROUP_PAD},bottom=${GROUP_PAD},right=${GROUP_PAD}]`, labelSizeOf);
       const minW = d.groups[gi]!.label.length * SUB_CHAR + 2 * GROUP_PAD;
       return { ...res, width: Math.max(res.width, minW) };
     }),
@@ -300,7 +325,7 @@ async function layoutAuto(d: Diagram, groupOf: Map<string, number>, direction: s
     pairs.add(key);
     topEdges.push(bothLoose ? e : { i: -1 - e.i, from: a, to: b, label: undefined });
   }
-  const outer = await runFlat(top, topEdges, direction, wrapping, "[top=8,left=8,bottom=8,right=8]");
+  const outer = await runFlat(top, topEdges, direction, wrapping, "[top=8,left=8,bottom=8,right=8]", labelSizeOf);
 
   d.groups.forEach((_g, gi) => {
     const at = outer.boxes.get(gid(gi))!;
@@ -322,7 +347,7 @@ async function layoutAuto(d: Diagram, groupOf: Map<string, number>, direction: s
 // ---------------------------------------------------------------------------
 // grid
 
-function layoutGrid(d: Diagram, groupOf: Map<string, number>, sizeOf: SizeOf): Natural {
+function layoutGrid(d: Diagram, groupOf: Map<string, number>, sizeOf: SizeOf, labelSizeOf: LabelSizeOf): Natural {
   const hasGroups = d.groups.length > 0;
   const gapX = hasGroups ? 2 * GROUP_PAD + 12 : 20;
   const gapY = hasGroups ? GROUP_HEADER + GROUP_PAD + 8 : 18;
@@ -354,10 +379,29 @@ function layoutGrid(d: Diagram, groupOf: Map<string, number>, sizeOf: SizeOf): N
     rowH[n.grid!.row] = Math.max(rowH[n.grid!.row]!, m.h);
     if ((n.grid!.span ?? 1) === 1) colW[n.grid!.col] = Math.max(colW[n.grid!.col]!, m.w);
   }
+  // Gaps after each column and row. A labelled edge between neighbouring cells widens the gap it
+  // crosses until the label fits beside its line, plus the group padding when it leaves a group.
+  const gapsX = new Array<number>(Math.max(0, nCols - 1)).fill(gapX);
+  const gapsY = new Array<number>(Math.max(0, nRows - 1)).fill(gapY);
+  const cellOf = new Map(d.nodes.map((n) => [n.id, n.grid!]));
+  for (const [from, to, label] of d.edges) {
+    if (!label) continue;
+    const a = cellOf.get(from)!, b = cellOf.get(to)!;
+    const size = labelSizeOf(label);
+    const border = groupOf.get(from) === groupOf.get(to) ? 0 : 2 * GROUP_PAD;
+    if (a.row === b.row) {
+      const [left, right] = a.col < b.col ? [a, b] : [b, a];
+      if (left.col + (left.span ?? 1) === right.col) gapsX[right.col - 1] = Math.max(gapsX[right.col - 1]!, size.w + LABEL_CLEARANCE + border);
+    } else if (a.col === b.col && Math.abs(a.row - b.row) === 1) {
+      const upper = Math.min(a.row, b.row);
+      gapsY[upper] = Math.max(gapsY[upper]!, size.h + LABEL_CLEARANCE + border);
+    }
+  }
   const spanning = d.nodes
     .filter((n) => (n.grid!.span ?? 1) > 1)
     .sort((a, b) => a.grid!.span! - b.grid!.span! || a.grid!.col - b.grid!.col || a.grid!.row - b.grid!.row);
-  const spanWidth = (col: number, span: number) => colW.slice(col, col + span).reduce((a, b) => a + b, 0) + (span - 1) * gapX;
+  const spanWidth = (col: number, span: number) =>
+    colW.slice(col, col + span).reduce((a, b) => a + b, 0) + gapsX.slice(col, col + span - 1).reduce((a, b) => a + b, 0);
   for (const n of spanning) {
     const { col } = n.grid!;
     const span = n.grid!.span!;
@@ -369,11 +413,11 @@ function layoutGrid(d: Diagram, groupOf: Map<string, number>, sizeOf: SizeOf): N
   const rowY: number[] = [];
   for (let c = 0, x = margin; c < nCols; c++) {
     colX.push(x);
-    x += colW[c]! + gapX;
+    x += colW[c]! + (gapsX[c] ?? gapX);
   }
   for (let r = 0, y = marginTop; r < nRows; r++) {
     rowY.push(y);
-    y += rowH[r]! + gapY;
+    y += rowH[r]! + (gapsY[r] ?? gapY);
   }
   const boxes = new Map<string, Box>();
   for (const n of d.nodes) {
@@ -406,7 +450,7 @@ function layoutGrid(d: Diagram, groupOf: Map<string, number>, sizeOf: SizeOf): N
 // ---------------------------------------------------------------------------
 // Fit to the card
 
-function fitToCard(d: Diagram, mode: "auto" | "grid", n: Natural, minScale: number): LayoutResult {
+function fitToCard(d: Diagram, mode: "auto" | "grid", n: Natural, minScale: number, labelSizeOf: LabelSizeOf): LayoutResult {
   const availW = CARD.width - 2 * CARD_MARGIN, availH = CARD.height - 2 * CARD_MARGIN;
   const fit = n.width > 0 && n.height > 0 ? Math.min(1, availW / n.width, availH / n.height) : 1;
   const overflow = fit < minScale;
@@ -437,7 +481,7 @@ function fitToCard(d: Diagram, mode: "auto" | "grid", n: Natural, minScale: numb
     return { label: g.label, members: g.members, ...tb(b), label_box: tb({ x: b.x + GROUP_PAD, y: b.y + 6, w: g.label.length * SUB_CHAR, h: 12 }) };
   });
   const edges: LaidOutEdge[] = d.edges.map(([from, to, label], i) => {
-    const rt = n.routes.get(i) ?? straight(n.boxes.get(from)!, n.boxes.get(to)!, label);
+    const rt = n.routes.get(i) ?? straight(n.boxes.get(from)!, n.boxes.get(to)!, label, labelSizeOf);
     return {
       from,
       to,

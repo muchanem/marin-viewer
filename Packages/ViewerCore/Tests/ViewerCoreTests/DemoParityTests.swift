@@ -9,7 +9,7 @@ import Testing
 /// card must come out the same from `DiffVisibility` and `Blame`, apart from
 /// three deliberate differences that the tests below spell out:
 ///
-/// 1. A gap that hides changed rows reads "N hidden lines…, M changed"
+/// 1. A gap that hides changed rows names them, "N added lines…" or "N lines…, M changed",
 ///    where the demo said "N unchanged lines…".
 /// 2. An excerpt shows the deletions just before its first line. The demo's
 ///    `rangeVisible` showed those just after its last line only.
@@ -89,11 +89,13 @@ struct DemoParityTests {
             let rows = try Fixtures.expectedRows(demo.path)
             for segment in demo.segments {
                 guard let label = segment.label, let buttons = segment.buttons, let all = buttons.last else { continue }
-                let changed = rows[all.lower..<all.upper].count(where: \.isChange)
-                let ours = DiffGap(rows: all.lower..<all.upper, rowCount: rows.count, changedRows: changed).label
+                let hidden = rows[all.lower..<all.upper]
+                let changed = hidden.count(where: \.isChange)
+                let ours = DiffGap(rows: all.lower..<all.upper, rowCount: rows.count, changedRows: changed,
+                                   addedRows: hidden.count(where: { $0.kind == .added })).label
                 if changed == 0 { #expect(ours == label) } else {
                     relabelled += 1
-                    #expect(label.contains("unchanged") && ours.contains("hidden") && ours.hasSuffix("\(changed) changed"))
+                    #expect(label.contains("unchanged") && !ours.contains("unchanged") && ours.hasPrefix("\(hidden.count) "))
                 }
             }
         }
@@ -144,8 +146,12 @@ struct DemoParityTests {
         let buttons = segment.buttons ?? []
         var label = segment.label ?? ""
         if let all = buttons.last {
-            let changed = rows[all.lower..<all.upper].count(where: \.isChange)
-            if changed > 0 { label = DiffGap(rows: all.lower..<all.upper, rowCount: rows.count, changedRows: changed).label }
+            let hidden = rows[all.lower..<all.upper]
+            let changed = hidden.count(where: \.isChange)
+            if changed > 0 {
+                label = DiffGap(rows: all.lower..<all.upper, rowCount: rows.count, changedRows: changed,
+                                addedRows: hidden.count(where: { $0.kind == .added })).label
+            }
         }
         return "gap \(label) " + buttons.map { "[\($0.title) \($0.lower) \($0.upper)]" }.joined()
     }

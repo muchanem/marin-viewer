@@ -67,14 +67,16 @@ struct DiagramCanvas<Menu: View>: View {
             context.stroke(path, with: .color(.diagramEdge), lineWidth: 1)
             context.fill(arrowhead(from: points[points.count - 2], to: points[points.count - 1], size: 5 * max(scale, 0.8)),
                          with: .color(.diagramEdge))
-            if let label = edge.label, let box = edge.labelBox {
-                let text = Text(label).font(.system(size: DiagramMetrics.edgeLabelSize * scale)).foregroundColor(.viewerMuted)
-                context.fill(Path(roundedRect: box.rect.insetBy(dx: -1, dy: 0), cornerRadius: 2), with: .color(.white.opacity(0.85)))
-                context.draw(text, at: CGPoint(x: box.x + box.w / 2, y: box.y + box.h / 2), anchor: .center)
-            }
         }
         for node in layout.nodes {
             drawNode(node, style: style(node), in: &context, scale: scale)
+        }
+        // Labels last, so a label that still touches a box stays readable.
+        for edge in layout.edges {
+            guard let label = edge.label, let box = edge.labelBox else { continue }
+            let text = Text(verbatim: label).font(.system(size: DiagramMetrics.edgeLabelSize * scale)).foregroundColor(.viewerMuted)
+            context.fill(Path(roundedRect: box.rect.insetBy(dx: -1, dy: 0), cornerRadius: 2), with: .color(.white.opacity(0.85)))
+            context.draw(text, at: CGPoint(x: box.x + box.w / 2, y: box.y + box.h / 2), anchor: .center)
         }
     }
 

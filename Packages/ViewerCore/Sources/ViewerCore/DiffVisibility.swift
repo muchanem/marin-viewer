@@ -41,12 +41,15 @@ public struct DiffVisibility: Hashable, Sendable {
     public private(set) var revealed: IndexSet
     /// Added and deleted rows, so a gap can say whether it hides any.
     public let changed: IndexSet
+    /// Added rows, so a gap can say which kind of change it hides.
+    public let added: IndexSet
 
     public init(rows: [DiffRow], mode: Mode = .diff) {
         self.mode = mode
         rowCount = rows.count
         revealed = IndexSet()
         changed = IndexSet(rows.indices.filter { rows[$0].isChange })
+        added = IndexSet(rows.indices.filter { rows[$0].kind == .added })
         switch mode {
         case .diff: base = Self.diffRows(rows)
         case .excerpt(let lines): base = Self.excerptRows(rows, lines: lines)
@@ -76,7 +79,7 @@ public struct DiffVisibility: Hashable, Sendable {
             while end < rowCount, isVisible(end, wholeFile: wholeFile) == shown { end += 1 }
             let range = row..<end
             segments.append(shown ? .rows(range) : .gap(DiffGap(
-                rows: range, rowCount: rowCount, changedRows: changed.count(in: range))))
+                rows: range, rowCount: rowCount, changedRows: changed.count(in: range), addedRows: added.count(in: range))))
             row = end
         }
         return segments
@@ -163,25 +166,35 @@ public struct DiffGap: Hashable, Sendable {
     /// Added and deleted rows among the hidden ones. Only excerpt cards hide
     /// changes; a diff card shows every change with its context.
     public let changedRows: Int
+    /// Added rows among the changed ones; the rest are deletions.
+    public let addedRows: Int
 
-    public init(rows: Range<Int>, rowCount: Int, changedRows: Int = 0) {
+    public init(rows: Range<Int>, rowCount: Int, changedRows: Int = 0, addedRows: Int = 0) {
         self.rows = rows
         isAtTop = rows.lowerBound == 0
         isAtEnd = rows.upperBound == rowCount
         self.changedRows = changedRows
+        self.addedRows = min(addedRows, changedRows)
     }
 
     public var count: Int { rows.count }
 
     /// "12 unchanged lines", "1 unchanged line at the top", "40 unchanged
     /// lines to the end". A gap that is both at the top and at the end says
-    /// "at the top". A gap that hides changes says so: "124 hidden lines at
-    /// the top, 124 changed". The demo called those unchanged too.
+    /// "at the top". A gap of one kind of row names the kind: "124 added
+    /// lines at the top", "3 deleted lines", "5 changed lines" when it holds
+    /// both. A gap of context and changes counts the changes: "40 lines, 12
+    /// changed". The demo called every gap unchanged.
     public var label: String {
         let place = isAtTop ? " at the top" : isAtEnd ? " to the end" : ""
-        let plural = count == 1 ? "" : "s"
-        guard changedRows > 0 else { return "\(count) unchanged line\(plural)\(place)" }
-        return "\(count) hidden line\(plural)\(place), \(changedRows) changed"
+        let lines = count == 1 ? "line" : "lines"
+        let kind: String
+        switch changedRows {
+        case 0: kind = "unchanged"
+        case count: kind = addedRows == count ? "added" : addedRows == 0 ? "deleted" : "changed"
+        default: return "\(count) \(lines)\(place), \(changedRows) changed"
+        }
+        return "\(count) \(kind) \(lines)\(place)"
     }
 
     /// In the demo's order: Show 15 below, Show 15 above, Show all. Gaps of

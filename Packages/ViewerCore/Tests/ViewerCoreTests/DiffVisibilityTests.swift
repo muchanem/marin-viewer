@@ -100,7 +100,7 @@ struct DiffVisibilityTests {
         let segments = visibility.segments()
         #expect(segments.map(Self.shape) == ["gap 0..<3", "rows 3..<7", "gap 7..<8"])
         guard case .gap(let top) = segments[0], case .gap(let end) = segments[2] else { return }
-        #expect(top.label == "3 hidden lines at the top, 1 changed")
+        #expect(top.label == "3 lines at the top, 1 changed")
         #expect(end.label == "1 unchanged line to the end")
         #expect(visibility.excerptLines == 3...4)
 
@@ -118,10 +118,13 @@ struct DiffVisibilityTests {
         #expect(segments.map(Self.shape) == ["gap 0..<4", "rows 4..<6"])
         guard case .gap(let top) = segments[0] else { return }
         #expect(top.changedRows == 1)
-        #expect(top.label == "4 hidden lines at the top, 1 changed")
-        // One hidden changed line.
-        let one = DiffGap(rows: 3..<4, rowCount: 9, changedRows: 1)
-        #expect(one.label == "1 hidden line, 1 changed")
+        #expect(top.addedRows == 1)
+        #expect(top.label == "4 lines at the top, 1 changed")
+        // A gap of one kind of change names it; one line reads in the singular.
+        #expect(DiffGap(rows: 3..<4, rowCount: 9, changedRows: 1).label == "1 deleted line")
+        #expect(DiffGap(rows: 0..<124, rowCount: 223, changedRows: 124, addedRows: 124).label == "124 added lines at the top")
+        #expect(DiffGap(rows: 10..<15, rowCount: 20, changedRows: 5, addedRows: 2).label == "5 changed lines")
+        #expect(DiffGap(rows: 10..<50, rowCount: 60, changedRows: 12, addedRows: 12).label == "40 lines, 12 changed")
     }
 
     @Test func realExcerptOfAnAddedFile() throws {
@@ -134,7 +137,7 @@ struct DiffVisibilityTests {
         // Every hidden row is an added line. The demo said "124 unchanged
         // lines at the top" here.
         #expect(top.changedRows == 124)
-        #expect(top.label == "124 hidden lines at the top, 124 changed")
+        #expect(top.label == "124 added lines at the top")
         #expect(top.expanders.map(\.rows) == [109..<124, 0..<124])
     }
 

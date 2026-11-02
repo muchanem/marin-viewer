@@ -100,6 +100,15 @@ describe("describeUnit", () => {
     expect(r.cost_usd).toBeCloseTo(0.02);
   });
 
+  it("with salvage, keeps the valid entries of a reply that still fails validation and notes the problems", async () => {
+    const partial = JSON.stringify({ "lib/s/src/s/a.py": { l1: "Parses one header. Then it stops.", system: "s" }, "lib/s/src/s/zzz.py": { l1: "Not a target.", system: "s" } });
+    await expect(describeUnit(fake([partial, partial]), PROMPTS, ctx())).rejects.toThrow(/failed validation after one rewrite/);
+    const r = await describeUnit(fake([partial, partial]), PROMPTS, ctx(), { salvage: true });
+    expect(Object.keys(r.output)).toEqual(["lib/s/src/s/a.py"]);
+    expect(r.problems!.join("\n")).toMatch(/entries missing for lib\/s\/src\/s\/b.py/);
+    expect(r.lint.get("lib/s/src/s/a.py")).toEqual(["validation: l1 must be a single sentence"]);
+  });
+
   it("does not rewrite a clean reply", async () => {
     const b = fake([good]);
     const r = await describeUnit(b, PROMPTS, ctx());

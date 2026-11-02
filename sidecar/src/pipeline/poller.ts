@@ -3,7 +3,7 @@
 // Mark's review (and his own), commits the wordbase, and prints one summary line.
 
 import { appendFile, mkdir, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { Config } from "../config.js";
 import { commitWordbase, fileEntryPath, readEntry, saveEntry, systemEntryPath } from "../wordbase.js";
@@ -97,6 +97,24 @@ export async function pool<T, R>(items: T[], n: number, fn: (item: T, i: number)
   };
   await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
   return out;
+}
+
+/** The first pass's lock, when its process is still alive (`state/first-pass.lock`, written by `npm run first-pass`). */
+export function firstPassLock(stateDir: string): { pid: number; commit: string; started: string } | null {
+  const file = path.join(stateDir, "first-pass.lock");
+  if (!existsSync(file)) return null;
+  let lock: { pid: number; commit: string; started: string };
+  try {
+    lock = JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    return { pid: -1, commit: "unreadable", started: "unknown" }; // fail closed on a lock we cannot read
+  }
+  try {
+    process.kill(lock.pid, 0);
+    return lock;
+  } catch {
+    return null;
+  }
 }
 
 export function gapLine(lastTick: string | undefined, now: Date, intervalSec: number): string | null {
@@ -208,6 +226,14 @@ export class Poller {
       initialised: false,
     };
     if (s.gap) this.print(s.gap);
+    // Two drivers must never write one wordbase: a running first pass holds this lock.
+    const lock = firstPassLock(this.config.state);
+    if (lock) {
+      s.errors++;
+      this.print(`ERROR first pass running (pid ${lock.pid}, Marin ${lock.commit.slice(0, 7)}, since ${lock.started}); this tick does nothing`);
+      this.print(summaryLine(s, this.opts));
+      return s;
+    }
     main.last_tick = t0.toISOString();
     await writeJson(this.files.main, main);
     const error = (what: string, e: unknown) => {

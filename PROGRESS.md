@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-11-02 — The first pass of file descriptions (Claude, workstream 4)
+
+`npm run first-pass` (`sidecar/src/first-pass.ts`, scheduling in `sidecar/src/pipeline/firstpass.ts`) describes every source unit and slice at the Marin clone's `main`, then the orphan test batch, with GPT-6.1 Terra on OpenRouter's flex tier pinned to `openai/flex`. The run is resumable and has a `--dry-run` and a `--check`. It keeps a sliding window of calls in flight, a tier guard, a $35 spend cap and a lock that stops the poller from ticking. [plans/pipeline.md](plans/pipeline.md) "The first pass" covers each rule, and "Measured on 2026-11-02: the first pass" has the numbers.
+
+- `npm test`: 247 tests passed in 18 files. The new tests cover the tier guard, the spend cap, capacity retries, a burst of errors counted once, the 402 stop, resumption failing closed, the protected entries, salvage and the poller's lock. The typecheck is clean.
+- The first launch at 14:05Z sent 128 calls at once, and flex answered 502 to all of them. The window halved once per error, down to 4 within a second, but every unit kept retrying on its own. That launch was stopped with no unit done and $0 spent. Every attempt now takes a window slot, a burst of errors halves the window only once, and a capacity error pauses new calls for its backoff.
+- The second run did all 184 units in 28.0 min with none failed: 1331 source entries and 608 test entries. Nothing is missing, and no entry carries `lint:`. It cost $5.68, all on flex, against the $17.00 estimate. The OpenRouter key's daily usage matches the ledger.
+- Flex capacity limited the run. 148 calls were retried after a flex 502, and successful calls averaged 4.8 in flight.
+- The wordbase has 10 new commits, `f7f40aa` to `d5b7e76`. The 16 hand-written shellbox entries are unchanged. `check_fixture.py` keeps its baseline and adds one `system X has no entry` failure per entry whose system has no page yet (1386).
+
 ## 2026-11-02 — Full-context description prompts; tests ride with their owner unit (Claude, workstream 4)
 
 `sidecar/src/pipeline/units.ts` now builds description prompts with `ContextBuilder`, following [plans/pipeline.md](plans/pipeline.md) "Description context". Every file is given in full, with no README cut and no signature-only files. The whole prompt fits within 256K o200k tokens, counted with js-tiktoken 1.0.21 (`tokens.ts`). Imports are resolved across the whole checkout except `vendor/`, and neighbours are picked round-robin across packages. Test files are no longer units. Each test belongs to the source directory it imports the most names from, which writes the test's one-sentence `l1` in a `tests` map. Tests that import no described code go to orphan batches. The poller (`Poller.planJobs`), `prompts/describe-unit.md` and the comparison all use this builder. `npm run compare -- --estimate` sizes a full first pass without calling a model (`pass.ts`).

@@ -151,9 +151,17 @@ export interface UnitResult {
   rewriteReason: string[];
   cost_usd: number;
   latency_ms: number;
+  /** Validation problems left after the rewrite, when the reply was salvaged. */
+  problems?: string[];
 }
 
-export async function describeUnit(backend: Backend, promptsDir: string, ctx: UnitContext): Promise<UnitResult> {
+/**
+ * Describe one unit: one call, and one rewrite turn when the reply fails validation or lint. A reply
+ * that still fails validation throws, unless `salvage` is set (the first pass): then the entries the
+ * reply does hold for real targets are kept, each carrying its validation problem in `lint`, the rest
+ * are left unwritten, and `problems` lists what went wrong.
+ */
+export async function describeUnit(backend: Backend, promptsDir: string, ctx: UnitContext, opts: { salvage?: boolean } = {}): Promise<UnitResult> {
   const prompt = await renderDescribePrompt(promptsDir, ctx);
   const existing = new Set(ctx.existing.keys());
   const first = await backend.complete([{ role: "user", content: prompt }]);
@@ -177,6 +185,24 @@ export async function describeUnit(backend: Backend, promptsDir: string, ctx: Un
   }
   const cost = completions.reduce((s, c) => s + c.cost_usd, 0);
   const latency = completions.reduce((s, c) => s + c.latency_ms, 0);
+  if (opts.salvage && checked.output && checked.problems.length) {
+    const output: UnitOutput = {};
+    const lintHits = new Map(checked.lint);
+    const note = (p: string, problem: string) => lintHits.set(p, [...(lintHits.get(p) ?? []), `validation: ${problem}`]);
+    for (const [p, v] of Object.entries(checked.output)) {
+      if (!ctx.unit.targets.includes(p)) continue;
+      if ("keep" in v && !existing.has(p)) continue; // nothing to keep
+      output[p] = v;
+      for (const pr of checked.problems) if (pr.startsWith(`${p}:`)) note(p, pr.slice(p.length + 1).trim());
+    }
+    const tests: TestsOut = {};
+    for (const [p, v] of Object.entries(checked.tests)) {
+      if (!testTargets.includes(p)) continue;
+      tests[p] = v;
+      for (const pr of checked.problems) if (pr.startsWith(`tests.${p}:`)) note(p, pr.slice(p.length + 7).trim());
+    }
+    return { output, tests, lint: lintHits, completions, rewritten, rewriteReason, cost_usd: cost, latency_ms: latency, problems: checked.problems };
+  }
   if (!checked.output || checked.problems.length) {
     const err = new Error(`${backend.name} output for ${unitLabel(ctx.unit)} failed validation after one rewrite: ${checked.problems.join("; ")}`) as Error & { cost_usd?: number };
     err.cost_usd = cost;

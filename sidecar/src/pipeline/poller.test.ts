@@ -8,7 +8,7 @@ import type { Config } from "../config.js";
 import { fileEntryPath, readEntry } from "../wordbase.js";
 import type { Backend, Completion, Turn } from "./backends.js";
 import { Gh } from "./exec.js";
-import { gapLine, pool, Poller, summaryLine, DEFAULTS, type TickSummary } from "./poller.js";
+import { firstPassLock, gapLine, pool, Poller, summaryLine, DEFAULTS, type TickSummary } from "./poller.js";
 
 const PROMPTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "prompts");
 
@@ -25,6 +25,19 @@ describe("tick output", () => {
     expect(summaryLine(s, { monthlyBudgetUsd: 200 })).toBe(
       "tick 2026-11-01T12:00:00Z · main 1d274b5 (+2 fetched) · described 3 commits: 5 files in 2 units (1 kept) · systems 1 · PRs 1 prepared, 0 failed, 2 waiting of 4 listed · cost $0.43 · month $3.20 of $200 (pace $6.50) · gh 4 calls · 0 errors · 61 s",
     );
+  });
+
+  it("sees a live first pass's lock, ignores a dead one, and fails closed on an unreadable one", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "lock-"));
+    const file = path.join(dir, "first-pass.lock");
+    expect(firstPassLock(dir)).toBeNull();
+    writeFileSync(file, JSON.stringify({ pid: process.pid, commit: "abc1234", started: "t" }));
+    expect(firstPassLock(dir)?.pid).toBe(process.pid);
+    writeFileSync(file, JSON.stringify({ pid: 2 ** 22 + 12345, commit: "abc1234", started: "t" }));
+    expect(firstPassLock(dir)).toBeNull();
+    writeFileSync(file, "{not json");
+    expect(firstPassLock(dir)?.commit).toBe("unreadable");
+    rmSync(dir, { recursive: true, force: true });
   });
 
   it("runs at most n tasks at once", async () => {

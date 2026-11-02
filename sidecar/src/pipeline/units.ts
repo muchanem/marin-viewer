@@ -542,8 +542,19 @@ export class ContextBuilder {
     let tokens = this.count(`${header}\n\n${inputs}`);
     // The exact count decides: drop the last neighbour, then the last optional test, until it fits.
     while (tokens > this.budget && (neighbours.length || tests.length)) {
-      if (neighbours.length) droppedNeighbours.unshift(neighbours.pop()!);
-      else droppedTests.unshift(tests.pop()!);
+      // Drop enough at once to cover the overshoot, so a large prompt is not recounted once per module.
+      let freed = 0;
+      while (freed < tokens - this.budget && (neighbours.length || tests.length)) {
+        if (neighbours.length) {
+          const c = neighbours.pop()!;
+          droppedNeighbours.unshift(c);
+          freed += c.tokens;
+        } else {
+          const c = tests.pop()!;
+          droppedTests.unshift(c);
+          freed += c.tokens;
+        }
+      }
       inputs = await assemble();
       tokens = this.count(`${header}\n\n${inputs}`);
     }

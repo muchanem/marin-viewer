@@ -81,7 +81,7 @@ export interface QueueState {
 
 export interface SpendRecord {
   at: string;
-  kind: "describe" | "system" | "prepare" | "cold-reader" | "compare";
+  kind: "describe" | "system" | "prepare" | "cold-reader" | "compare" | "first-pass" | "probe";
   run: string;
   model: string;
   cost_usd: number;

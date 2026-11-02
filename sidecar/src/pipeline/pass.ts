@@ -53,11 +53,29 @@ function record(label: string, kind: PassPrompt["kind"], u: Unit, s: ContextStat
   };
 }
 
-export async function planPass(repo: MarinRepo, commit: string, opts: Omit<BuilderOptions, "mandatoryTests">, rules: PassRules, log: (line: string) => void = () => {}): Promise<PassPlan> {
-  const builder = new ContextBuilder(repo, commit, { ...opts, ignoreExisting: true, mandatoryTests: rules === "current" ? "owned" : "all" });
+export interface PlannedJob {
+  unit: Unit;
+  /** The directory's other files, when the unit is one slice of it. */
+  siblings: string[];
+  kind: PassPrompt["kind"];
+  label: string;
+}
+
+export interface JobPlan {
+  jobs: PlannedJob[];
+  /** Split directories and their slices' file and owned-test counts. */
+  splits: { dir: string; files: number; slices: { files: number; tests: number }[] }[];
+  overflow: number;
+  orphans: number;
+}
+
+/** The prompts of a first pass, planned but not built: every source unit or slice, then the orphan batches. */
+export async function planJobs(builder: ContextBuilder, rules: PassRules, log: (line: string) => void = () => {}): Promise<JobPlan> {
+  const commit = builder.commit;
   const dirs = await builder.sourceDirs();
   const owners = await builder.owners();
-  const plan: PassPlan = { rules, commit, budget: builder.budget, prompts: [], splits: [], overflow: 0, orphans: 0 };
+  if (!dirs.size) throw new Error(`no source directories under lib/ at ${commit}; refusing to plan an empty pass`);
+  const plan: JobPlan = { jobs: [], splits: [], overflow: 0, orphans: 0 };
   const units: { unit: Unit; kind: PassPrompt["kind"] }[] = [];
   for (const [dir, files] of [...dirs].sort(([a], [b]) => a.localeCompare(b))) {
     const owned = rules === "current" ? [...owners].filter(([, d]) => d === dir).map(([t]) => t) : [];
@@ -74,7 +92,6 @@ export async function planPass(repo: MarinRepo, commit: string, opts: Omit<Build
   }
   const orphanTests = rules === "current" ? [...owners].filter(([, d]) => d === null).map(([t]) => t) : [];
   plan.orphans = orphanTests.length;
-  let n = 0;
   for (const { unit, kind } of units) {
     const planned = await builder.plan(unit);
     if (rules === "current") {
@@ -82,22 +99,31 @@ export async function planPass(repo: MarinRepo, commit: string, opts: Omit<Build
       orphanTests.push(...lost);
       plan.overflow += lost.length;
     }
-    const sliceRecords: PassPlan["splits"][number]["slices"] = [];
-    for (const u of planned.units) {
-      const siblings = planned.units.length > 1 ? unit.files.filter((f) => !u.files.includes(f)) : [];
-      const ctx = await builder.build(u, { siblings });
-      plan.prompts.push(record(unitLabel(u), kind, u, ctx.stats));
-      sliceRecords.push({ files: u.files.length, tests: (u.tests ?? []).length, tokens: ctx.stats.tokens });
-    }
+    for (const u of planned.units) plan.jobs.push({ unit: u, siblings: planned.units.length > 1 ? unit.files.filter((f) => !u.files.includes(f)) : [], kind, label: unitLabel(u) });
     if (planned.units.length > 1) {
-      plan.splits.push({ dir: unit.dir, files: unit.files.length, slices: sliceRecords });
-      log(`split ${unit.dir}: ${sliceRecords.map((r) => `${r.files} files + ${r.tests} tests = ${r.tokens} tokens`).join("; ")}`);
+      plan.splits.push({ dir: unit.dir, files: unit.files.length, slices: planned.units.map((u) => ({ files: u.files.length, tests: (u.tests ?? []).length })) });
+      log(`split ${unit.dir}: ${planned.units.map((u) => `${u.files.length} files + ${(u.tests ?? []).length} tests`).join("; ")}`);
     }
-    if (++n % 25 === 0) log(`${rules}: ${n} of ${units.length} units sized`);
   }
-  for (const b of await builder.orphanBatches([...new Set(orphanTests)].sort())) {
-    const ctx = await builder.build(b);
-    plan.prompts.push(record(unitLabel(b), "orphans", b, ctx.stats));
+  for (const b of await builder.orphanBatches([...new Set(orphanTests)].sort())) plan.jobs.push({ unit: b, siblings: [], kind: "orphans", label: unitLabel(b) });
+  return plan;
+}
+
+export async function planPass(repo: MarinRepo, commit: string, opts: Omit<BuilderOptions, "mandatoryTests">, rules: PassRules, log: (line: string) => void = () => {}): Promise<PassPlan> {
+  const builder = new ContextBuilder(repo, commit, { ...opts, ignoreExisting: true, mandatoryTests: rules === "current" ? "owned" : "all" });
+  const jobs = await planJobs(builder, rules, log);
+  const plan: PassPlan = { rules, commit, budget: builder.budget, prompts: [], splits: [], overflow: jobs.overflow, orphans: jobs.orphans };
+  const tokensBy = new Map<string, number>();
+  let n = 0;
+  for (const j of jobs.jobs) {
+    const ctx = await builder.build(j.unit, { siblings: j.siblings });
+    plan.prompts.push(record(j.label, j.kind, j.unit, ctx.stats));
+    tokensBy.set(j.label, ctx.stats.tokens);
+    if (++n % 25 === 0) log(`${rules}: ${n} of ${jobs.jobs.length} prompts sized`);
+  }
+  for (const sp of jobs.splits) {
+    const slices = jobs.jobs.filter((j) => j.unit.dir === sp.dir && j.unit.slice && j.kind !== "orphans");
+    plan.splits.push({ dir: sp.dir, files: sp.files, slices: slices.map((j) => ({ files: j.unit.files.length, tests: (j.unit.tests ?? []).length, tokens: tokensBy.get(j.label) ?? 0 })) });
   }
   return plan;
 }

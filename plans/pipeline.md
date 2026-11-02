@@ -261,6 +261,68 @@ Three failures turned up on 2026-11-01 and are fixed.
 - Wrong timestamps. The model wrote local times marked `Z` in `prepared_at` and `updated`. The
   poller now sets both from its own clock.
 
+## The first pass
+
+`npm run first-pass` (`first-pass.ts`, with the scheduling in `pipeline/firstpass.ts`) describes every
+source unit and slice at the clone's current `main`, then the orphan test batch. It writes no subsystem
+pages; those wait for a model decision.
+
+- **Model.** GPT-6.1 Terra at effort medium, `service_tier: "flex"`, pinned with
+  `provider: { only: ["openai/flex"], allow_fallbacks: false }`. OpenRouter's Service Tiers guide says
+  a flex request falls back only to endpoints priced at or below flex, and the pin rules even that
+  out. A probe on 2026-11-02 was served `flex`, and its generation record's
+  `routed_service_tier` was `flex`.
+- **Tier guard.** As a second line of defence, any call served on another tier stops new units.
+  The run prints `ERROR tier`, lets the units in flight finish, and exits with status `tier`.
+- **Window.** A sliding window of calls in flight starts at 128 (Mark, 2026-11-02). After a full
+  window of clean calls whose median latency is within twice the first round's, it grows by half, up
+  to 256. A capacity error (429, 5xx, a flex capacity error or a dropped stream) halves it and is
+  retried with backoff of 5 s doubling, capped at 120 s, up to 8 attempts. A 402 stops the run.
+  Eight failed units in a row with no success between them stop it too.
+  - Every attempt takes a slot, retries included, so a halved window really holds the calls in flight
+    to the new size. A capacity error also pauses new calls for its backoff.
+  - Errors from one burst count once. A call carries the epoch it started in, and only an error from
+    the current epoch halves the window. The first live run (14:05Z) lacked both: 128 calls hit
+    `502 Flex processing is temporarily unavailable` together, halved the window to 4 within a second,
+    and still retried all 128 every few seconds.
+- **Spend cap.** No unit starts once reported spend (`usage.cost`) reaches `--cap`, $35 by default.
+  Every 10 units, a progress line compares spend against the estimate for the units done.
+- **Validation.** One rewrite turn per unit, then `salvage`. The entries the reply holds for real
+  targets are written, each carrying its validation problem in `lint:`. Files the reply left out stay
+  missing and are named by the completion check.
+- **Protected entries.** An entry whose `by:` does not name a model run (`isGenerated`) is never
+  overwritten. The 16 hand-written shellbox entries of the #10640 fixture stay as context.
+- **Resume.** A unit is done when every file it owns has an entry at the pass's commit. The state file
+  `state/runs/first-pass-<sha7>.json` records each unit's status. A unit recorded as done that no
+  longer reads as done stops the run before it starts, and so does a wordbase that lists nothing.
+- **Lock.** `state/first-pass.lock` holds the pid. The poller does nothing while that process lives.
+- **Output.** Each unit adds one log line to `state/runs/first-pass-<sha7>.log`. A `GAP` line appears
+  after 5 minutes with no unit finishing. The wordbase is committed every 20 units, after
+  `check_fixture.py --entry` over the batch. Failures of `system X has no entry` are only counted,
+  since this pass writes no subsystem pages. Every other failure is printed as an `ERROR` line.
+- **Completion check.** At the end, and with `--check`, the run counts source and test files with
+  entries at the commit against the files expected, and names each missing file with its unit's
+  reason.
+
+## Measured on 2026-11-02: the first pass at 1d274b5
+
+- **Result.** 184 of 184 units done and 0 failed, in 28.0 min (14:09:29Z to 14:37:32Z). The completion
+  check counts 1331 source entries written plus the 16 hand-written ones, of 1347 expected, and 608 of
+  608 test entries. Nothing is missing, and no entry carries `lint:`. 50 units took the rewrite turn.
+  None kept a validation problem.
+- **Spend.** $5.68 reported, all served on flex, against the $17.00 estimate. The early, smaller
+  units ran at about 15% of their estimate, and the whole pass at 33%. The OpenRouter key's
+  `usage_daily` matched the ledger to the cent ($7.379 for the day), so `usage.cost` is the real charge.
+- **Flex capacity.** The flex endpoint is the bottleneck, and the window cannot raise it. 148 calls got
+  `502 Flex processing is temporarily unavailable` and were retried. The window spent the run between
+  4 and 9, and 12 was the most it reached after the opening collapse. Successful calls averaged 4.8
+  in flight. Call latency was 27 s at the median, 64 s at p90 and 122 s at most. 234 calls served
+  184 units. A unit took 158 s at the median, retries included.
+- **Wordbase.** Ten commits, `f7f40aa` to `d5b7e76`. The shellbox fixture's 16 hand-written entries
+  are unchanged. `check_fixture.py` over the whole wordbase still gives the 2 WARN and 2 MISMATCH
+  lines of the baseline. It adds 1386 failures of `system X has no entry`, one for each entry whose
+  system has no page yet, since this pass writes none.
+
 ## Measured on 2026-11-02: full context
 
 - **Comparison.** GPT-6.1 Terra (effort medium, priority) on the same 4 units with the full context:

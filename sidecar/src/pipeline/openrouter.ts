@@ -18,6 +18,23 @@ export interface OpenRouterOptions {
   log?: (line: string) => void;
   /** Attempts for a 429 or 5xx answered before any output. */
   attempts?: number;
+  /**
+   * OpenRouter's provider routing object, sent as `provider`. The first pass pins the flex endpoint
+   * with `{ only: ["openai/flex"], allow_fallbacks: false }` so a request cannot be served, and
+   * billed, on another tier.
+   */
+  provider?: Record<string, unknown>;
+}
+
+/** A failed OpenRouter request, with the HTTP status (or the code of an error sent inside the stream). */
+export class OpenRouterError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null,
+    readonly code: string | null = null,
+  ) {
+    super(message);
+  }
 }
 
 export interface OpenRouterUsage {
@@ -46,7 +63,8 @@ export function parseOpenRouter(body: string): OpenRouterReply {
   const take = (doc: Record<string, unknown>, delta: boolean): void => {
     if (doc.error) {
       const e = doc.error as { code?: unknown; message?: unknown };
-      throw new Error(`OpenRouter error ${String(e.code ?? "")}: ${String(e.message ?? JSON.stringify(doc.error)).slice(0, 300)}`);
+      const code = e.code === undefined || e.code === null ? null : String(e.code);
+      throw new OpenRouterError(`OpenRouter error ${code ?? ""}: ${String(e.message ?? JSON.stringify(doc.error)).slice(0, 300)}`, /^\d{3}$/.test(code ?? "") ? Number(code) : null, code);
     }
     if (typeof doc.id === "string") out.id ??= doc.id;
     if (typeof doc.model === "string") out.model ??= doc.model;
@@ -98,6 +116,7 @@ export class OpenRouterBackend implements Backend {
       stream: true,
       ...(this.opts.tier ? { service_tier: this.opts.tier } : {}),
       ...(this.opts.effort ? { reasoning: { effort: this.opts.effort } } : {}),
+      ...(this.opts.provider ? { provider: this.opts.provider } : {}),
       ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
     };
   }
@@ -119,7 +138,7 @@ export class OpenRouterBackend implements Backend {
         reply = parseOpenRouter(text);
         break;
       }
-      if (!(r.status === 429 || r.status >= 500) || attempt >= attempts) throw new Error(`OpenRouter answered ${r.status}: ${text.slice(0, 300)}`);
+      if (!(r.status === 429 || r.status >= 500) || attempt >= attempts) throw new OpenRouterError(`OpenRouter answered ${r.status}: ${text.slice(0, 300)}`, r.status);
       this.log(`openrouter: ${r.status}, retrying (${attempt} of ${attempts})`);
       await this.sleep(2_000 * 2 ** (attempt - 1));
     }
